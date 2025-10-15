@@ -1,6 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { useCart } from '@/contexts/CartContext';
 
 export default function Header({
   welcome,
@@ -13,6 +14,8 @@ export default function Header({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { getTotalItems } = useCart();
+  const total = getTotalItems();
 
   const toggleLang = () => {
     const newLang = currentLang === 'fr' ? 'en' : 'fr';
@@ -33,9 +36,25 @@ export default function Header({
         <Link href={`/${currentLang}/contact`}>{nav.contact}</Link>
       </nav>
 
-      <button onClick={toggleLang} className="ml-4 bg-white text-amber-700 px-3 py-1 rounded">
-        {currentLang.toUpperCase()}
-      </button>
+      <div className="flex items-center gap-3">
+        {/* PANIER */}
+        <Link href={`/${currentLang}/cart`} className="relative">
+          <span className="text-2xl">🛒</span>
+          {total > 0 && (
+            <span className="absolute -top-1 -right-2 bg-red-500 text-white text-xs rounded-full px-2 py-0.5">
+              {total}
+            </span>
+          )}
+        </Link>
+
+        {/* LANGUE */}
+        <button
+          onClick={toggleLang}
+          className="bg-white text-amber-700 px-3 py-1 rounded"
+        >
+          {currentLang.toUpperCase()}
+        </button>
+      </div>
     </header>
   );
 }

@@ -3,6 +3,7 @@ import { languages } from '@/i18n/settings';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import './globals.css';
+import { CartProvider } from '@/contexts/CartContext';
 
 export async function generateStaticParams() {
   return languages.map((lng) => ({ lng }));
@@ -38,12 +39,14 @@ export default async function RootLayout({
   console.log('headerNav object =', headerNav);
 
   return (
-    <html lang={lng}>
-      <body className="flex flex-col min-h-screen">
-        <Header nav={headerNav} welcome={t('welcome')} currentLang={lng} />
-        <main className="flex-1">{children}</main>
-        <Footer txt={footerTxt} />
-      </body>
-    </html>
+    <CartProvider>
+      <html lang={lng} suppressHydrationWarning={true}>
+        <body className="flex flex-col min-h-screen">
+          <Header nav={headerNav} welcome={t('welcome')} currentLang={lng} />
+          <main className="flex-1">{children}</main>
+          <Footer txt={footerTxt} />
+        </body>
+      </html>
+    </CartProvider>
   );
 }

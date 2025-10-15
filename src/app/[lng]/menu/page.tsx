@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { initI18next } from '@/i18n';
 import { languages } from '@/i18n/settings';
 
@@ -25,7 +26,11 @@ export default async function MenuPage({ params }: { params: Promise<{ lng: stri
             {data.dishes
               .filter((d) => d.category === cat._id.toString())
               .map((d) => (
-                <div key={d._id} className="bg-white rounded p-4 shadow">
+                <Link
+                  key={d._id}
+                  href={`/${lng}/menu/${d.id}`}
+                  className="block bg-white rounded p-4 shadow hover:shadow-lg transition"
+                >
                   <div className="flex justify-between items-center">
                     <span className="font-medium">{d.name[lng]}</span>
                     <span className="text-amber-700 font-semibold">
@@ -33,9 +38,11 @@ export default async function MenuPage({ params }: { params: Promise<{ lng: stri
                       {d.price.half && ` / ${d.price.half} F (demi)`}
                     </span>
                   </div>
-                  {d.spicy && <span className="text-xs text-red-600">🌶️ Épicé</span>}
-                  {d.vegetarian && <span className="text-xs text-green-600">🌿 Végé</span>}
-                </div>
+                  <div className="mt-1 space-x-2">
+                    {d.spicy && <span className="text-xs text-red-600">🌶️ Épicé</span>}
+                    {d.vegetarian && <span className="text-xs text-green-600">🌿 Végé</span>}
+                  </div>
+                </Link>
               ))}
           </div>
         </section>
