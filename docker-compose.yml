@@ -1,0 +1,70 @@
+version: '3.8'
+
+services:
+  # Base de données PostgreSQL
+  database:
+    image: postgres:15-alpine
+    container_name: delices_etoiles_db
+    environment:
+      POSTGRES_DB: delices_etoiles
+      POSTGRES_USER: restaurant_user
+      POSTGRES_PASSWORD: restaurant_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init:/docker-entrypoint-initdb.d
+    networks:
+      - restaurant_network
+
+  # Backend API
+  backend:
+    build: ./backend
+    container_name: delices_etoiles_backend
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://restaurant_user:restaurant_password@database:5432/delices_etoiles
+      JWT_SECRET: votre_super_secret_jwt_ici
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    depends_on:
+      - database
+    networks:
+      - restaurant_network
+    restart: unless-stopped
+
+  # Frontend Web
+  frontend:
+    build: ./frontend-web
+    container_name: delices_etoiles_frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - restaurant_network
+    restart: unless-stopped
+
+  # pgAdmin pour gérer la base de données (optionnel)
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: delices_etoiles_pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@delices-etoiles.com
+      PGADMIN_DEFAULT_PASSWORD: admin123
+    ports:
+      - "5050:80"
+    depends_on:
+      - database
+    networks:
+      - restaurant_network
+
+volumes:
+  postgres_data:
+
+networks:
+  restaurant_network:
+    driver: bridge
