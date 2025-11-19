@@ -16,39 +16,45 @@ services:
       - ./database/init:/docker-entrypoint-initdb.d
     networks:
       - restaurant_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U restaurant_user -d delices_etoiles"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-  # Backend API
+  # Backend API - CONFIGURATION OPTIMISÉE
   backend:
-    build: ./backend
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+      args:
+        NODE_ENV: development
     container_name: delices_etoiles_backend
     environment:
-      NODE_ENV: development
-      DATABASE_URL: postgresql://restaurant_user:restaurant_password@database:5432/delices_etoiles
-      JWT_SECRET: votre_super_secret_jwt_ici
+      - NODE_ENV=development
+      - DB_HOST=database
+      - DB_PORT=5432
+      - DB_NAME=delices_etoiles
+      - DB_USER=restaurant_user
+      - DB_PASSWORD=restaurant_password
+      - JWT_SECRET=restaurant_delices_etoiles_secret_key_123456
+      - PORT=3001
     ports:
       - "3001:3001"
     volumes:
-      - ./backend:/app
-      - /app/node_modules
+      - ./backend/src:/app/src:rw
+      - ./backend/package.json:/app/package.json:rw
+      - ./backend/package-lock.json:/app/package-lock.json:rw
+    working_dir: /app
     depends_on:
-      - database
+      database:
+        condition: service_healthy
     networks:
       - restaurant_network
     restart: unless-stopped
+    command: npm run dev
 
-  # Frontend Web
-  frontend:
-    build: ./frontend-web
-    container_name: delices_etoiles_frontend
-    ports:
-      - "3000:80"
-    depends_on:
-      - backend
-    networks:
-      - restaurant_network
-    restart: unless-stopped
-
-  # pgAdmin pour gérer la base de données (optionnel)
+  # pgAdmin
   pgadmin:
     image: dpage/pgadmin4
     container_name: delices_etoiles_pgadmin

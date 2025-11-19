@@ -1,38 +1,28 @@
-# 🍽️ Délices Étoiles - Application Restaurant
+# 🍽️ Délices Étoiles - Restaurant
 
-Application web et mobile moderne pour la gestion des réservations et commandes du restaurant Délices Étoiles.
+Application complète de gestion de restaurant avec API backend et base de données PostgreSQL.
 
-## 🚀 Fonctionnalités
+## 🚀 Stack Technique
 
-- 📅 Système de réservations en ligne
-- 📱 Commandes via QR code
-- 💳 Paiements intégrés
-- 🌍 Interface multilingue
-- 📊 Dashboard administrateur
+- **Backend**: Node.js, Express, PostgreSQL
+- **Conteneurisation**: Docker, Docker Compose
+- **Base de données**: PostgreSQL avec pgAdmin
+- **Environnement**: Développement avec hot-reload
 
-## 🛠️ Technologies
+## 📋 Prérequis
 
-- **Backend**: Node.js, Express.js, PostgreSQL
-- **Frontend Web**: React.js, TypeScript
-- **Mobile**: React Native
-- **Base de données**: PostgreSQL
-- **Conteneurisation**: Docker
+- Docker
+- Docker Compose
 
-## 📦 Installation
-
-### Prérequis
-- Docker et Docker Compose
-- Node.js 18+ (pour le développement)
-
-### Démarrage rapide
+## 🛠️ Installation et Démarrage
 
 ```bash
-# Cloner le projet
-git clone https://github.com/ksorel/delices-etoiles.git
+# Cloner le repository
+git clone https://github.com/votre-username/delices-etoiles.git
 cd delices-etoiles
 
-# Copier le fichier d'environnement
-cp .env.example .env
-
-# Démarrer avec Docker
+# Démarrer les services
 docker-compose up -d
+
+# Vérifier le statut
+docker-compose ps

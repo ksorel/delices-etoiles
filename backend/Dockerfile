@@ -1,18 +1,23 @@
-# Image de base Node.js
 FROM node:20-alpine
 
-# Définir le répertoire de travail dans le conteneur
+# Arguments pour le cache
+ARG NODE_ENV=development
+ENV NODE_ENV=${NODE_ENV}
+
 WORKDIR /app
 
-# Copier les fichiers de configuration
+# Copier uniquement les fichiers de dépendances d'abord (optimisation cache)
 COPY package*.json ./
-COPY . .
 
-# Installer les dépendances
-RUN npm ci --only=production
+# Installation des dépendances
+RUN if [ "$NODE_ENV" = "development" ]; \
+    then npm install; \
+    else npm install --only=production; \
+    fi
 
-# Exposer le port 3001
+# Le code source sera monté via le volume
+# COPY . .  ← SUPPRIMÉ car géré par le volume
+
 EXPOSE 3001
 
-# Commande de démarrage
-CMD ["npm", "start"]
+CMD ["npm", "run", "dev"]
