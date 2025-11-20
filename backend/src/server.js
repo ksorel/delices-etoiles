@@ -1,7 +1,15 @@
-const express = require("express");
-const cors = require("cors");
-const helmet = require("helmet");
-require("dotenv").config();
+// backend/src/server.js
+import express from 'express';
+import cors from 'cors';
+import helmet from 'helmet';
+import dotenv from 'dotenv';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+
+dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -10,47 +18,35 @@ const PORT = process.env.PORT || 3001;
 app.use(helmet());
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-// Import des routes
-const userRoutes = require("./routes/users");
-const dishRoutes = require("./routes/dishes");
-
-// Routes de base
-app.get("/api/health", (req, res) => {
-  res.json({
-    status: "OK",
-    message: "Délices Étoiles API is running",
-    timestamp: new Date().toISOString(),
+// Route de santé
+app.get('/api/health', (req, res) => {
+  res.json({ 
+    status: 'OK', 
+    message: 'Délices Étoiles API is running',
+    timestamp: new Date().toISOString()
   });
 });
 
-app.get("/api", (req, res) => {
-  res.json({
-    message: "Bienvenue sur l'API Délices Étoiles",
-    version: "1.0.0",
-    endpoints: [
-      "GET /api/health - Santé de l'API",
-      "GET /api/users - Liste des utilisateurs",
-      "GET /api/users/:id - Détails d'un utilisateur",
-      "GET /api/dishes - Liste des plats",
-      "GET /api/dishes/:id - Détails d'un plat",
-      "GET /api/dishes/category/:category - Plats par catégorie",
-    ],
-  });
+// Routes principales
+app.use('/api/auth', (req, res) => {
+  res.json({ message: 'Auth endpoints will be here' });
 });
 
-// Utilisation des routes
-app.use("/api/users", userRoutes);
-app.use("/api/dishes", dishRoutes);
-
-// Gestion des erreurs 404
-app.use("*", (req, res) => {
-  res.status(404).json({ error: "Route not found" });
+// Gestion des erreurs
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ error: 'Something went wrong!' });
 });
 
-// Démarrage du serveur
+// 404 Handler
+app.use('*', (req, res) => {
+  res.status(404).json({ error: 'Route not found' });
+});
+
 app.listen(PORT, () => {
-  console.log(`🚀 Serveur Délices Étoiles démarré sur le port ${PORT}`);
-  console.log(`📊 Environnement: ${process.env.NODE_ENV}`);
-  console.log(`🕒 Heure de démarrage: ${new Date().toISOString()}`);
+  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`📊 Environment: ${process.env.NODE_ENV}`);
+  console.log(`🔗 Health check: http://localhost:${PORT}/api/health`);
 });

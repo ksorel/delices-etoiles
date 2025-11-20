@@ -1,22 +1,31 @@
-const { Pool } = require("pg");
+// backend/src/config/database.js
+import knex from 'knex';
+import dotenv from 'dotenv';
 
-const pool = new Pool({
-  host: process.env.DB_HOST || "database",
-  port: process.env.DB_PORT || 5432,
-  database: process.env.DB_NAME || "delices_etoiles",
-  user: process.env.DB_USER || "restaurant_user",
-  password: process.env.DB_PASSWORD || "restaurant_password",
-  max: 20,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
-});
+dotenv.config();
 
-pool.on("connect", () => {
-  console.log("✅ Connexion à PostgreSQL établie");
-});
+const dbConfig = {
+  client: 'pg',
+  connection: process.env.DATABASE_URL || {
+    host: process.env.DB_HOST || 'localhost',
+    port: process.env.DB_PORT || 5432,
+    user: process.env.DB_USER || 'restaurant_user',
+    password: process.env.DB_PASSWORD || 'restaurant_password',
+    database: process.env.DB_NAME || 'delices_etoiles'
+  },
+  migrations: {
+    directory: './migrations'
+  },
+  seeds: {
+    directory: './seeds'
+  }
+};
 
-pool.on("error", (err) => {
-  console.error("❌ Erreur de connexion PostgreSQL:", err);
-});
+const db = knex(dbConfig);
 
-module.exports = pool;
+// Test connection
+db.raw('SELECT 1')
+  .then(() => console.log('✅ Database connected successfully'))
+  .catch(err => console.error('❌ Database connection failed:', err));
+
+export default db;
