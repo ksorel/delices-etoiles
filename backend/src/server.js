@@ -6,7 +6,8 @@ import dotenv from 'dotenv';
 
 // Routes
 import authRoutes from './routes/auth.js';
-import menuRoutes from './routes/menu.js';  // ← AJOUT
+import menuRoutes from './routes/menu.js';
+import orderRoutes from './routes/orders.js';
 
 dotenv.config();
 
@@ -21,7 +22,8 @@ app.use(express.urlencoded({ extended: true }));
 
 // Routes
 app.use('/api/auth', authRoutes);
-app.use('/api/menu', menuRoutes);  // ← AJOUT
+app.use('/api/menu', menuRoutes);
+app.use('/api/orders', orderRoutes);
 
 // Route de santé
 app.get('/api/health', (req, res) => {
