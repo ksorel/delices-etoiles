@@ -1,31 +1,33 @@
 // backend/src/config/database.js
 import knex from 'knex';
-import dotenv from 'dotenv';
+import knexConfig from '../../knexfile.js';
 
-dotenv.config();
+const environment = process.env.NODE_ENV || 'development';
+const config = knexConfig[environment];
 
-const dbConfig = {
-  client: 'pg',
-  connection: process.env.DATABASE_URL || {
-    host: process.env.DB_HOST || 'localhost',
-    port: process.env.DB_PORT || 5432,
-    user: process.env.DB_USER || 'restaurant_user',
-    password: process.env.DB_PASSWORD || 'restaurant_password',
-    database: process.env.DB_NAME || 'delices_etoiles'
-  },
-  migrations: {
-    directory: './migrations'
-  },
-  seeds: {
-    directory: './seeds'
+// Surcharger la configuration pour utiliser localhost en développement
+const developmentConfig = {
+  ...config,
+  connection: {
+    host: 'localhost',
+    port: 5432,
+    user: 'restaurant_user',
+    password: 'restaurant_password',
+    database: 'delices_etoiles'
   }
 };
 
-const db = knex(dbConfig);
+const db = knex(environment === 'development' ? developmentConfig : config);
 
 // Test connection
 db.raw('SELECT 1')
   .then(() => console.log('✅ Database connected successfully'))
-  .catch(err => console.error('❌ Database connection failed:', err));
+  .catch(err => {
+    console.error('❌ Database connection failed:', err.message);
+    // Ne pas quitter le processus en développement
+    if (process.env.NODE_ENV === 'production') {
+      process.exit(1);
+    }
+  });
 
 export default db;
