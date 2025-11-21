@@ -1,3 +1,31 @@
-﻿@tailwind base;
+﻿@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300&display=swap');
+
+@tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Styles de base élégants */
+@layer base {
+  html {
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Playfair Display', serif;
+  }
+}
+
+/* Composants personnalisés */
+@layer components {
+  .btn-primary {
+    @apply bg-primary-600 text-primary-50 px-6 py-3 rounded-lg hover:bg-primary-700 transition-all duration-300 transform hover:scale-105 font-semibold shadow-lg;
+  }
+  
+  .btn-secondary {
+    @apply border-2 border-primary-400 text-primary-600 px-6 py-3 rounded-lg hover:bg-primary-400 hover:text-primary-900 transition-all duration-300 font-medium;
+  }
+  
+  .card-elegant {
+    @apply bg-white rounded-xl shadow-md border border-primary-100 overflow-hidden hover:shadow-lg transition-shadow duration-300;
+  }
+}

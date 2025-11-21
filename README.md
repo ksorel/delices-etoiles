@@ -26,3 +26,9 @@ docker-compose up -d
 
 # Vérifier le statut
 docker-compose ps
+
+## 📚 Documentation des Sprints
+
+- [🏗️ Sprint 0 - Initialisation & Architecture](docs/SPRINT-0.md)
+- [🔐 Sprint 1 - Authentification & Système de Commandes](docs/SPRINT-1.md) 
+- [🚀 Sprint 2 - Frontend React & Interface Client](docs/SPRINT-2.md)

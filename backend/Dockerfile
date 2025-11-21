@@ -15,8 +15,8 @@ RUN if [ "$NODE_ENV" = "development" ]; \
     else npm install --only=production; \
     fi
 
-# Le code source sera monté via le volume
-# COPY . .  ← SUPPRIMÉ car géré par le volume
+# COPIER LE CODE SOURCE (supprimer la ligne commentée)
+COPY . .
 
 EXPOSE 3001
 
