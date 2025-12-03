@@ -1,0 +1,211 @@
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { CartProvider, useCart } from '../../contexts/CartContext';
+import Cart from '../Cart';
+import { BrowserRouter, useNavigate } from 'react-router-dom';
+import userEvent from '@testing-library/user-event';
+
+// Mock pour react-router-dom
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual('react-router-dom');
+  return {
+    ...actual,
+    useNavigate: vi.fn(),
+  };
+});
+
+// Mock pour le contexte CartContext
+const mockCartItems = [
+  {
+    id: '1',
+    name: 'Riz Tchép au Poulet',
+    price: 4500,
+    type: 'dish',
+    description: 'Riz parfumé avec poulet braisé',
+    quantity: 2,
+  },
+  {
+    id: '2', 
+    name: 'Bissap Frais',
+    price: 2000,
+    type: 'drink',
+    description: 'Jus d\'hibiscus frais',
+    quantity: 1,
+  },
+];
+
+const mockUseCart = {
+  cartItems: mockCartItems,
+  removeFromCart: vi.fn(),
+  updateQuantity: vi.fn(),
+  getCartTotal: vi.fn(() => 11000), // 2x4500 + 1x2000 = 11000
+  clearCart: vi.fn(),
+  increaseQuantity: vi.fn(),
+  decreaseQuantity: vi.fn(),
+};
+
+vi.mock('../../contexts/CartContext', async () => {
+  const actual = await vi.importActual('../../contexts/CartContext');
+  return {
+    ...actual,
+    useCart: () => mockUseCart,
+  };
+});
+
+const renderCart = (cartItems = mockCartItems) => {
+  const navigate = vi.fn();
+  vi.mocked(useNavigate).mockReturnValue(navigate);
+
+  return {
+    ...render(
+      <CartProvider>
+        <BrowserRouter>
+          <Cart />
+        </BrowserRouter>
+      </CartProvider>
+    ),
+    navigate,
+  };
+};
+
+describe('Cart Page', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUseCart.cartItems = [...mockCartItems];
+    mockUseCart.getCartTotal.mockReturnValue(11000);
+  });
+
+  describe('Empty Cart State', () => {
+    it('displays empty cart message when cart is empty', () => {
+      mockUseCart.cartItems = [];
+      
+      renderCart([]);
+
+      expect(screen.getByText('Votre panier est vide')).toBeInTheDocument();
+      expect(screen.getByText('Découvrir notre menu')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Découvrir notre menu' })).toBeInTheDocument();
+    });
+
+    it('navigates to menu when "Découvrir notre menu" is clicked', async () => {
+      mockUseCart.cartItems = [];
+      const { navigate } = renderCart([]);
+      const user = userEvent.setup();
+
+      const menuButton = screen.getByRole('button', { name: 'Découvrir notre menu' });
+      await user.click(menuButton);
+
+      expect(navigate).toHaveBeenCalledWith('/menu');
+    });
+  });
+
+  describe('Cart with Items', () => {
+    it('displays cart items correctly', () => {
+      renderCart();
+
+      expect(screen.getByText('Votre Panier')).toBeInTheDocument();
+      expect(screen.getByText('3 articles dans votre panier')).toBeInTheDocument();
+      
+      expect(screen.getByText('Riz Tchép au Poulet')).toBeInTheDocument();
+      expect(screen.getByText('Bissap Frais')).toBeInTheDocument();
+      
+      expect(screen.getByText('4500 XOF')).toBeInTheDocument();
+      expect(screen.getByText('2000 XOF')).toBeInTheDocument();
+    });
+
+    it('displays correct quantities', () => {
+      renderCart();
+
+      const quantityDisplays = screen.getAllByText('2');
+      expect(quantityDisplays.length).toBeGreaterThan(0);
+    });
+
+    it('calculates and displays totals correctly', () => {
+      renderCart();
+
+      expect(screen.getByText('Sous-total')).toBeInTheDocument();
+      expect(screen.getByText('11000 XOF')).toBeInTheDocument();
+      expect(screen.getByText('1500 XOF')).toBeInTheDocument(); // Frais livraison
+      expect(screen.getByText('12500 XOF')).toBeInTheDocument(); // Total
+    });
+  });
+
+  describe('Cart Interactions', () => {
+    it('calls decreaseQuantity when minus button is clicked', async () => {
+      renderCart();
+      const user = userEvent.setup();
+
+      const minusButtons = screen.getAllByRole('button', { name: /réduire la quantité/i });
+      await user.click(minusButtons[0]);
+
+      expect(mockUseCart.decreaseQuantity).toHaveBeenCalledWith('1', 'dish');
+    });
+
+    it('calls increaseQuantity when plus button is clicked', async () => {
+      renderCart();
+      const user = userEvent.setup();
+
+      const plusButtons = screen.getAllByRole('button', { name: /augmenter la quantité/i });
+      await user.click(plusButtons[0]);
+
+      expect(mockUseCart.increaseQuantity).toHaveBeenCalledWith('1', 'dish');
+    });
+
+    it('calls removeFromCart when delete button is clicked', async () => {
+      renderCart();
+      const user = userEvent.setup();
+
+      const deleteButtons = screen.getAllByText('Supprimer');
+      await user.click(deleteButtons[0]);
+
+      expect(mockUseCart.removeFromCart).toHaveBeenCalledWith('1', 'dish');
+    });
+
+    it('calls clearCart when "Vider tout le panier" is clicked', async () => {
+      renderCart();
+      const user = userEvent.setup();
+
+      const clearButton = screen.getByText('Vider tout le panier');
+      await user.click(clearButton);
+
+      expect(mockUseCart.clearCart).toHaveBeenCalled();
+    });
+
+    it('handles checkout button click', async () => {
+      const { container } = renderCart();
+      const user = userEvent.setup();
+
+      const checkoutButton = screen.getByRole('button', { name: /passer commande/i });
+      await user.click(checkoutButton);
+
+      // Vérifie que le bouton change d'état
+      expect(screen.getByText('Traitement...')).toBeInTheDocument();
+    });
+
+    it('navigates to menu when "Continuer mes achats" is clicked', async () => {
+      const { navigate } = renderCart();
+      const user = userEvent.setup();
+
+      const continueButton = screen.getByRole('button', { name: 'Continuer mes achats' });
+      await user.click(continueButton);
+
+      expect(navigate).toHaveBeenCalledWith('/menu');
+    });
+  });
+
+  describe('Order Summary', () => {
+    it('displays delivery information', () => {
+      renderCart();
+
+      expect(screen.getByText('Frais de livraison')).toBeInTheDocument();
+      expect(screen.getByText('1500 XOF')).toBeInTheDocument();
+    });
+
+    it('displays payment and delivery info', () => {
+      renderCart();
+
+      expect(screen.getByText('💳 Paiement sécurisé')).toBeInTheDocument();
+      expect(screen.getByText('🚚 Livraison sous 45-60 minutes')).toBeInTheDocument();
+      expect(screen.getByText('📞 Contactez-nous au +33 1 23 45 67 89')).toBeInTheDocument();
+    });
+  });
+});

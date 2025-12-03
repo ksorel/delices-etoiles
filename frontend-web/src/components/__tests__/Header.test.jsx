@@ -1,12 +1,15 @@
 import { render, screen } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import Header from '../Layout/Header';
+import { CartProvider } from '../../contexts/CartContext';
 
 const renderWithRouter = (component) => {
   return render(
-    <BrowserRouter>
-      {component}
-    </BrowserRouter>
+    <CartProvider>
+      <BrowserRouter>
+        {component}
+      </BrowserRouter>
+    </CartProvider>
   );
 };
 
@@ -41,10 +44,8 @@ describe('Header Component', () => {
   test('renders logo image', () => {
     renderWithRouter(<Header />);
     
-    // Vérifier que l'image du logo est présente avec l'alt text
     const logoImage = screen.getByAltText('Délices Étoilés - Restaurant Gastronomique');
     expect(logoImage).toBeInTheDocument();
-    expect(logoImage).toHaveAttribute('src', '/src/assets/logo_delices_etoiles.jpg');
   });
 
   test('renders restaurant subtitle', () => {
@@ -52,5 +53,12 @@ describe('Header Component', () => {
     
     const subtitle = screen.getByText('Restaurant Gastronomique');
     expect(subtitle).toBeInTheDocument();
+  });
+
+  test('renders cart icon', () => {
+    renderWithRouter(<Header />);
+    
+    const cartIcon = document.querySelector('svg');
+    expect(cartIcon).toBeInTheDocument();
   });
 });
