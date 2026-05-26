@@ -1,0 +1,106 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ─── Helpers ───────────────────────────────────────────────
+    function isAuth()    { return request.auth != null; }
+    function isStaff()   { return isAuth() && request.auth.token.role in ['staff', 'admin']; }
+    function isAdmin()   { return isAuth() && request.auth.token.role == 'admin'; }
+    function isAnon()    { return isAuth() && request.auth.token.firebase.sign_in_provider == 'anonymous'; }
+
+    // ─── Menu (lecture publique, écriture admin) ───────────────
+    match /menus/{itemId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ─── Tables (lecture staff+, session anonyme OK) ───────────
+    match /tables/{tableId} {
+      allow read:   if isAuth();
+      allow create: if isAnon();
+      allow update: if isStaff() || isAnon();
+    }
+
+    // ─── Commandes ─────────────────────────────────────────────
+    match /commandes/{orderId} {
+      // Création : client anonyme (salle) ou livraison
+      allow create: if isAuth()
+        && request.resource.data.total is number
+        && request.resource.data.total > 0
+        && request.resource.data.items.size() > 0
+        && request.resource.data.comment.size() <= 100;
+
+      // Lecture : staff ou propriétaire de la commande
+      allow read: if isStaff()
+        || (isAuth() && resource.data.clientUid == request.auth.uid);
+
+      // Mise à jour statut : staff seulement
+      allow update: if isStaff();
+
+      // Suppression : admin seulement
+      allow delete: if isAdmin();
+    }
+
+    // ─── Zones de livraison (lecture publique, écriture admin) ─
+    match /zones-livraison/{zoneId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ─── Règles upselling (lecture publique, écriture admin) ───
+    match /upselling-rules/{ruleId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ─── Staff / Admin (privé) ──────────────────────────────────
+    match /staff/{uid} {
+      allow read, write: if isAdmin() || request.auth.uid == uid;
+    }
+
+    // ─── Plat du jour (lecture publique, écriture admin) ──────────
+    match /plat-du-jour/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ─── Plan de salle ──────────────────────────────────────
+    match /floor-plan/{docId} {
+      allow read: if isAuth();
+      allow write: if isAdmin();
+    }
+
+    // ─── Sessions de table ──────────────────────────────────────
+    match /sessions/{sessionId} {
+      allow read:   if isAuth();
+      allow create: if isAuth();
+      allow update: if isStaff() || (isAuth() && resource.data.clientUid == request.auth.uid);
+    }
+
+    // ─── Paiements ──────────────────────────────────────────────
+    match /paiements/{paiementId} {
+      allow read:   if isStaff();
+      allow create: if isStaff();
+      allow update: if isAdmin();
+    }
+
+    // ─── Stocks boissons ────────────────────────────────────────
+    match /stocks/{itemId} {
+      allow read: if isStaff();
+      allow write: if isAdmin();
+    }
+    match /stock-movements/{id} {
+      allow read: if isStaff();
+      allow create: if isAdmin();
+    }
+    match /supplier-orders/{id} {
+      allow read: if isStaff();
+      allow write: if isAdmin();
+    }
+
+    // ─── Rapports (admin seulement) ────────────────────────────
+    match /rapports/{rapportId} {
+      allow read, write: if isAdmin();
+    }
+  }
+}
