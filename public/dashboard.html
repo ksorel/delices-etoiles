@@ -354,9 +354,19 @@ onAuthStateChanged(auth, async user => {
     document.getElementById('dash-app').style.display     = 'block';
 
     // Afficher le bouton "Commande" uniquement pour admin, serveur, bar
-    const canOrder = ['admin','serveur','bar'].includes(currentRole);
+    const canOrder    = ['admin','serveur','bar'].includes(currentRole);
+    const canEncaisser = ['admin','caissier'].includes(currentRole);
+    // Caissier : pas de commande serveur, pas de changement statut cuisine
+    const canChangeStatus = currentRole !== 'caissier';
     const orderBtn = document.getElementById('staff-order-btn');
     if (orderBtn) orderBtn.style.display = canOrder ? 'flex' : 'none';
+    // Caissier badge dans le header
+    if (currentRole === 'caissier') {
+      const badge = document.createElement('span');
+      badge.style.cssText = 'background:#F26522;color:#fff;font-size:10px;font-weight:700;padding:3px 8px;border-radius:10px;';
+      badge.textContent = '💳 CAISSIER';
+      document.querySelector('.dash-actions')?.prepend(badge);
+    }
 
     initDashboard();
     // Lancer l'onboarding au premier login
