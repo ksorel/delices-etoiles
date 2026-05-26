@@ -4,11 +4,21 @@
 //  ⚠️  Incrémente CACHE_VERSION à chaque déploiement majeur
 // ════════════════════════════════════════════════════════════
 
-const CACHE_VERSION = 'v8';
+const CACHE_VERSION = 'v9';
 const CACHE         = 'delices-' + CACHE_VERSION;
 
 // Assets à pré-cacher (shell minimaliste uniquement)
-const PRECACHE = [];
+const PRECACHE = [
+  '/css/app.css',
+  '/css/onboarding.css',
+  '/js/app.js',
+  '/js/db.js',
+  '/js/config.js',
+  '/js/i18n.js',
+  '/js/order.js',
+  '/js/upselling.js',
+  '/manifest.json',
+];
 
 // ── Install ───────────────────────────────────────────────
 self.addEventListener('install', e => {
@@ -66,18 +76,19 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // ── JS / CSS : NETWORK FIRST, cache 24h ───────────────
+  // ── JS / CSS : CACHE FIRST (invalidé par version SW) ───
   if (url.includes('/js/') || url.includes('/css/') || url.endsWith('.js') || url.endsWith('.css')) {
     e.respondWith(
-      fetch(request)
-        .then(res => {
+      caches.match(request).then(cached => {
+        if (cached) return cached; // Instantané depuis le cache
+        return fetch(request).then(res => {
           if (res.ok) {
             const clone = res.clone();
             caches.open(CACHE).then(c => c.put(request, clone));
           }
           return res;
-        })
-        .catch(() => caches.match(request))
+        });
+      })
     );
     return;
   }

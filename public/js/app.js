@@ -128,6 +128,26 @@ function showSessionChoice(sessions) {
 }
 
 // ─── Init ─────────────────────────────────────────────────
+// ─── Cache menu localStorage ─────────────────────────────
+const MENU_CACHE_KEY = 'de_menu_cache';
+const MENU_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+function getMenuFromCache() {
+  try {
+    const raw = localStorage.getItem(MENU_CACHE_KEY);
+    if (!raw) return null;
+    const { data, ts } = JSON.parse(raw);
+    if (Date.now() - ts > MENU_CACHE_TTL) return null;
+    return data;
+  } catch { return null; }
+}
+
+function setMenuCache(menu) {
+  try {
+    localStorage.setItem(MENU_CACHE_KEY, JSON.stringify({ data: menu, ts: Date.now() }));
+  } catch {}
+}
+
 async function init() {
   // 1. Service Worker — enregistré uniquement dans de vrais navigateurs
   try {
@@ -171,7 +191,14 @@ async function init() {
   // 4. Auth anonyme avec retry (WebViews lents à initialiser Firebase)
   State.uid = await authWithRetry();
 
-  // 5. Charger les données avec timeout (filet de sécurité réseau mobile)
+  // 5. Charger le menu depuis localStorage d'abord (affichage instantané)
+  const cachedMenu = getMenuFromCache();
+  if (cachedMenu && cachedMenu.length > 0) {
+    State.menu = cachedMenu;
+    navigate('menu'); // Afficher immédiatement
+  }
+
+  // Charger les données depuis Firestore (avec cache menu en fallback)
   try {
     const [menu, zones, rules, pdj] = await Promise.all([
       withTimeout(fetchMenu(),        8000),
