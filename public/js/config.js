@@ -1,26 +1,21 @@
-// ════════════════════════════════════════════════════════════
-//  CONFIGURATION FIREBASE — Délices Étoiles
-//  Remplace les valeurs ci-dessous avec celles de ta console
-//  Firebase : console.firebase.google.com → Paramètres du projet
-// ════════════════════════════════════════════════════════════
+// Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
 
-import { initializeApp }  from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-import { getFirestore }   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
-import { getAuth }        from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { getStorage }     from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js';
-
+// Your web app's Firebase configuration
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
-  apiKey:            "AIzaSyCU4Mqn6Wfyy5irKh9DpVoXFasx2N0-gGE",
-  authDomain:        "delices-etoiles.firebaseapp.com",
-  projectId:         "delices-etoiles",
-  storageBucket:     "delices-etoiles.firebasestorage.app",
+  apiKey: "AIzaSyCU4Mqn6Wfyy5irKh9DpVoXFasx2N0-gGE",
+  authDomain: "delices-etoiles.firebaseapp.com",
+  projectId: "delices-etoiles",
+  storageBucket: "delices-etoiles.firebasestorage.app",
   messagingSenderId: "795728972354",
-  appId:             "1:795728972354:web:50403340daee555d66fbdb",
-  measurementId:     "G-NGFS8MC8CW",
+  appId: "1:795728972354:web:50403340daee555d66fbdb",
+  measurementId: "G-NGFS8MC8CW"
 };
 
-const app     = initializeApp(firebaseConfig);
-export const db      = getFirestore(app);
-export const auth    = getAuth(app);
-export const storage = getStorage(app);
-export default app;
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
