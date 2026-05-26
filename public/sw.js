@@ -8,9 +8,7 @@ const CACHE_VERSION = 'v8';
 const CACHE         = 'delices-' + CACHE_VERSION;
 
 // Assets à pré-cacher (shell minimaliste uniquement)
-const PRECACHE = [
-  '/offline.html',
-];
+const PRECACHE = [];
 
 // ── Install ───────────────────────────────────────────────
 self.addEventListener('install', e => {
