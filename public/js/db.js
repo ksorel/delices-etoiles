@@ -12,13 +12,13 @@ import {
 
 // ─── Menu ────────────────────────────────────────────────
 export async function fetchMenu() {
-  const q = query(
-    collection(db, 'menus'),
-    orderBy('category'),
-    orderBy('order')
-  );
-  const snap = await getDocs(q);
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const snap = await getDocs(collection(db, 'menus'));
+  const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  return items.sort((a, b) => {
+    if (a.category < b.category) return -1;
+    if (a.category > b.category) return 1;
+    return (a.order || 0) - (b.order || 0);
+  });
 }
 
 // ─── Zones de livraison ──────────────────────────────────
