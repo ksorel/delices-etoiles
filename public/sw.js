@@ -4,7 +4,7 @@
 //  ⚠️  Incrémente CACHE_VERSION à chaque déploiement majeur
 // ════════════════════════════════════════════════════════════
 
-const CACHE_VERSION = 'v9';
+const CACHE_VERSION = 'v10';
 const CACHE         = 'delices-' + CACHE_VERSION;
 
 // Assets à pré-cacher (shell minimaliste uniquement)
