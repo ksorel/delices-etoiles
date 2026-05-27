@@ -9,8 +9,50 @@ import { t, initLang, getLang, setLang, itemName, itemDesc } from './i18n.js';
 import { fetchMenu, fetchZones, fetchUpsellRules, getOrCreateTable, fetchPlatDuJour, listenOrder,
          createSession, getOpenSessions, updateSessionStatus, getSessionOrders } from './db.js';
 import { requestNotificationPermission, listenForegroundMessages } from './fcm.js';
-import { initCart, addItem, getItems, getCount, getTotal,
-         updateQty, removeItem, isEmpty }                    from './cart.js';
+// ─── Panier inline (cart.js supprimé) ───────────────────────
+const CART_KEY = 'de_cart';
+let _cartItems = [];
+
+function initCart() {
+  try {
+    const raw = localStorage.getItem(CART_KEY);
+    _cartItems = raw ? JSON.parse(raw) : [];
+  } catch { _cartItems = []; }
+}
+function _cartPersist() {
+  localStorage.setItem(CART_KEY, JSON.stringify(_cartItems));
+}
+function addItem(item, opts = {}) {
+  const qty = opts.qty || 1;
+  const prixFinal = item.price + (opts.prixFormat || 0);
+  _cartItems.push({
+    uid: Math.random().toString(36).slice(2),
+    id: item.id, name_fr: item.name_fr,
+    name_en: item.name_en || item.name_fr,
+    price: prixFinal, category: item.category,
+    imageUrl: item.imageUrl || null, qty,
+    glace: opts.glace ?? null, format: opts.format || null,
+    comment: (opts.comment || '').slice(0, 100),
+    upsells: opts.upsells || [],
+  });
+  _cartPersist();
+}
+function getItems()  { return [..._cartItems]; }
+function getCount()  { return _cartItems.reduce((s, i) => s + i.qty, 0); }
+function getTotal()  { return _cartItems.reduce((s, i) => s + i.price * i.qty, 0); }
+function isEmpty()   { return _cartItems.length === 0; }
+function updateQty(uid, delta) {
+  const idx = _cartItems.findIndex(i => i.uid === uid);
+  if (idx === -1) return;
+  _cartItems[idx].qty = Math.max(0, _cartItems[idx].qty + delta);
+  if (_cartItems[idx].qty === 0) _cartItems.splice(idx, 1);
+  _cartPersist();
+}
+function removeItem(uid) {
+  _cartItems = _cartItems.filter(i => i.uid !== uid);
+  _cartPersist();
+}
+function clearCart() { _cartItems = []; _cartPersist(); }
 import { initUpselling, getUpsells, isBoisson, hasFormats, getPrixForFormat, getFormatLabels } from './upselling.js';
 import { submitSalleOrder, submitLivraisonOrder, formatFCFA } from './order.js';
 
@@ -189,31 +231,37 @@ async function init() {
   }
 
   // 4. Auth anonyme avec retry (WebViews lents à initialiser Firebase)
+  const viewEl = document.getElementById('view');
+  if (viewEl) viewEl.querySelector('p') && (viewEl.querySelector('p').textContent = 'Connexion...');
   State.uid = await authWithRetry();
+  if (viewEl) viewEl.querySelector('p') && (viewEl.querySelector('p').textContent = 'Chargement du menu...');
 
   // 5. Charger le menu depuis localStorage d'abord (affichage instantané)
-  const cachedMenu = getMenuFromCache();
-  if (cachedMenu && cachedMenu.length > 0) {
-    State.menu = cachedMenu;
-    navigate('menu'); // Afficher immédiatement
-  }
-
-  // Charger les données depuis Firestore (avec cache menu en fallback)
+  // Charger les données depuis Firestore
   try {
     const [menu, zones, rules, pdj] = await Promise.all([
-      withTimeout(fetchMenu(),        8000),
-      withTimeout(fetchZones(),       8000),
-      withTimeout(fetchUpsellRules(), 8000),
-      withTimeout(fetchPlatDuJour(),  6000).catch(() => null),
+      withTimeout(fetchMenu(),        15000),
+      withTimeout(fetchZones(),       15000),
+      withTimeout(fetchUpsellRules(), 15000),
+      withTimeout(fetchPlatDuJour(),  10000).catch(() => null),
     ]);
     State.menu       = menu       || [];
     State.zones      = zones      || [];
     State.platDuJour = pdj;
     initUpselling(rules || [], State.menu);
   } catch (e) {
-    console.error('Erreur chargement données', e);
-    // Afficher un bouton Réessayer plutôt qu'un spinner bloquant
-    showRetryScreen();
+    // Afficher l'erreur visible sur mobile pour diagnostic
+    const view = document.getElementById('view');
+    if (view) view.innerHTML = `
+      <div style="padding:24px;font-family:monospace;font-size:12px;background:#fff;margin:16px;border-radius:8px;border:2px solid red">
+        <strong style="color:red">ERREUR CHARGEMENT</strong><br><br>
+        <strong>Message:</strong> ${e.message || e.code || String(e)}<br>
+        <strong>Code:</strong> ${e.code || 'n/a'}<br>
+        <strong>Type:</strong> ${e.name || 'n/a'}<br><br>
+        <button onclick="location.reload()" style="background:#F26522;color:#fff;border:none;padding:10px 20px;border-radius:8px;font-size:14px;cursor:pointer">
+          Réessayer
+        </button>
+      </div>`;
     return;
   }
 
@@ -256,10 +304,15 @@ async function authWithRetry(attempts = 3) {
       const cred = await signInAnonymously(auth);
       return cred.user.uid;
     } catch (e) {
-      if (i < attempts - 1) await new Promise(r => setTimeout(r, 1000));
-      else console.warn('Auth anonyme échouée après', attempts, 'tentatives :', e.message);
+      if (i < attempts - 1) {
+        // Délai progressif : 500ms, 1000ms
+        await new Promise(r => setTimeout(r, 500 * (i + 1)));
+      } else {
+        console.warn('Auth anonyme échouée après', attempts, 'tentatives :', e.message);
+      }
     }
   }
+  // Continuer sans auth — le menu public ne nécessite pas d'auth
   return null;
 }
 
