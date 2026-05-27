@@ -3,7 +3,29 @@
 // ════════════════════════════════════════════════════════════
 
 import { createOrder } from './db.js';
-import { getItems, getTotal, serializeItems, clearCart } from './cart.js';
+// Fonctions panier — inlinées depuis app.js (cart.js supprimé)
+function getItems()  { return typeof _cartItems !== 'undefined' ? [..._cartItems] : []; }
+function getTotal()  { return typeof _cartItems !== 'undefined' ? _cartItems.reduce((s, i) => s + i.price * i.qty, 0) : 0; }
+function clearCart() { if (typeof _cartItems !== 'undefined') { _cartItems = []; localStorage.setItem('de_cart', '[]'); } }
+function serializeItems(lang = 'fr') {
+  const items = getItems();
+  return items.flatMap(item => {
+    const base = {
+      id: item.id, name: lang === 'en' ? item.name_en : item.name_fr,
+      price: item.price, qty: item.qty, subtotal: item.price * item.qty,
+      glace: item.glace, format: item.format, comment: item.comment,
+    };
+    const lines = [base];
+    for (const u of item.upsells || []) {
+      lines.push({
+        id: u.id, name: lang === 'en' ? (u.name_en || u.name_fr) : u.name_fr,
+        price: u.price, qty: item.qty, subtotal: u.price * item.qty,
+        parentId: item.id, isUpsell: true,
+      });
+    }
+    return lines;
+  });
+}
 import { getLang } from './i18n.js';
 
 /**
