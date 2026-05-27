@@ -1,109 +1,63 @@
 // ════════════════════════════════════════════════════════════
-//  Service Worker — Délices Étoiles
-//  Stratégie : Network-first pour tout sauf images Storage
-//  ⚠️  Incrémente CACHE_VERSION à chaque déploiement majeur
+//  Service Worker v11 — Délices Étoiles
+//  Stratégie : Network-first pour JS/CSS, cache pour images
 // ════════════════════════════════════════════════════════════
 
-const CACHE_VERSION = 'v10';
+const CACHE_VERSION = 'v11';
 const CACHE         = 'delices-' + CACHE_VERSION;
 
-// Assets à pré-cacher (shell minimaliste uniquement)
-const PRECACHE = [
-  '/css/app.css',
-  '/css/onboarding.css',
-  '/js/app.js',
-  '/js/db.js',
-  '/js/config.js',
-  '/js/i18n.js',
-  '/js/order.js',
-  '/js/upselling.js',
-  '/manifest.json',
-];
-
-// ── Install ───────────────────────────────────────────────
+// ── Install : pas de précache pour éviter les blocages ───────
 self.addEventListener('install', e => {
-  e.waitUntil(
-    caches.open(CACHE)
-      .then(c => c.addAll(PRECACHE))
-      .then(() => self.skipWaiting())
-  );
+  // Activation immédiate sans attendre la fermeture des onglets
+  self.skipWaiting();
 });
 
-// ── Activate : purge des anciens caches ───────────────────
+// ── Activate : supprimer tous les anciens caches ─────────────
 self.addEventListener('activate', e => {
   e.waitUntil(
-    caches.keys()
-      .then(keys => Promise.all(
-        keys
-          .filter(k => k.startsWith('delices-') && k !== CACHE)
-          .map(k => caches.delete(k))
-      ))
-      .then(() => self.clients.claim())
+    caches.keys().then(keys =>
+      Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
+    ).then(() => self.clients.claim()) // Prendre contrôle immédiatement
   );
 });
 
-// ── Messages ──────────────────────────────────────────────
-self.addEventListener('message', e => {
-  if (e.data?.type === 'SKIP_WAITING')  self.skipWaiting();
-  if (e.data?.type === 'CLEAR_CACHE') {
-    caches.keys()
-      .then(keys => Promise.all(keys.map(k => caches.delete(k))))
-      .then(() => e.ports[0]?.postMessage({ success: true }));
-  }
-});
-
-// ── Fetch ─────────────────────────────────────────────────
+// ── Fetch : Network-first pour tout sauf images Storage ──────
 self.addEventListener('fetch', e => {
-  const { request } = e;
-  const url = request.url;
+  const url = e.request.url;
 
-  // Ignorer : non-GET, extensions, Firebase API
-  if (request.method !== 'GET')          return;
-  if (url.startsWith('chrome-extension')) return;
-  if (url.includes('googleapis.com'))    return;
-  if (url.includes('gstatic.com'))       return;
-  if (url.includes('firebasestorage'))   return; // Storage géré séparément
+  // Ignorer les requêtes non-HTTP et Firebase
+  if (!url.startsWith('http')) return;
+  if (url.includes('firestore.googleapis.com')) return;
+  if (url.includes('firebase') && !url.includes('web.app')) return;
+  if (url.includes('gstatic.com')) return;
 
-  // ── HTML : NETWORK ONLY ────────────────────────────────
-  // Toujours récupérer le HTML depuis le réseau (pas de cache)
-  // Cela évite les problèmes de version stale lors d'un scan QR
-  if (request.headers.get('accept')?.includes('text/html') ||
-      url.endsWith('/') || url.includes('/?') || url.includes('/dashboard') || url.includes('/admin')) {
+  // Images Firebase Storage : cache-first
+  if (url.includes('firebasestorage.googleapis.com')) {
     e.respondWith(
-      fetch(request)
-        .catch(() => caches.match('/offline.html'))
-    );
-    return;
-  }
-
-  // ── JS / CSS : CACHE FIRST (invalidé par version SW) ───
-  if (url.includes('/js/') || url.includes('/css/') || url.endsWith('.js') || url.endsWith('.css')) {
-    e.respondWith(
-      caches.match(request).then(cached => {
-        if (cached) return cached; // Instantané depuis le cache
-        return fetch(request).then(res => {
+      caches.match(e.request).then(cached => {
+        if (cached) return cached;
+        return fetch(e.request).then(res => {
           if (res.ok) {
             const clone = res.clone();
-            caches.open(CACHE).then(c => c.put(request, clone));
+            caches.open(CACHE).then(c => c.put(e.request, clone));
           }
           return res;
-        });
+        }).catch(() => cached);
       })
     );
     return;
   }
 
-  // ── Autres assets (images locales, manifest) ──────────
+  // Tout le reste : NETWORK-FIRST (toujours la version fraîche)
   e.respondWith(
-    caches.match(request).then(cached => {
-      const network = fetch(request).then(res => {
+    fetch(e.request)
+      .then(res => {
         if (res.ok) {
           const clone = res.clone();
-          caches.open(CACHE).then(c => c.put(request, clone));
+          caches.open(CACHE).then(c => c.put(e.request, clone));
         }
         return res;
-      });
-      return cached || network;
-    }).catch(() => caches.match('/offline.html'))
+      })
+      .catch(() => caches.match(e.request))
   );
 });
