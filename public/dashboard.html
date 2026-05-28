@@ -373,14 +373,14 @@ onAuthStateChanged(auth, async user => {
     document.getElementById('role-badge')?.remove();
     const roleBadge = document.createElement('div');
     roleBadge.id = 'role-badge';
-    roleBadge.style.cssText = \`
-      display:flex;align-items:center;gap:6px;
-      padding:5px 12px;border-radius:20px;
-      background:\${roleInfo.bg};border:1px solid \${roleInfo.color};
-      font-size:12px;font-weight:800;color:\${roleInfo.color};
-      letter-spacing:.05em;flex-shrink:0;
-    \`;
-    roleBadge.innerHTML = \`\${roleInfo.icon} \${roleInfo.label}\`;
+    roleBadge.style.cssText = [
+      'display:flex;align-items:center;gap:6px',
+      'padding:5px 12px;border-radius:20px',
+      'background:' + roleInfo.bg + ';border:1px solid ' + roleInfo.color,
+      'font-size:12px;font-weight:800;color:' + roleInfo.color,
+      'letter-spacing:.05em;flex-shrink:0'
+    ].join(';');
+    roleBadge.textContent = roleInfo.icon + ' ' + roleInfo.label;
     // Insérer après le live-dot
     const liveDot = document.querySelector('.live-dot');
     if (liveDot) liveDot.after(roleBadge);

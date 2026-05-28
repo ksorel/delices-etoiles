@@ -48,6 +48,9 @@ self.addEventListener('fetch', e => {
     return;
   }
 
+  // Ne pas cacher les requêtes POST/PUT/DELETE
+  if (e.request.method !== 'GET') return;
+
   // Tout le reste : NETWORK-FIRST (toujours la version fraîche)
   e.respondWith(
     fetch(e.request)
