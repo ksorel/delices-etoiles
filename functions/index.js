@@ -100,7 +100,7 @@ exports.onNewOrder = region.firestore.document('commandes/{orderId}').onCreate(a
 // ─────────────────────────────────────────────────────────
 //  2. WEBHOOK : Confirmation paiement Mobile Money
 // ─────────────────────────────────────────────────────────
-exports.paymentWebhook = onRequest(async (req, res) => {
+exports.paymentWebhook = functions.https.onRequest(async (req, res) => {
   // Vérification basique du secret (à renforcer selon l'opérateur)
   const secret = req.headers['x-webhook-secret'];
   const expectedSecret = functions.config().payment?.webhook_secret;
