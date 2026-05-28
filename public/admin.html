@@ -773,181 +773,6 @@ function renderUpselling(c, a) {
 
 
 
-// ── Gestion des utilisateurs ─────────────────────────────
-const ROLE_INFO = {
-  admin:    { label:'ADMINISTRATION', icon:'👑', color:'#F26522' },
-  serveur:  { label:'SERVEUR',        icon:'🪑', color:'#3B82F6' },
-  bar:      { label:'BAR',            icon:'🍺', color:'#8B5CF6' },
-  cuisine:  { label:'CUISINE',        icon:'👨‍🍳', color:'#10B981' },
-  livreur:  { label:'LIVREUR',        icon:'🚴', color:'#F59E0B' },
-  caissier: { label:'CAISSIER',       icon:'💳', color:'#EC4899' },
-};
-
-async function renderUsers(c) {
-  c.innerHTML = '<div class="loading"><div class="spinner"></div><p>Chargement des utilisateurs…</p></div>';
-
-  let employees = [];
-  try {
-    const listFn = httpsCallable(functions, 'listEmployees');
-    const res    = await listFn();
-    employees    = res.data || [];
-  } catch(e) {
-    c.innerHTML = '<div class="card"><p style="color:red">Erreur : ' + e.message + '</p></div>';
-    return;
-  }
-
-  const rows = employees.map(function(emp) {
-    const ri = ROLE_INFO[emp.role] || { label: emp.role, icon: '👤', color: '#666' };
-    const statusBadge = emp.active
-      ? '<span style="color:#10B981;font-weight:700;font-size:12px">● Actif</span>'
-      : '<span style="color:#EF4444;font-weight:700;font-size:12px">● Désactivé</span>';
-    return '<tr>'
-      + '<td style="padding:10px 12px">'
-      +   '<div style="font-weight:700;color:var(--brown)">' + (emp.displayName || '—') + '</div>'
-      +   '<div style="font-size:12px;color:var(--muted)">' + emp.email + '</div>'
-      + '</td>'
-      + '<td style="padding:10px 12px">'
-      +   '<span style="background:' + ri.color + '20;color:' + ri.color + ';padding:3px 10px;border-radius:12px;font-size:12px;font-weight:700">'
-      +     ri.icon + ' ' + ri.label
-      +   '</span>'
-      + '</td>'
-      + '<td style="padding:10px 12px">' + statusBadge + '</td>'
-      + '<td style="padding:10px 12px;text-align:right">'
-      +   '<button class="btn btn-sm btn-secondary" style="margin-right:4px" onclick="window.Admin.editEmployee(\'' + emp.uid + '\',\'' + emp.role + '\',\'' + (emp.displayName||'') + '\')">✏️ Rôle</button>'
-      +   '<button class="btn btn-sm" style="background:' + (emp.active ? '#FEE2E2' : '#ECFDF5') + ';color:' + (emp.active ? '#991B1B' : '#065F46') + '" onclick="window.Admin.toggleEmployee(\'' + emp.uid + '\',' + !emp.active + ')">'
-      +     (emp.active ? '🔒 Désactiver' : '🔓 Activer')
-      +   '</button>'
-      + '</td>'
-      + '</tr>';
-  }).join('');
-
-  c.innerHTML = '<div class="card">'
-    + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">'
-    +   '<div class="card-title" style="margin-bottom:0">👥 Utilisateurs (' + employees.length + ')</div>'
-    +   '<button class="btn btn-primary" onclick="window.Admin.showAddEmployee()">+ Ajouter un employé</button>'
-    + '</div>'
-    + (employees.length === 0
-        ? '<p style="color:var(--muted);text-align:center;padding:24px">Aucun employé enregistré</p>'
-        : '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">'
-          + '<thead><tr style="background:var(--bg);border-bottom:2px solid var(--border)">'
-          +   '<th style="padding:10px 12px;text-align:left;font-size:13px;color:var(--muted)">Employé</th>'
-          +   '<th style="padding:10px 12px;text-align:left;font-size:13px;color:var(--muted)">Rôle</th>'
-          +   '<th style="padding:10px 12px;text-align:left;font-size:13px;color:var(--muted)">Statut</th>'
-          +   '<th style="padding:10px 12px;text-align:right;font-size:13px;color:var(--muted)">Actions</th>'
-          + '</tr></thead>'
-          + '<tbody>' + rows + '</tbody>'
-          + '</table></div>'
-      )
-    + '</div>';
-}
-
-window.Admin.showAddEmployee = function() {
-  const roleOpts = Object.entries(ROLE_INFO).map(function(e) {
-    return '<option value="' + e[0] + '">' + e[1].icon + ' ' + e[1].label + '</option>';
-  }).join('');
-
-  const modal = document.createElement('div');
-  modal.className = 'modal-overlay';
-  modal.id = 'emp-modal';
-  modal.innerHTML = '<div class="modal" style="max-width:440px">'
-    + '<div class="modal-head"><div class="modal-title">➕ Ajouter un employé</div>'
-    + '<button class="modal-close" onclick="document.getElementById(\'emp-modal\').remove()">×</button></div>'
-    + '<div class="modal-body" style="display:flex;flex-direction:column;gap:12px">'
-    +   '<div><label class="form-label">Nom complet</label>'
-    +     '<input class="form-input" id="emp-name" placeholder="Ex: Kouadio Jean"></div>'
-    +   '<div><label class="form-label">Email *</label>'
-    +     '<input class="form-input" id="emp-email" type="email" placeholder="employe@delices-etoiles.ci"></div>'
-    +   '<div><label class="form-label">Mot de passe *</label>'
-    +     '<input class="form-input" id="emp-pass" type="password" placeholder="Minimum 6 caractères"></div>'
-    +   '<div><label class="form-label">Rôle *</label>'
-    +     '<select class="form-input" id="emp-role">' + roleOpts + '</select></div>'
-    +   '<div id="emp-err" style="color:red;font-size:13px;display:none"></div>'
-    + '</div>'
-    + '<div class="modal-footer">'
-    +   '<button class="btn btn-secondary" onclick="document.getElementById(\'emp-modal\').remove()">Annuler</button>'
-    +   '<button class="btn btn-primary" id="emp-save-btn" onclick="window.Admin.saveEmployee()">Créer le compte</button>'
-    + '</div></div>';
-  document.body.appendChild(modal);
-};
-
-window.Admin.saveEmployee = async function() {
-  const name  = document.getElementById('emp-name')?.value.trim();
-  const email = document.getElementById('emp-email')?.value.trim();
-  const pass  = document.getElementById('emp-pass')?.value;
-  const role  = document.getElementById('emp-role')?.value;
-  const err   = document.getElementById('emp-err');
-  const btn   = document.getElementById('emp-save-btn');
-
-  if (!email || !pass || !role) {
-    err.textContent = 'Email, mot de passe et rôle sont obligatoires';
-    err.style.display = 'block'; return;
-  }
-  if (pass.length < 6) {
-    err.textContent = 'Le mot de passe doit contenir au moins 6 caractères';
-    err.style.display = 'block'; return;
-  }
-
-  btn.disabled = true; btn.textContent = 'Création…';
-  try {
-    const fn  = httpsCallable(functions, 'createEmployee');
-    await fn({ email, password: pass, role, displayName: name || email.split('@')[0] });
-    document.getElementById('emp-modal')?.remove();
-    toast('✅ Employé créé avec succès');
-    renderPage(currentPage);
-  } catch(e) {
-    err.textContent = e.message || 'Erreur lors de la création';
-    err.style.display = 'block';
-    btn.disabled = false; btn.textContent = 'Créer le compte';
-  }
-};
-
-window.Admin.editEmployee = function(uid, currentRole, name) {
-  const roleOpts = Object.entries(ROLE_INFO).map(function(e) {
-    return '<option value="' + e[0] + '"' + (e[0] === currentRole ? ' selected' : '') + '>'
-      + e[1].icon + ' ' + e[1].label + '</option>';
-  }).join('');
-
-  const modal = document.createElement('div');
-  modal.className = 'modal-overlay';
-  modal.id = 'edit-modal';
-  modal.innerHTML = '<div class="modal" style="max-width:380px">'
-    + '<div class="modal-head"><div class="modal-title">✏️ Modifier le rôle — ' + name + '</div>'
-    + '<button class="modal-close" onclick="document.getElementById(\'edit-modal\').remove()">×</button></div>'
-    + '<div class="modal-body">'
-    +   '<label class="form-label">Nouveau rôle</label>'
-    +   '<select class="form-input" id="edit-role">' + roleOpts + '</select>'
-    + '</div>'
-    + '<div class="modal-footer">'
-    +   '<button class="btn btn-secondary" onclick="document.getElementById(\'edit-modal\').remove()">Annuler</button>'
-    +   '<button class="btn btn-primary" onclick="window.Admin.saveRole(\'' + uid + '\')">'
-    +     'Enregistrer'
-    +   '</button>'
-    + '</div></div>';
-  document.body.appendChild(modal);
-};
-
-window.Admin.saveRole = async function(uid) {
-  const role = document.getElementById('edit-role')?.value;
-  try {
-    const fn = httpsCallable(functions, 'updateEmployeeRole');
-    await fn({ uid, role });
-    document.getElementById('edit-modal')?.remove();
-    toast('✅ Rôle mis à jour');
-    renderPage(currentPage);
-  } catch(e) { toast('Erreur : ' + e.message); }
-};
-
-window.Admin.toggleEmployee = async function(uid, disabled) {
-  const action = disabled ? 'désactiver' : 'activer';
-  if (!confirm('Voulez-vous ' + action + ' cet employé ?')) return;
-  try {
-    const fn = httpsCallable(functions, 'toggleEmployee');
-    await fn({ uid, disabled });
-    toast(disabled ? '🔒 Employé désactivé' : '🔓 Employé activé');
-    renderPage(currentPage);
-  } catch(e) { toast('Erreur : ' + e.message); }
-};
-
 // ── Plan de salle ─────────────────────────────────────────
 const FP_COLS = 10;
 const FP_ROWS = 8;
@@ -1757,6 +1582,182 @@ window.Admin = {
   openAddZone()  { showZoneModal(); },
   openAddRule()  { showRuleModal(); },
 };
+
+// ── Gestion des utilisateurs ─────────────────────────────
+const ROLE_INFO = {
+  admin:    { label:'ADMINISTRATION', icon:'👑', color:'#F26522' },
+  serveur:  { label:'SERVEUR',        icon:'🪑', color:'#3B82F6' },
+  bar:      { label:'BAR',            icon:'🍺', color:'#8B5CF6' },
+  cuisine:  { label:'CUISINE',        icon:'👨‍🍳', color:'#10B981' },
+  livreur:  { label:'LIVREUR',        icon:'🚴', color:'#F59E0B' },
+  caissier: { label:'CAISSIER',       icon:'💳', color:'#EC4899' },
+};
+
+async function renderUsers(c) {
+  c.innerHTML = '<div class="loading"><div class="spinner"></div><p>Chargement des utilisateurs…</p></div>';
+
+  let employees = [];
+  try {
+    const listFn = httpsCallable(functions, 'listEmployees');
+    const res    = await listFn();
+    employees    = res.data || [];
+  } catch(e) {
+    c.innerHTML = '<div class="card"><p style="color:red">Erreur : ' + e.message + '</p></div>';
+    return;
+  }
+
+  const rows = employees.map(function(emp) {
+    const ri = ROLE_INFO[emp.role] || { label: emp.role, icon: '👤', color: '#666' };
+    const statusBadge = emp.active
+      ? '<span style="color:#10B981;font-weight:700;font-size:12px">● Actif</span>'
+      : '<span style="color:#EF4444;font-weight:700;font-size:12px">● Désactivé</span>';
+    return '<tr>'
+      + '<td style="padding:10px 12px">'
+      +   '<div style="font-weight:700;color:var(--brown)">' + (emp.displayName || '—') + '</div>'
+      +   '<div style="font-size:12px;color:var(--muted)">' + emp.email + '</div>'
+      + '</td>'
+      + '<td style="padding:10px 12px">'
+      +   '<span style="background:' + ri.color + '20;color:' + ri.color + ';padding:3px 10px;border-radius:12px;font-size:12px;font-weight:700">'
+      +     ri.icon + ' ' + ri.label
+      +   '</span>'
+      + '</td>'
+      + '<td style="padding:10px 12px">' + statusBadge + '</td>'
+      + '<td style="padding:10px 12px;text-align:right">'
+      +   '<button class="btn btn-sm btn-secondary" style="margin-right:4px" onclick="window.Admin.editEmployee(\'' + emp.uid + '\',\'' + emp.role + '\',\'' + (emp.displayName||'') + '\')">✏️ Rôle</button>'
+      +   '<button class="btn btn-sm" style="background:' + (emp.active ? '#FEE2E2' : '#ECFDF5') + ';color:' + (emp.active ? '#991B1B' : '#065F46') + '" onclick="window.Admin.toggleEmployee(\'' + emp.uid + '\',' + !emp.active + ')">'
+      +     (emp.active ? '🔒 Désactiver' : '🔓 Activer')
+      +   '</button>'
+      + '</td>'
+      + '</tr>';
+  }).join('');
+
+  c.innerHTML = '<div class="card">'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">'
+    +   '<div class="card-title" style="margin-bottom:0">👥 Utilisateurs (' + employees.length + ')</div>'
+    +   '<button class="btn btn-primary" onclick="window.Admin.showAddEmployee()">+ Ajouter un employé</button>'
+    + '</div>'
+    + (employees.length === 0
+        ? '<p style="color:var(--muted);text-align:center;padding:24px">Aucun employé enregistré</p>'
+        : '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">'
+          + '<thead><tr style="background:var(--bg);border-bottom:2px solid var(--border)">'
+          +   '<th style="padding:10px 12px;text-align:left;font-size:13px;color:var(--muted)">Employé</th>'
+          +   '<th style="padding:10px 12px;text-align:left;font-size:13px;color:var(--muted)">Rôle</th>'
+          +   '<th style="padding:10px 12px;text-align:left;font-size:13px;color:var(--muted)">Statut</th>'
+          +   '<th style="padding:10px 12px;text-align:right;font-size:13px;color:var(--muted)">Actions</th>'
+          + '</tr></thead>'
+          + '<tbody>' + rows + '</tbody>'
+          + '</table></div>'
+      )
+    + '</div>';
+}
+
+window.Admin.showAddEmployee = function() {
+  const roleOpts = Object.entries(ROLE_INFO).map(function(e) {
+    return '<option value="' + e[0] + '">' + e[1].icon + ' ' + e[1].label + '</option>';
+  }).join('');
+
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.id = 'emp-modal';
+  modal.innerHTML = '<div class="modal" style="max-width:440px">'
+    + '<div class="modal-head"><div class="modal-title">➕ Ajouter un employé</div>'
+    + '<button class="modal-close" onclick="document.getElementById(\'emp-modal\').remove()">×</button></div>'
+    + '<div class="modal-body" style="display:flex;flex-direction:column;gap:12px">'
+    +   '<div><label class="form-label">Nom complet</label>'
+    +     '<input class="form-input" id="emp-name" placeholder="Ex: Kouadio Jean"></div>'
+    +   '<div><label class="form-label">Email *</label>'
+    +     '<input class="form-input" id="emp-email" type="email" placeholder="employe@delices-etoiles.ci"></div>'
+    +   '<div><label class="form-label">Mot de passe *</label>'
+    +     '<input class="form-input" id="emp-pass" type="password" placeholder="Minimum 6 caractères"></div>'
+    +   '<div><label class="form-label">Rôle *</label>'
+    +     '<select class="form-input" id="emp-role">' + roleOpts + '</select></div>'
+    +   '<div id="emp-err" style="color:red;font-size:13px;display:none"></div>'
+    + '</div>'
+    + '<div class="modal-footer">'
+    +   '<button class="btn btn-secondary" onclick="document.getElementById(\'emp-modal\').remove()">Annuler</button>'
+    +   '<button class="btn btn-primary" id="emp-save-btn" onclick="window.Admin.saveEmployee()">Créer le compte</button>'
+    + '</div></div>';
+  document.body.appendChild(modal);
+};
+
+window.Admin.saveEmployee = async function() {
+  const name  = document.getElementById('emp-name')?.value.trim();
+  const email = document.getElementById('emp-email')?.value.trim();
+  const pass  = document.getElementById('emp-pass')?.value;
+  const role  = document.getElementById('emp-role')?.value;
+  const err   = document.getElementById('emp-err');
+  const btn   = document.getElementById('emp-save-btn');
+
+  if (!email || !pass || !role) {
+    err.textContent = 'Email, mot de passe et rôle sont obligatoires';
+    err.style.display = 'block'; return;
+  }
+  if (pass.length < 6) {
+    err.textContent = 'Le mot de passe doit contenir au moins 6 caractères';
+    err.style.display = 'block'; return;
+  }
+
+  btn.disabled = true; btn.textContent = 'Création…';
+  try {
+    const fn  = httpsCallable(functions, 'createEmployee');
+    await fn({ email, password: pass, role, displayName: name || email.split('@')[0] });
+    document.getElementById('emp-modal')?.remove();
+    toast('✅ Employé créé avec succès');
+    renderPage(currentPage);
+  } catch(e) {
+    err.textContent = e.message || 'Erreur lors de la création';
+    err.style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Créer le compte';
+  }
+};
+
+window.Admin.editEmployee = function(uid, currentRole, name) {
+  const roleOpts = Object.entries(ROLE_INFO).map(function(e) {
+    return '<option value="' + e[0] + '"' + (e[0] === currentRole ? ' selected' : '') + '>'
+      + e[1].icon + ' ' + e[1].label + '</option>';
+  }).join('');
+
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.id = 'edit-modal';
+  modal.innerHTML = '<div class="modal" style="max-width:380px">'
+    + '<div class="modal-head"><div class="modal-title">✏️ Modifier le rôle — ' + name + '</div>'
+    + '<button class="modal-close" onclick="document.getElementById(\'edit-modal\').remove()">×</button></div>'
+    + '<div class="modal-body">'
+    +   '<label class="form-label">Nouveau rôle</label>'
+    +   '<select class="form-input" id="edit-role">' + roleOpts + '</select>'
+    + '</div>'
+    + '<div class="modal-footer">'
+    +   '<button class="btn btn-secondary" onclick="document.getElementById(\'edit-modal\').remove()">Annuler</button>'
+    +   '<button class="btn btn-primary" onclick="window.Admin.saveRole(\'' + uid + '\')">'
+    +     'Enregistrer'
+    +   '</button>'
+    + '</div></div>';
+  document.body.appendChild(modal);
+};
+
+window.Admin.saveRole = async function(uid) {
+  const role = document.getElementById('edit-role')?.value;
+  try {
+    const fn = httpsCallable(functions, 'updateEmployeeRole');
+    await fn({ uid, role });
+    document.getElementById('edit-modal')?.remove();
+    toast('✅ Rôle mis à jour');
+    renderPage(currentPage);
+  } catch(e) { toast('Erreur : ' + e.message); }
+};
+
+window.Admin.toggleEmployee = async function(uid, disabled) {
+  const action = disabled ? 'désactiver' : 'activer';
+  if (!confirm('Voulez-vous ' + action + ' cet employé ?')) return;
+  try {
+    const fn = httpsCallable(functions, 'toggleEmployee');
+    await fn({ uid, disabled });
+    toast(disabled ? '🔒 Employé désactivé' : '🔓 Employé activé');
+    renderPage(currentPage);
+  } catch(e) { toast('Erreur : ' + e.message); }
+};
+
 
 // ── Modals ────────────────────────────────────────────────
 function showItemModal(item) {
