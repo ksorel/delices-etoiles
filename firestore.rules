@@ -102,5 +102,11 @@ service cloud.firestore {
     match /rapports/{rapportId} {
       allow read, write: if isAdmin();
     }
+
+    // ─── Employés ────────────────────────────────────────────
+    match /employees/{uid} {
+      allow read:  if isAdmin();
+      allow write: if false; // Géré par Cloud Functions uniquement
+    }
   }
 }
