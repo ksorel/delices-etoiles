@@ -1,10 +1,8 @@
 // ════════════════════════════════════════════════════════════
-//  Service Worker v12 — Délices Étoiles
-//  JS/CSS : toujours réseau (jamais mis en cache)
-//  Images Storage : cache-first
+//  Service Worker v13 — Délices Étoiles
 // ════════════════════════════════════════════════════════════
 
-const CACHE_VERSION = 'v12';
+const CACHE_VERSION = 'v13';
 const CACHE         = 'delices-' + CACHE_VERSION;
 
 self.addEventListener('install', () => self.skipWaiting());
@@ -20,7 +18,6 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   const url = e.request.url;
 
-  // Ignorer non-HTTP, Firebase APIs, CDN
   if (!url.startsWith('http')) return;
   if (e.request.method !== 'GET') return;
   if (url.includes('firestore.googleapis.com')) return;
@@ -29,13 +26,16 @@ self.addEventListener('fetch', e => {
   if (url.includes('gstatic.com')) return;
   if (url.includes('cloudfunctions.net')) return;
 
-  // Images Firebase Storage : cache-first (les images ne changent pas)
+  // Images Firebase Storage : cache-first
   if (url.includes('firebasestorage.googleapis.com')) {
     e.respondWith(
       caches.match(e.request).then(cached => {
         if (cached) return cached;
         return fetch(e.request).then(res => {
-          if (res.ok) caches.open(CACHE).then(c => c.put(e.request, res.clone()));
+          if (res.ok) {
+            const clone = res.clone(); // clone AVANT d'utiliser res
+            caches.open(CACHE).then(c => c.put(e.request, clone));
+          }
           return res;
         }).catch(() => cached || new Response('', { status: 503 }));
       })
@@ -43,24 +43,24 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // JS et CSS : TOUJOURS réseau, jamais de cache
-  // Cela garantit que la dernière version est toujours servie
+  // JS et CSS : toujours réseau, jamais de cache
   if (url.includes('/js/') || url.includes('/css/') ||
       url.endsWith('.js') || url.endsWith('.css')) {
     e.respondWith(
       fetch(e.request, { cache: 'no-store' })
-        .catch(() => caches.match(e.request)) // fallback cache si hors ligne
+        .catch(() => caches.match(e.request))
     );
     return;
   }
 
-  // HTML et autres : network-first avec fallback cache
+  // HTML : network-first avec fallback cache
   e.respondWith(
-    fetch(e.request)
-      .then(res => {
-        if (res.ok) caches.open(CACHE).then(c => c.put(e.request, res.clone()));
-        return res;
-      })
-      .catch(() => caches.match(e.request))
+    fetch(e.request).then(res => {
+      if (res.ok) {
+        const clone = res.clone(); // clone AVANT d'utiliser res
+        caches.open(CACHE).then(c => c.put(e.request, clone));
+      }
+      return res;
+    }).catch(() => caches.match(e.request))
   );
 });
