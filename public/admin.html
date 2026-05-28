@@ -457,7 +457,7 @@ window.showPage = (page, el) => {
   renderPage(page);
 };
 
-function renderPage(page) {
+async function renderPage(page) {
   const c = document.getElementById('page-content');
   const a = document.getElementById('topbar-action');
   a.innerHTML = '';
