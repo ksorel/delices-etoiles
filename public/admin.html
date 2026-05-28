@@ -1880,6 +1880,19 @@ window.Admin.editEmployee = function(uid, currentRole, name) {
 };
 
 
+window.Admin.resetPassword = async function(uid, username) {
+  const newPass = prompt('Nouveau mot de passe pour ' + (username || 'cet employé') + ' (min. 6 caractères) :');
+  if (!newPass) return;
+  if (newPass.length < 6) { toast('⚠️ Mot de passe trop court (min. 6 caractères)'); return; }
+  try {
+    const fn = httpsCallable(functions, 'resetEmployeePassword');
+    await fn({ uid, password: newPass });
+    toast('✅ Mot de passe modifié avec succès');
+  } catch(e) {
+    toast('Erreur : ' + (e.message || e.code || 'inconnue'));
+  }
+};
+
 window.Admin.saveRole = async function(uid) {
   const role = document.getElementById('edit-role')?.value;
   try {
