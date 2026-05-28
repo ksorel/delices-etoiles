@@ -13,7 +13,7 @@
 //      email.dest="patron@delices-etoiles.ci"
 // ════════════════════════════════════════════════════════════
 
-const functions = require('firebase-functions');
+const functions = require('firebase-functions/v1');
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { setGlobalOptions }   = require('firebase-functions/v2');
 const admin                  = require('firebase-admin');
