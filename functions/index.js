@@ -13,16 +13,16 @@
 //      email.dest="patron@delices-etoiles.ci"
 // ════════════════════════════════════════════════════════════
 
-const functions = require('firebase-functions');
-const admin     = require('firebase-admin');
-const axios     = require('axios');
-const nodemailer = require('nodemailer');
+const { onCall, HttpsError } = require('firebase-functions/v2/https');
+const { onRequest }           = require('firebase-functions/v2/https');
+const { setGlobalOptions }    = require('firebase-functions/v2');
+const admin                   = require('firebase-admin');
 
 admin.initializeApp();
 const db = admin.firestore();
 
 // ── Région CI-optimisée ───────────────────────────────────
-const region = functions.region('europe-west1');
+setGlobalOptions({ region: 'europe-west1' });
 
 // ── Helper : format FCFA ──────────────────────────────────
 const fcfa = n => new Intl.NumberFormat('fr-FR').format(n) + ' FCFA';
@@ -102,7 +102,7 @@ exports.onNewOrder = region.firestore
 // ─────────────────────────────────────────────────────────
 //  2. WEBHOOK : Confirmation paiement Mobile Money
 // ─────────────────────────────────────────────────────────
-exports.paymentWebhook = region.https.onRequest(async (req, res) => {
+exports.paymentWebhook = onRequest(async (req, res) => {
   // Vérification basique du secret (à renforcer selon l'opérateur)
   const secret = req.headers['x-webhook-secret'];
   const expectedSecret = functions.config().payment?.webhook_secret;
@@ -216,14 +216,14 @@ exports.dailyReport = region.pubsub
 //  4. CALLABLE : Définir le rôle admin/staff d'un user
 //  Usage client : functions.httpsCallable('setUserRole')({uid, role})
 // ─────────────────────────────────────────────────────────
-exports.setUserRole = region.https.onCall(async (data, context) => {
+exports.setUserRole = onCall(async (request) => { const data = request.data; const context = { auth: request.auth };
   // Seul un admin peut assigner des rôles
   if (context.auth?.token?.role !== 'admin') {
-    throw new functions.https.HttpsError('permission-denied', 'Admin requis');
+    throw new HttpsError('permission-denied', 'Admin requis');
   }
   const { uid, role } = data;
   if (!uid || !['admin', 'staff'].includes(role)) {
-    throw new functions.https.HttpsError('invalid-argument', 'uid et role (admin|staff) requis');
+    throw new HttpsError('invalid-argument', 'uid et role (admin|staff) requis');
   }
   await admin.auth().setCustomUserClaims(uid, { role });
   await db.collection('staff').doc(uid).set({ uid, role, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
@@ -383,25 +383,25 @@ exports.onOrderReady = region.firestore
 
 // Helper : vérifier que l'appelant est admin
 async function checkAdmin(context) {
-  if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Non authentifié');
+  if (!context.auth) throw new HttpsError('unauthenticated', 'Non authentifié');
   if (context.auth.token.role !== 'admin') {
-    throw new functions.https.HttpsError('permission-denied', 'Réservé aux administrateurs');
+    throw new HttpsError('permission-denied', 'Réservé aux administrateurs');
   }
 }
 
 // ── Créer un employé ──────────────────────────────────────
-exports.createEmployee = region.https.onCall(async (data, context) => {
+exports.createEmployee = onCall(async (request) => { const data = request.data; const context = { auth: request.auth };
   await checkAdmin(context);
 
   const { email, password, role, displayName } = data;
 
   if (!email || !password || !role) {
-    throw new functions.https.HttpsError('invalid-argument', 'Email, mot de passe et rôle requis');
+    throw new HttpsError('invalid-argument', 'Email, mot de passe et rôle requis');
   }
 
   const VALID_ROLES = ['admin', 'serveur', 'bar', 'cuisine', 'livreur', 'caissier'];
   if (!VALID_ROLES.includes(role)) {
-    throw new functions.https.HttpsError('invalid-argument', 'Rôle invalide');
+    throw new HttpsError('invalid-argument', 'Rôle invalide');
   }
 
   try {
@@ -430,22 +430,22 @@ exports.createEmployee = region.https.onCall(async (data, context) => {
     return { success: true, uid: userRecord.uid };
   } catch (e) {
     if (e.code === 'auth/email-already-exists') {
-      throw new functions.https.HttpsError('already-exists', 'Cet email est déjà utilisé');
+      throw new HttpsError('already-exists', 'Cet email est déjà utilisé');
     }
-    throw new functions.https.HttpsError('internal', e.message);
+    throw new HttpsError('internal', e.message);
   }
 });
 
 // ── Modifier le rôle d'un employé ────────────────────────
-exports.updateEmployeeRole = region.https.onCall(async (data, context) => {
+exports.updateEmployeeRole = onCall(async (request) => { const data = request.data; const context = { auth: request.auth };
   await checkAdmin(context);
 
   const { uid, role } = data;
-  if (!uid || !role) throw new functions.https.HttpsError('invalid-argument', 'UID et rôle requis');
+  if (!uid || !role) throw new HttpsError('invalid-argument', 'UID et rôle requis');
 
   const VALID_ROLES = ['admin', 'serveur', 'bar', 'cuisine', 'livreur', 'caissier'];
   if (!VALID_ROLES.includes(role)) {
-    throw new functions.https.HttpsError('invalid-argument', 'Rôle invalide');
+    throw new HttpsError('invalid-argument', 'Rôle invalide');
   }
 
   await admin.auth().setCustomUserClaims(uid, { role });
@@ -459,11 +459,11 @@ exports.updateEmployeeRole = region.https.onCall(async (data, context) => {
 });
 
 // ── Désactiver/Activer un employé ─────────────────────────
-exports.toggleEmployee = region.https.onCall(async (data, context) => {
+exports.toggleEmployee = onCall(async (request) => { const data = request.data; const context = { auth: request.auth };
   await checkAdmin(context);
 
   const { uid, disabled } = data;
-  if (!uid) throw new functions.https.HttpsError('invalid-argument', 'UID requis');
+  if (!uid) throw new HttpsError('invalid-argument', 'UID requis');
 
   await admin.auth().updateUser(uid, { disabled });
   await db.collection('employees').doc(uid).update({
@@ -475,15 +475,15 @@ exports.toggleEmployee = region.https.onCall(async (data, context) => {
 });
 
 // ── Supprimer un employé ──────────────────────────────────
-exports.deleteEmployee = region.https.onCall(async (data, context) => {
+exports.deleteEmployee = onCall(async (request) => { const data = request.data; const context = { auth: request.auth };
   await checkAdmin(context);
 
   const { uid } = data;
-  if (!uid) throw new functions.https.HttpsError('invalid-argument', 'UID requis');
+  if (!uid) throw new HttpsError('invalid-argument', 'UID requis');
 
   // Empêcher l'admin de se supprimer lui-même
   if (uid === context.auth.uid) {
-    throw new functions.https.HttpsError('failed-precondition', 'Vous ne pouvez pas supprimer votre propre compte');
+    throw new HttpsError('failed-precondition', 'Vous ne pouvez pas supprimer votre propre compte');
   }
 
   await admin.auth().deleteUser(uid);
@@ -493,7 +493,7 @@ exports.deleteEmployee = region.https.onCall(async (data, context) => {
 });
 
 // ── Lister tous les employés ──────────────────────────────
-exports.listEmployees = region.https.onCall(async (data, context) => {
+exports.listEmployees = onCall(async (request) => { const data = request.data; const context = { auth: request.auth };
   await checkAdmin(context);
 
   const snap = await db.collection('employees').orderBy('createdAt', 'desc').get();
