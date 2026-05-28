@@ -452,7 +452,8 @@ window.showPage = (page, el) => {
   const titles = {
     dashboard:'Tableau de bord', menu:'Gestion du menu',
     zones:'Zones de livraison', upselling:'Règles d\'upselling', platdujour:'Plat du jour', cache:'Gestion du cache',
-    qrcodes:'QR Codes tables', floorplan:'Plan de salle', commandes:'Historique commandes'
+    qrcodes:'QR Codes tables', floorplan:'Plan de salle', commandes:'Historique commandes',
+    users:'Utilisateurs', stats:'Statistiques', stocks:'Stocks', paiements:'Paiements'
   };
   document.getElementById('page-title').textContent = titles[page]||page;
   renderPage(page);
@@ -1661,7 +1662,8 @@ window.Admin.showAddEmployee = function() {
   const modal = document.createElement('div');
   modal.className = 'modal-overlay';
   modal.id = 'emp-modal';
-  modal.innerHTML = '<div class="modal" style="max-width:440px">'
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(43,29,22,.65);z-index:9000;display:flex;align-items:center;justify-content:center;padding:20px';
+  modal.innerHTML = '<div class="modal" style="max-width:440px;width:100%;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 8px 40px rgba(43,29,22,.25)">'
     + '<div class="modal-head"><div class="modal-title">➕ Ajouter un employé</div>'
     + '<button class="modal-close" onclick="document.getElementById(\'emp-modal\').remove()">×</button></div>'
     + '<div class="modal-body" style="display:flex;flex-direction:column;gap:12px">'
@@ -1722,7 +1724,8 @@ window.Admin.editEmployee = function(uid, currentRole, name) {
   const modal = document.createElement('div');
   modal.className = 'modal-overlay';
   modal.id = 'edit-modal';
-  modal.innerHTML = '<div class="modal" style="max-width:380px">'
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(43,29,22,.65);z-index:9000;display:flex;align-items:center;justify-content:center;padding:20px';
+  modal.innerHTML = '<div class="modal" style="max-width:380px;width:100%;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 8px 40px rgba(43,29,22,.25)">'
     + '<div class="modal-head"><div class="modal-title">✏️ Modifier le rôle — ' + name + '</div>'
     + '<button class="modal-close" onclick="document.getElementById(\'edit-modal\').remove()">×</button></div>'
     + '<div class="modal-body">'
