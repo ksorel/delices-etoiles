@@ -15,7 +15,6 @@
 
 const functions = require('firebase-functions/v1');
 // User management uses v1 https.onCall (CORS handled by Firebase SDK automatically)
-const { HttpsError } = require('firebase-functions/v2/https');
 const admin                  = require('firebase-admin');
 
 admin.initializeApp();
@@ -381,7 +380,7 @@ async function checkAdmin(context) {
 }
 
 // ── Créer un employé ──────────────────────────────────────
-exports.createEmployee = functions.https.functions.https.onCall( async (data, context) => {
+exports.createEmployee = functions.https.onCall( async (data, context) => {
   await checkAdmin(context);
 
   const { email, password, role, displayName } = data;
@@ -428,7 +427,7 @@ exports.createEmployee = functions.https.functions.https.onCall( async (data, co
 });
 
 // ── Modifier le rôle d'un employé ────────────────────────
-exports.updateEmployeeRole = functions.https.functions.https.onCall( async (data, context) => {
+exports.updateEmployeeRole = functions.https.onCall( async (data, context) => {
   await checkAdmin(context);
 
   const { uid, role } = data;
@@ -450,7 +449,7 @@ exports.updateEmployeeRole = functions.https.functions.https.onCall( async (data
 });
 
 // ── Désactiver/Activer un employé ─────────────────────────
-exports.toggleEmployee = functions.https.functions.https.onCall( async (data, context) => {
+exports.toggleEmployee = functions.https.onCall( async (data, context) => {
   await checkAdmin(context);
 
   const { uid, disabled } = data;
@@ -466,7 +465,7 @@ exports.toggleEmployee = functions.https.functions.https.onCall( async (data, co
 });
 
 // ── Supprimer un employé ──────────────────────────────────
-exports.deleteEmployee = functions.https.functions.https.onCall( async (data, context) => {
+exports.deleteEmployee = functions.https.onCall( async (data, context) => {
   await checkAdmin(context);
 
   const { uid } = data;
@@ -484,7 +483,7 @@ exports.deleteEmployee = functions.https.functions.https.onCall( async (data, co
 });
 
 // ── Lister tous les employés ──────────────────────────────
-exports.listEmployees = functions.https.functions.https.onCall( async (data, context) => {
+exports.listEmployees = functions.https.onCall( async (data, context) => {
   await checkAdmin(context);
 
   const snap = await db.collection('employees').orderBy('createdAt', 'desc').get();
