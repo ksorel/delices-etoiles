@@ -211,7 +211,7 @@ exports.dailyReport = region.pubsub.schedule('59 23 * * *').timeZone('Africa/Abi
 //  4. CALLABLE : Définir le rôle admin/staff d'un user
 //  Usage client : functions.httpsCallable('setUserRole')({uid, role})
 // ─────────────────────────────────────────────────────────
-exports.setUserRole = onCall(async (data, context) => {
+exports.setUserRole = functions.https.onCall(async (data, context) => {
   // Seul un admin peut assigner des rôles
   if (context.auth?.token?.role !== 'admin') {
     throw new functions.https.HttpsError('permission-denied', 'Admin requis');
@@ -381,7 +381,7 @@ async function checkAdmin(context) {
 }
 
 // ── Créer un employé ──────────────────────────────────────
-exports.createEmployee = functions.https.onCall( async (data, context) => {
+exports.createEmployee = functions.https.functions.https.onCall( async (data, context) => {
   await checkAdmin(context);
 
   const { email, password, role, displayName } = data;
@@ -428,7 +428,7 @@ exports.createEmployee = functions.https.onCall( async (data, context) => {
 });
 
 // ── Modifier le rôle d'un employé ────────────────────────
-exports.updateEmployeeRole = functions.https.onCall( async (data, context) => {
+exports.updateEmployeeRole = functions.https.functions.https.onCall( async (data, context) => {
   await checkAdmin(context);
 
   const { uid, role } = data;
@@ -450,7 +450,7 @@ exports.updateEmployeeRole = functions.https.onCall( async (data, context) => {
 });
 
 // ── Désactiver/Activer un employé ─────────────────────────
-exports.toggleEmployee = functions.https.onCall( async (data, context) => {
+exports.toggleEmployee = functions.https.functions.https.onCall( async (data, context) => {
   await checkAdmin(context);
 
   const { uid, disabled } = data;
@@ -466,7 +466,7 @@ exports.toggleEmployee = functions.https.onCall( async (data, context) => {
 });
 
 // ── Supprimer un employé ──────────────────────────────────
-exports.deleteEmployee = functions.https.onCall( async (data, context) => {
+exports.deleteEmployee = functions.https.functions.https.onCall( async (data, context) => {
   await checkAdmin(context);
 
   const { uid } = data;
@@ -484,7 +484,7 @@ exports.deleteEmployee = functions.https.onCall( async (data, context) => {
 });
 
 // ── Lister tous les employés ──────────────────────────────
-exports.listEmployees = functions.https.onCall( async (data, context) => {
+exports.listEmployees = functions.https.functions.https.onCall( async (data, context) => {
   await checkAdmin(context);
 
   const snap = await db.collection('employees').orderBy('createdAt', 'desc').get();
