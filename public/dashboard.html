@@ -224,6 +224,11 @@
   }
 }
 </style>
+
+<style>
+:root { --status-btns-display: flex; }
+.status-btns { display: var(--status-btns-display) !important; }
+</style>
 </head>
 <body>
 
@@ -299,7 +304,8 @@
 import { auth, db }              from '/js/config.js';
 import { startOnboarding, forceOnboarding } from '/js/onboarding.js';
 window.forceOnboarding = forceOnboarding;
-import { signInWithEmailAndPassword, signOut, onAuthStateChanged }
+import { signInWithEmailAndPassword, signOut, onAuthStateChanged,
+                   browserLocalPersistence, setPersistence }
                                   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import {
   collection, query, where, orderBy, onSnapshot, doc, updateDoc,
@@ -354,9 +360,19 @@ onAuthStateChanged(auth, async user => {
     document.getElementById('dash-app').style.display     = 'block';
 
     // Afficher le bouton "Commande" uniquement pour admin, serveur, bar
-    const canOrder     = ['admin','serveur','bar'].includes(currentRole);
-    const canEncaisser = ['admin','caissier'].includes(currentRole);
-    const canChangeStatus = currentRole !== 'caissier';
+    // ── Matrice des permissions par rôle ──────────────────
+    const ROLES_CONFIG = {
+      admin:    { canOrder: true,  canPay: true,  canStatus: true,  canPlan: true,  filterAuto: null,         masquePlan: false },
+      serveur:  { canOrder: true,  canPay: false, canStatus: true,  canPlan: true,  filterAuto: null,         masquePlan: false },
+      bar:      { canOrder: true,  canPay: false, canStatus: true,  canPlan: true,  filterAuto: null,         masquePlan: false },
+      cuisine:  { canOrder: false, canPay: false, canStatus: true,  canPlan: false, filterAuto: 'preparing',  masquePlan: true  },
+      livreur:  { canOrder: false, canPay: false, canStatus: true,  canPlan: false, filterAuto: 'livraison',  masquePlan: true  },
+      caissier: { canOrder: false, canPay: true,  canStatus: false, canPlan: true,  filterAuto: null,         masquePlan: false },
+    };
+    const roleConfig   = ROLES_CONFIG[currentRole] || ROLES_CONFIG.serveur;
+    const canOrder     = roleConfig.canOrder;
+    const canEncaisser = roleConfig.canPay;
+    const canChangeStatus = roleConfig.canStatus;
 
     // Afficher le rôle en évidence dans le header
     const roleLabels = {
@@ -387,19 +403,21 @@ onAuthStateChanged(auth, async user => {
     const orderBtn = document.getElementById('staff-order-btn');
     if (orderBtn) orderBtn.style.display = canOrder ? 'flex' : 'none';
 
-    // Cuisine/livreur : masquer les filtres de paiement, afficher uniquement les commandes actives
-    if (currentRole === 'cuisine') {
-      // Auto-filtrer sur "En préparation" pour la cuisine
+    // Masquer bouton plan de salle pour certains rôles
+    const planBtn = document.getElementById('fp-btn');
+    if (planBtn) planBtn.style.display = roleConfig.masquePlan ? 'none' : '';
+
+    // Filtre automatique selon le rôle
+    if (roleConfig.filterAuto) {
       setTimeout(() => {
-        const prepBtn = document.querySelector('[onclick*="preparing"]');
-        if (prepBtn) { setFilter('preparing', prepBtn); }
-      }, 500);
+        const btn = document.querySelector('[onclick*="' + roleConfig.filterAuto + '"]');
+        if (btn) setFilter(roleConfig.filterAuto, btn);
+      }, 600);
     }
-    if (currentRole === 'livreur') {
-      setTimeout(() => {
-        const livBtn = document.querySelector('[onclick*="livraison"]');
-        if (livBtn) { setFilter('livraison', livBtn); }
-      }, 500);
+
+    // Caissier : masquer les boutons de changement de statut cuisine dans les cartes
+    if (!canChangeStatus) {
+      document.documentElement.style.setProperty('--status-btns-display', 'none');
     }
     // Caissier badge dans le header
     if (currentRole === 'caissier') {
@@ -883,6 +901,11 @@ window.showSessionInvoice = async function(sessionId, tableId) {
 
 
 
+
+<style>
+:root { --status-btns-display: flex; }
+.status-btns { display: var(--status-btns-display) !important; }
+</style>
 </head><body>
     <h1>⭐ Délices Étoiles</h1>
     <div class="sub">Grand-Bassam · Resto & Traiteur<br>${date}</div>
