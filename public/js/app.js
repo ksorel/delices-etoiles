@@ -212,7 +212,8 @@ async function init() {
 
   // 2. Détecter WebView → bannière "Ouvrir dans Chrome/Safari"
   const params0 = new URLSearchParams(window.location.search);
-  if (params0.get('src') === 'qr' && isWebView()) {
+  // Afficher la bannière dans toute WebView (pas seulement QR)
+  if (isWebView()) {
     showOpenInBrowserBanner();
   }
 
@@ -292,9 +293,17 @@ async function init() {
 // ─── Détection WebView ────────────────────────────────────
 function isWebView() {
   const ua = navigator.userAgent || '';
-  return /wv|WebView|FBAN|FBAV|Instagram|Snapchat|Line\//.test(ua)
-    || (ua.includes('Android') && !ua.includes('Chrome'))
-    || (ua.includes('iPhone') && !ua.includes('Safari'));
+  // Navigateurs intégrés connus
+  if (/wv|WebView|FBAN|FBAV|Instagram|Snapchat|Line\/|MicroMessenger|Twitter|Pinterest|TikTok/.test(ua)) return true;
+  // Android sans Chrome (Samsung Browser intégré appli photo, etc.)
+  if (ua.includes('Android') && !ua.includes('Chrome/')) return true;
+  // iOS sans Safari (WebView in-app)
+  if (/iPhone|iPad/.test(ua) && !/Safari\//.test(ua)) return true;
+  // Huawei AppGallery / HMS
+  if (/HMSCore|HuaweiBrowser/.test(ua)) return false; // Huawei Browser est OK
+  // Oppo, Vivo, Xiaomi integrated browsers
+  if (/HeyTap|VivoBrowser|MiuiBrowser/.test(ua)) return true;
+  return false;
 }
 
 // ─── Auth avec retry (3 tentatives) ──────────────────────
@@ -328,25 +337,64 @@ function withTimeout(promise, ms) {
 
 // ─── Bannière "Ouvrir dans le vrai navigateur" ───────────
 function showOpenInBrowserBanner() {
-  const banner = document.createElement('div');
-  banner.style.cssText = [
-    'position:fixed','top:0','left:0','right:0',
-    'background:#2B1D16','color:#fff',
-    'padding:10px 16px','z-index:9999',
-    'display:flex','align-items:center','justify-content:space-between',
-    'font-size:13px','gap:10px','font-family:sans-serif'
+  // Construire le lien intent Android pour forcer Chrome
+  const pageUrl   = window.location.href;
+  const chromeUrl = 'googlechrome://' + pageUrl.replace(/^https?:\/\//, '');
+  const intentUrl = 'intent://' + pageUrl.replace(/^https?:\/\//, '')
+    + '#Intent;scheme=https;package=com.android.chrome;end';
+  const isAndroid = /Android/.test(navigator.userAgent);
+  const isIOS     = /iPhone|iPad|iPod/.test(navigator.userAgent);
+
+  // Overlay plein écran bloquant — force l'action
+  const overlay = document.createElement('div');
+  overlay.id = 'webview-overlay';
+  overlay.style.cssText = [
+    'position:fixed','inset:0','z-index:99999',
+    'background:rgba(43,29,22,.97)',
+    'display:flex','flex-direction:column',
+    'align-items:center','justify-content:center',
+    'padding:32px 24px','font-family:sans-serif',
+    'text-align:center'
   ].join(';');
-  banner.innerHTML = `
-    <span>📱 Pour une meilleure expérience :</span>
-    <a href="${window.location.href}" target="_blank" rel="noopener"
-       style="background:#F26522;color:#fff;padding:6px 14px;border-radius:16px;
-              font-weight:700;font-size:12px;text-decoration:none;white-space:nowrap">
-      Ouvrir dans Chrome →
-    </a>
-    <button onclick="this.parentNode.remove()" style="background:none;border:none;
-      color:rgba(255,255,255,.6);font-size:20px;cursor:pointer;padding:0 4px">×</button>`;
-  document.body.prepend(banner);
+
+  overlay.innerHTML = [
+    '<div style="font-size:48px;margin-bottom:16px">📱</div>',
+    '<div style="font-size:20px;font-weight:800;color:#fff;margin-bottom:8px">',
+      'Ouvrir dans Chrome',
+    '</div>',
+    '<div style="font-size:14px;color:rgba(255,255,255,.7);margin-bottom:28px;line-height:1.6">',
+      'Pour commander, veuillez ouvrir<br>ce lien dans votre navigateur Chrome.',
+    '</div>',
+    // Bouton principal - intent Android ou lien direct
+    '<a href="' + (isAndroid ? intentUrl : pageUrl) + '"',
+    '   style="background:#F26522;color:#fff;padding:14px 32px;border-radius:24px;',
+    '          font-weight:800;font-size:16px;text-decoration:none;',
+    '          display:block;margin-bottom:12px;width:100%;max-width:280px"',
+    '   onclick="document.getElementById('webview-overlay').remove()">',
+    '  🟠 Ouvrir dans Chrome',
+    '</a>',
+    // Lien copie pour iOS
+    isIOS ? [
+      '<div style="margin-top:16px;color:rgba(255,255,255,.5);font-size:12px">',
+        'Ou copiez ce lien dans Safari :',
+      '</div>',
+      '<div style="background:rgba(255,255,255,.1);color:#fff;padding:8px 16px;',
+      '     border-radius:8px;margin-top:8px;font-size:11px;word-break:break-all;',
+      '     max-width:280px">',
+        pageUrl,
+      '</div>',
+    ].join('') : '',
+    // Bouton continuer quand même
+    '<button onclick="document.getElementById('webview-overlay').remove()"',
+    '  style="background:none;border:none;color:rgba(255,255,255,.4);',
+    '         font-size:12px;margin-top:20px;cursor:pointer;text-decoration:underline">',
+    '  Continuer quand même',
+    '</button>',
+  ].join('');
+
+  document.body.appendChild(overlay);
 }
+
 
 // ─── Écran Réessayer ──────────────────────────────────────
 function showRetryScreen() {
