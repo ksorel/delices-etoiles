@@ -168,7 +168,7 @@ exports.onOrderReady = region.firestore
 
 exports.createEmployee = region.https.onCall(async (data, context) => {
   await checkAdmin(context);
-  const { email, password, role, displayName } = data;
+  const { email, password, role, displayName, username } = data;
   if (!email || !password || !role) {
     throw new functions.https.HttpsError('invalid-argument', 'Email, mot de passe et rôle requis');
   }
@@ -185,7 +185,8 @@ exports.createEmployee = region.https.onCall(async (data, context) => {
     await admin.auth().setCustomUserClaims(userRecord.uid, { role });
     await db.collection('employees').doc(userRecord.uid).set({
       uid: userRecord.uid, email,
-      displayName: displayName || email.split('@')[0],
+      username: username || email.replace('@delices-etoiles.staff', ''),
+      displayName: displayName || username || email.split('@')[0],
       role, active: true,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       createdBy: context.auth.uid,
@@ -234,6 +235,19 @@ exports.deleteEmployee = region.https.onCall(async (data, context) => {
   }
   await admin.auth().deleteUser(uid);
   await db.collection('employees').doc(uid).delete();
+  return { success: true };
+});
+
+exports.resetEmployeePassword = region.https.onCall(async (data, context) => {
+  await checkAdmin(context);
+  const { uid, password } = data;
+  if (!uid || !password) {
+    throw new functions.https.HttpsError('invalid-argument', 'UID et mot de passe requis');
+  }
+  if (password.length < 6) {
+    throw new functions.https.HttpsError('invalid-argument', 'Mot de passe trop court (min. 6 caractères)');
+  }
+  await admin.auth().updateUser(uid, { password });
   return { success: true };
 });
 
