@@ -381,7 +381,7 @@ async function checkAdmin(context) {
 }
 
 // ── Créer un employé ──────────────────────────────────────
-exports.createEmployee = onCall({ cors: true }, async (request) => { const data = request.data; const context = { auth: request.auth };
+exports.createEmployee = onCall({ cors: ['https://delices-etoiles.web.app', 'https://delices-etoiles.firebaseapp.com'] }, async (request) => { const data = request.data; const context = { auth: request.auth };
   await checkAdmin(context);
 
   const { email, password, role, displayName } = data;
@@ -428,7 +428,7 @@ exports.createEmployee = onCall({ cors: true }, async (request) => { const data 
 });
 
 // ── Modifier le rôle d'un employé ────────────────────────
-exports.updateEmployeeRole = onCall({ cors: true }, async (request) => { const data = request.data; const context = { auth: request.auth };
+exports.updateEmployeeRole = onCall({ cors: ['https://delices-etoiles.web.app', 'https://delices-etoiles.firebaseapp.com'] }, async (request) => { const data = request.data; const context = { auth: request.auth };
   await checkAdmin(context);
 
   const { uid, role } = data;
@@ -450,7 +450,7 @@ exports.updateEmployeeRole = onCall({ cors: true }, async (request) => { const d
 });
 
 // ── Désactiver/Activer un employé ─────────────────────────
-exports.toggleEmployee = onCall({ cors: true }, async (request) => { const data = request.data; const context = { auth: request.auth };
+exports.toggleEmployee = onCall({ cors: ['https://delices-etoiles.web.app', 'https://delices-etoiles.firebaseapp.com'] }, async (request) => { const data = request.data; const context = { auth: request.auth };
   await checkAdmin(context);
 
   const { uid, disabled } = data;
@@ -466,7 +466,7 @@ exports.toggleEmployee = onCall({ cors: true }, async (request) => { const data 
 });
 
 // ── Supprimer un employé ──────────────────────────────────
-exports.deleteEmployee = onCall({ cors: true }, async (request) => { const data = request.data; const context = { auth: request.auth };
+exports.deleteEmployee = onCall({ cors: ['https://delices-etoiles.web.app', 'https://delices-etoiles.firebaseapp.com'] }, async (request) => { const data = request.data; const context = { auth: request.auth };
   await checkAdmin(context);
 
   const { uid } = data;
@@ -484,7 +484,7 @@ exports.deleteEmployee = onCall({ cors: true }, async (request) => { const data 
 });
 
 // ── Lister tous les employés ──────────────────────────────
-exports.listEmployees = onCall({ cors: true }, async (request) => { const data = request.data; const context = { auth: request.auth };
+exports.listEmployees = onCall({ cors: ['https://delices-etoiles.web.app', 'https://delices-etoiles.firebaseapp.com'] }, async (request) => { const data = request.data; const context = { auth: request.auth };
   await checkAdmin(context);
 
   const snap = await db.collection('employees').orderBy('createdAt', 'desc').get();
