@@ -355,9 +355,10 @@
 
 <script type="module">
 import { auth, db, storage } from '/js/config.js';
-import { getFunctions, httpsCallable }
+import { getFunctions, httpsCallable, connectFunctionsEmulator }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-functions.js';
-const functions = getFunctions(undefined, 'europe-west1');
+import app from '/js/config.js';
+const functions = getFunctions(app, 'europe-west1');
 import { startOnboarding, forceOnboarding } from '/js/onboarding.js';
 window.forceOnboarding = forceOnboarding;
 import { initAssistant }     from '/js/assistant.js';
