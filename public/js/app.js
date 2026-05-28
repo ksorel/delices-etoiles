@@ -370,7 +370,7 @@ function showOpenInBrowserBanner() {
     '   style="background:#F26522;color:#fff;padding:14px 32px;border-radius:24px;',
     '          font-weight:800;font-size:16px;text-decoration:none;',
     '          display:block;margin-bottom:12px;width:100%;max-width:280px"',
-    '   onclick="document.getElementById('webview-overlay').remove()">',
+    '   onclick="document.getElementById(&quot;webview-overlay&quot;).remove()">',
     '  🟠 Ouvrir dans Chrome',
     '</a>',
     // Lien copie pour iOS
@@ -385,11 +385,7 @@ function showOpenInBrowserBanner() {
       '</div>',
     ].join('') : '',
     // Bouton continuer quand même
-    '<button onclick="document.getElementById('webview-overlay').remove()"',
-    '  style="background:none;border:none;color:rgba(255,255,255,.4);',
-    '         font-size:12px;margin-top:20px;cursor:pointer;text-decoration:underline">',
-    '  Continuer quand même',
-    '</button>',
+    '<button onclick="document.getElementById(&quot;webview-overlay&quot;).remove()"',
   ].join('');
 
   document.body.appendChild(overlay);
