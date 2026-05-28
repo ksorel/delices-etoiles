@@ -1847,13 +1847,17 @@ window.Admin.editEmployee = function(uid, currentRole, name) {
     +     '<button onclick="document.getElementById(\'edit-modal\').remove()"'
     +       ' style="padding:10px 20px;border:2px solid #E0D4C8;border-radius:10px;background:#fff;'
     +       'color:#7A6356;font-size:14px;font-weight:600;cursor:pointer">Annuler</button>'
-    +     '<button onclick="window.Admin.saveRole('' + uid + '\')"'
+    +     '<button id="save-role-btn"'
     +       ' style="padding:10px 24px;background:#F26522;border:none;border-radius:10px;'
     +       'color:#fff;font-size:14px;font-weight:700;cursor:pointer">✓ Enregistrer</button>'
     +   '</div>'
     + '</div>';
 
   document.body.appendChild(modal);
+
+  // Bind save button via addEventListener (évite les problèmes d'échappement)
+  var saveBtn = document.getElementById('save-role-btn');
+  if (saveBtn) saveBtn.addEventListener('click', function() { window.Admin.saveRole(uid); });
 
   window.selectRoleCard = function(role) {
     document.getElementById('edit-role').value = role;
