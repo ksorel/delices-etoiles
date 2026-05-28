@@ -375,3 +375,127 @@ exports.onOrderReady = region.firestore
 
     return null;
   });
+
+
+// ════════════════════════════════════════════════════════════
+//  Gestion des utilisateurs — Admin uniquement
+// ════════════════════════════════════════════════════════════
+
+// Helper : vérifier que l'appelant est admin
+async function checkAdmin(context) {
+  if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Non authentifié');
+  if (context.auth.token.role !== 'admin') {
+    throw new functions.https.HttpsError('permission-denied', 'Réservé aux administrateurs');
+  }
+}
+
+// ── Créer un employé ──────────────────────────────────────
+exports.createEmployee = region.https.onCall(async (data, context) => {
+  await checkAdmin(context);
+
+  const { email, password, role, displayName } = data;
+
+  if (!email || !password || !role) {
+    throw new functions.https.HttpsError('invalid-argument', 'Email, mot de passe et rôle requis');
+  }
+
+  const VALID_ROLES = ['admin', 'serveur', 'bar', 'cuisine', 'livreur', 'caissier'];
+  if (!VALID_ROLES.includes(role)) {
+    throw new functions.https.HttpsError('invalid-argument', 'Rôle invalide');
+  }
+
+  try {
+    // Créer le compte Firebase Auth
+    const userRecord = await admin.auth().createUser({
+      email,
+      password,
+      displayName: displayName || email.split('@')[0],
+      emailVerified: true,
+    });
+
+    // Assigner le rôle (custom claim)
+    await admin.auth().setCustomUserClaims(userRecord.uid, { role });
+
+    // Enregistrer dans Firestore pour listing
+    await db.collection('employees').doc(userRecord.uid).set({
+      uid:         userRecord.uid,
+      email,
+      displayName: displayName || email.split('@')[0],
+      role,
+      active:      true,
+      createdAt:   admin.firestore.FieldValue.serverTimestamp(),
+      createdBy:   context.auth.uid,
+    });
+
+    return { success: true, uid: userRecord.uid };
+  } catch (e) {
+    if (e.code === 'auth/email-already-exists') {
+      throw new functions.https.HttpsError('already-exists', 'Cet email est déjà utilisé');
+    }
+    throw new functions.https.HttpsError('internal', e.message);
+  }
+});
+
+// ── Modifier le rôle d'un employé ────────────────────────
+exports.updateEmployeeRole = region.https.onCall(async (data, context) => {
+  await checkAdmin(context);
+
+  const { uid, role } = data;
+  if (!uid || !role) throw new functions.https.HttpsError('invalid-argument', 'UID et rôle requis');
+
+  const VALID_ROLES = ['admin', 'serveur', 'bar', 'cuisine', 'livreur', 'caissier'];
+  if (!VALID_ROLES.includes(role)) {
+    throw new functions.https.HttpsError('invalid-argument', 'Rôle invalide');
+  }
+
+  await admin.auth().setCustomUserClaims(uid, { role });
+  await db.collection('employees').doc(uid).update({
+    role,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedBy: context.auth.uid,
+  });
+
+  return { success: true };
+});
+
+// ── Désactiver/Activer un employé ─────────────────────────
+exports.toggleEmployee = region.https.onCall(async (data, context) => {
+  await checkAdmin(context);
+
+  const { uid, disabled } = data;
+  if (!uid) throw new functions.https.HttpsError('invalid-argument', 'UID requis');
+
+  await admin.auth().updateUser(uid, { disabled });
+  await db.collection('employees').doc(uid).update({
+    active:    !disabled,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  return { success: true };
+});
+
+// ── Supprimer un employé ──────────────────────────────────
+exports.deleteEmployee = region.https.onCall(async (data, context) => {
+  await checkAdmin(context);
+
+  const { uid } = data;
+  if (!uid) throw new functions.https.HttpsError('invalid-argument', 'UID requis');
+
+  // Empêcher l'admin de se supprimer lui-même
+  if (uid === context.auth.uid) {
+    throw new functions.https.HttpsError('failed-precondition', 'Vous ne pouvez pas supprimer votre propre compte');
+  }
+
+  await admin.auth().deleteUser(uid);
+  await db.collection('employees').doc(uid).delete();
+
+  return { success: true };
+});
+
+// ── Lister tous les employés ──────────────────────────────
+exports.listEmployees = region.https.onCall(async (data, context) => {
+  await checkAdmin(context);
+
+  const snap = await db.collection('employees').orderBy('createdAt', 'desc').get();
+  return snap.docs.map(d => d.data());
+});
