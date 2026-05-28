@@ -437,8 +437,22 @@ window.doAdminLogout = async () => {
 
 onAuthStateChanged(auth, async user => {
   if (user) {
-    const token = await user.getIdTokenResult();
+    // Lire le rôle avec retry si token pas encore propagé
+    let token = await user.getIdTokenResult();
+    if (!token.claims.role) {
+      token = await user.getIdToken(true).then(() => user.getIdTokenResult());
+    }
+    if (!token.claims.role) {
+      await new Promise(r => setTimeout(r, 2000));
+      token = await user.getIdToken(true).then(() => user.getIdTokenResult());
+    }
     if (token.claims.role !== 'admin') { await signOut(auth); return; }
+
+    // Rafraîchir le token toutes les 55min
+    if (window._tokenRefreshInterval) clearInterval(window._tokenRefreshInterval);
+    window._tokenRefreshInterval = setInterval(async () => {
+      try { await user.getIdToken(true); } catch(e) { console.warn('Token refresh:', e); }
+    }, 55 * 60 * 1000);
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('admin-app').style.display    = 'flex';
     await loadData();
