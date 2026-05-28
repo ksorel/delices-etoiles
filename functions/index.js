@@ -13,17 +13,16 @@
 //      email.dest="patron@delices-etoiles.ci"
 // ════════════════════════════════════════════════════════════
 
-const { onCall, HttpsError, onRequest } = require('firebase-functions/v2/https');
-const { onDocumentCreated, onDocumentUpdated } = require('firebase-functions/v2/firestore');
-const { onSchedule }          = require('firebase-functions/v2/scheduler');
-const { setGlobalOptions }    = require('firebase-functions/v2');
-const admin                   = require('firebase-admin');
+const functions = require('firebase-functions');
+const { onCall, HttpsError } = require('firebase-functions/v2/https');
+const { setGlobalOptions }   = require('firebase-functions/v2');
+const admin                  = require('firebase-admin');
 
 admin.initializeApp();
 const db = admin.firestore();
 
 // ── Région CI-optimisée ───────────────────────────────────
-setGlobalOptions({ region: 'europe-west1' });
+const region = functions.region('europe-west1');
 
 // ── Helper : format FCFA ──────────────────────────────────
 const fcfa = n => new Intl.NumberFormat('fr-FR').format(n) + ' FCFA';
@@ -31,7 +30,7 @@ const fcfa = n => new Intl.NumberFormat('fr-FR').format(n) + ' FCFA';
 // ─────────────────────────────────────────────────────────
 //  1. TRIGGER : Nouvelle commande → Notification WhatsApp
 // ─────────────────────────────────────────────────────────
-exports.onNewOrder = onDocumentCreated('commandes/{orderId}', async (snap, context) => {
+exports.onNewOrder = region.firestore.document('commandes/{orderId}').onCreate(async (snap, context) => {
     const order   = snap.data();
     const orderId = context.params.orderId;
     const shortId = orderId.slice(-6).toUpperCase();
@@ -153,8 +152,8 @@ exports.paymentWebhook = onRequest(async (req, res) => {
 // ─────────────────────────────────────────────────────────
 //  3. CRON : Rapport quotidien par email (23h59 heure CI)
 // ─────────────────────────────────────────────────────────
-exports.dailyReport = onSchedule({ schedule: '59 23 * * *', timeZone: 'Africa/Abidjan' }, async (event) => {
-    const config = { email: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS, dest: process.env.EMAIL_DEST } };
+exports.dailyReport = region.pubsub.schedule('59 23 * * *').timeZone('Africa/Abidjan').onRun(async (_context) => {
+    const config = functions.config();
     if (!config.email?.user) {
       console.warn('Email non configuré — skipping report');
       return null;
@@ -229,7 +228,7 @@ exports.setUserRole = onCall(async (request) => { const data = request.data; con
 // ─────────────────────────────────────────────────────────
 //  5. TRIGGER : Commande préparée → Décrémentation stocks
 // ─────────────────────────────────────────────────────────
-exports.onOrderStatusChange = onDocumentUpdated('commandes/{orderId}', async (event) => { const change = event.data; const context = { params: event.params };
+exports.onOrderStatusChange = region.firestore.document('commandes/{orderId}').onUpdate(async (change, context) => {
     const before = change.before.data();
     const after  = change.after.data();
     const orderId = context.params.orderId;
@@ -324,7 +323,7 @@ exports.onOrderStatusChange = onDocumentUpdated('commandes/{orderId}', async (ev
 // ─────────────────────────────────────────────────────────
 //  6. TRIGGER : Commande prête → Notification FCM client
 // ─────────────────────────────────────────────────────────
-exports.onOrderReady = onDocumentUpdated('commandes/{orderId}', async (event) => { const change = event.data; const context = { params: event.params };
+exports.onOrderReady = region.firestore.document('commandes/{orderId}').onUpdate(async (change, context) => {
     const before = change.before.data();
     const after  = change.after.data();
 
