@@ -266,12 +266,20 @@
     </div>
     <button class="login-btn" onclick="doLogin()">Se connecter</button>
     <div class="login-err" id="login-err"></div>
-    <div style="text-align:center;margin-top:12px">
-      <button onclick="doForgotPassword()"
-        style="background:none;border:none;color:var(--orange);font-size:13px;
-               cursor:pointer;text-decoration:underline">
-        Mot de passe oublié ? → Contacter l'admin
-      </button>
+    <div id="contact-admin-block" style="margin-top:16px;padding:12px 16px;
+         background:#FFF8F5;border-radius:10px;border:1px solid #FDDCCC;text-align:center">
+      <div style="font-size:12px;color:#7A6356;margin-bottom:6px">
+        🔐 Mot de passe oublié ?
+      </div>
+      <div style="font-size:13px;font-weight:700;color:#2B1D16">
+        Contactez votre responsable
+      </div>
+      <a id="contact-phone-link" href="tel:0779939254"
+         style="display:inline-flex;align-items:center;gap:6px;margin-top:8px;
+                background:#F26522;color:#fff;padding:8px 18px;border-radius:20px;
+                font-size:13px;font-weight:700;text-decoration:none">
+        📞 <span id="contact-phone-num">0779939254</span>
+      </a>
     </div>
   </div>
 </div>

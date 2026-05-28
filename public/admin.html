@@ -355,6 +355,7 @@
     <div class="nav-item" onclick="showPage('qrcodes',this)"><span class="nav-icon">📱</span>QR Codes</div>
     <div class="nav-item" onclick="showPage('platdujour',this)"><span class="nav-icon">⭐</span>Plat du jour</div>
     <div class="nav-item" onclick="showPage('stocks',this)"><span class="nav-icon">📦</span>Stocks</div>
+    <div class="nav-item" onclick="showPage('config',this)"><span class="nav-icon">⚙️</span>Configuration</div>
     <div class="nav-item" onclick="showPage('stats',this)"><span class="nav-icon">📈</span>Statistiques</div>
     <div class="nav-item" onclick="showPage('cache',this)"><span class="nav-icon">🔄</span>Cache</div>
     <div class="nav-item" onclick="showPage('paiements',this)"><span class="nav-icon">💳</span>Paiements</div>
@@ -513,6 +514,7 @@ async function renderPage(page) {
     case 'paiements':  renderPaiements(c); break;
     case 'stocks':     renderStocks(c); break;
     case 'stats':      renderStats(c); break;
+    case 'config':     await renderConfig(c); break;
     case 'cache':      renderCache(c); break;
     case 'commandes':  renderCommandes(c); break;
   }
@@ -811,6 +813,62 @@ function renderUpselling(c, a) {
     </div>`;
 }
 
+
+
+// ── Configuration restaurant ──────────────────────────────
+async function renderConfig(c) {
+  c.innerHTML = '<div class="loading"><div class="spinner"></div><p>Chargement…</p></div>';
+
+  let cfg = { managerPhone: '0779939254', restaurantName: 'Délices Étoiles', restoId: 'bassam' };
+  try {
+    const snap = await getDoc(doc(db, 'config', 'restaurant'));
+    if (snap.exists()) cfg = { ...cfg, ...snap.data() };
+  } catch(e) {}
+
+  c.innerHTML = '<div class="card">'
+    + '<div class="card-title">⚙️ Configuration du restaurant</div>'
+    + '<div style="display:flex;flex-direction:column;gap:16px;max-width:480px">'
+
+    // Nom du restaurant
+    + '<div><label class="form-label">Nom du restaurant</label>'
+    + '<input class="form-input" id="cfg-name" value="' + (cfg.restaurantName||'') + '" placeholder="Délices Étoiles"></div>'
+
+    // Identifiant restaurant (pour multi-restaurant)
+    + '<div><label class="form-label">Identifiant restaurant</label>'
+    + '<input class="form-input" id="cfg-restoid" value="' + (cfg.restoId||'') + '" placeholder="bassam, abobo, anyama…">'
+    + '<div style="font-size:11px;color:var(--muted);margin-top:4px">Utilisé pour la chaîne multi-restaurant (ex: bassam, abobo, anyama)</div></div>'
+
+    // Numéro gérant
+    + '<div><label class="form-label">📞 Numéro du gérant (affiché sur la page login)</label>'
+    + '<input class="form-input" id="cfg-phone" value="' + (cfg.managerPhone||'') + '" type="tel" placeholder="0779939254">'
+    + '<div style="font-size:11px;color:var(--muted);margin-top:4px">Affiché aux employés qui ont oublié leur mot de passe</div></div>'
+
+    + '<button onclick="window.Admin.saveConfig()" class="btn btn-primary" style="align-self:flex-start">💾 Enregistrer</button>'
+    + '<div id="cfg-msg" style="font-size:13px;display:none"></div>'
+    + '</div></div>';
+}
+
+window.Admin.saveConfig = async function() {
+  const name    = document.getElementById('cfg-name')?.value.trim();
+  const restoId = document.getElementById('cfg-restoid')?.value.trim();
+  const phone   = document.getElementById('cfg-phone')?.value.trim();
+  const msg     = document.getElementById('cfg-msg');
+
+  try {
+    await setDoc(doc(db, 'config', 'restaurant'), {
+      restaurantName: name,
+      restoId:        restoId,
+      managerPhone:   phone,
+      updatedAt:      serverTimestamp(),
+    }, { merge: true });
+    msg.style.cssText = 'display:block;color:#10B981;font-weight:700';
+    msg.textContent   = '✅ Configuration enregistrée';
+    setTimeout(() => msg.style.display = 'none', 3000);
+  } catch(e) {
+    msg.style.cssText = 'display:block;color:#EF4444';
+    msg.textContent   = 'Erreur : ' + e.message;
+  }
+};
 
 
 // ── Plan de salle ─────────────────────────────────────────
