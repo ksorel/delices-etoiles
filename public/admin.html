@@ -1599,9 +1599,10 @@ async function renderUsers(c) {
 
   let employees = [];
   try {
-    const listFn = httpsCallable(functions, 'listEmployees');
-    const res    = await listFn();
-    employees    = res.data || [];
+    const snap = await getDocs(
+      query(collection(db, 'employees'), orderBy('createdAt', 'desc'))
+    );
+    employees = snap.docs.map(d => d.data());
   } catch(e) {
     c.innerHTML = '<div class="card"><p style="color:red">Erreur : ' + e.message + '</p></div>';
     return;
