@@ -590,7 +590,9 @@ function renderDashboard(c) {
 }
 
 function orderRow(o) {
-  const time = o.createdAt?.toDate?.() ? new Date(o.createdAt.toDate()).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}) : '';
+  const time = o.createdAt?.toDate?.() ? new Date(o.createdAt.toDate()).toLocaleString('fr-FR',{
+        day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'
+      }).replace(',',' à') : '';
   return `<tr>
     <td style="font-weight:700">#${o.id.slice(-6).toUpperCase()}</td>
     <td>${o.type==='salle'?'🪑 Salle':'🚴 Livraison'}</td>

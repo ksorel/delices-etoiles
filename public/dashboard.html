@@ -354,12 +354,53 @@ onAuthStateChanged(auth, async user => {
     document.getElementById('dash-app').style.display     = 'block';
 
     // Afficher le bouton "Commande" uniquement pour admin, serveur, bar
-    const canOrder    = ['admin','serveur','bar'].includes(currentRole);
+    const canOrder     = ['admin','serveur','bar'].includes(currentRole);
     const canEncaisser = ['admin','caissier'].includes(currentRole);
-    // Caissier : pas de commande serveur, pas de changement statut cuisine
     const canChangeStatus = currentRole !== 'caissier';
+
+    // Afficher le rôle en évidence dans le header
+    const roleLabels = {
+      admin:    { label: 'ADMINISTRATION', color: '#F26522', bg: 'rgba(242,101,34,.2)', icon: '👑' },
+      serveur:  { label: 'SERVEUR',        color: '#3B82F6', bg: 'rgba(59,130,246,.2)', icon: '🪑' },
+      bar:      { label: 'BAR',            color: '#8B5CF6', bg: 'rgba(139,92,246,.2)', icon: '🍺' },
+      cuisine:  { label: 'CUISINE',        color: '#10B981', bg: 'rgba(16,185,129,.2)', icon: '👨‍🍳' },
+      livreur:  { label: 'LIVREUR',        color: '#F59E0B', bg: 'rgba(245,158,11,.2)', icon: '🚴' },
+      caissier: { label: 'CAISSIER',       color: '#EC4899', bg: 'rgba(236,72,153,.2)', icon: '💳' },
+    };
+    const roleInfo = roleLabels[currentRole] || { label: currentRole.toUpperCase(), color:'#fff', bg:'rgba(255,255,255,.1)', icon:'👤' };
+
+    // Supprimer l'ancien badge si existant
+    document.getElementById('role-badge')?.remove();
+    const roleBadge = document.createElement('div');
+    roleBadge.id = 'role-badge';
+    roleBadge.style.cssText = \`
+      display:flex;align-items:center;gap:6px;
+      padding:5px 12px;border-radius:20px;
+      background:\${roleInfo.bg};border:1px solid \${roleInfo.color};
+      font-size:12px;font-weight:800;color:\${roleInfo.color};
+      letter-spacing:.05em;flex-shrink:0;
+    \`;
+    roleBadge.innerHTML = \`\${roleInfo.icon} \${roleInfo.label}\`;
+    // Insérer après le live-dot
+    const liveDot = document.querySelector('.live-dot');
+    if (liveDot) liveDot.after(roleBadge);
     const orderBtn = document.getElementById('staff-order-btn');
     if (orderBtn) orderBtn.style.display = canOrder ? 'flex' : 'none';
+
+    // Cuisine/livreur : masquer les filtres de paiement, afficher uniquement les commandes actives
+    if (currentRole === 'cuisine') {
+      // Auto-filtrer sur "En préparation" pour la cuisine
+      setTimeout(() => {
+        const prepBtn = document.querySelector('[onclick*="preparing"]');
+        if (prepBtn) { setFilter('preparing', prepBtn); }
+      }, 500);
+    }
+    if (currentRole === 'livreur') {
+      setTimeout(() => {
+        const livBtn = document.querySelector('[onclick*="livraison"]');
+        if (livBtn) { setFilter('livraison', livBtn); }
+      }, 500);
+    }
     // Caissier badge dans le header
     if (currentRole === 'caissier') {
       const badge = document.createElement('span');
@@ -476,8 +517,12 @@ function renderOrders() {
 }
 
 function buildCard(o) {
-  const time = o.createdAt?.toDate
-    ? o.createdAt.toDate().toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' })
+  const timeObj = o.createdAt?.toDate ? o.createdAt.toDate() : null;
+  const time = timeObj
+    ? timeObj.toLocaleString('fr-FR', { 
+        day:'2-digit', month:'2-digit', 
+        hour:'2-digit', minute:'2-digit' 
+      }).replace(',', ' à')
     : '—';
   const num = o.id.slice(-6).toUpperCase();
   // Chercher le nom de table à jour depuis le plan de salle

@@ -1103,9 +1103,9 @@ function renderTracking(container, orderId) {
   container.innerHTML = `
     <div class="tracking-wrap">
       <div class="tracking-header">
-        <div class="tracking-id">${t('order_number')}${orderId.slice(-6).toUpperCase()}</div>
-        <div class="tracking-title">Suivi de commande</div>
-        <div class="tracking-sub">Mis à jour en temps réel</div>
+        <div class="tracking-id">${t('order_number')} <strong>#${orderId.slice(-6).toUpperCase()}</strong></div>
+        <div class="tracking-title" id="tracking-title-dyn">Suivi de commande</div>
+        <div class="tracking-sub" id="tracking-sub-dyn">Chargement…</div>
       </div>
 
       ${notifSupported ? `
@@ -1142,6 +1142,23 @@ function updateTrackingView(order) {
 
   const isLiv     = order.type === 'livraison';
   const status    = order.status;
+
+  // Mettre à jour le titre selon statut
+  const titleEl = document.getElementById('tracking-title-dyn');
+  const subEl   = document.getElementById('tracking-sub-dyn');
+  const statusMessages = {
+    pending:   { title: '📋 Commande reçue',      sub: 'Votre commande est en attente de traitement', color: '#F59E0B' },
+    preparing: { title: '👨‍🍳 En préparation',      sub: 'La cuisine prépare votre commande',           color: '#3B82F6' },
+    ready:     { title: '🍽️ Prête à servir !',     sub: 'Votre commande est prête — le serveur arrive', color: '#10B981' },
+    done:      { title: '✅ Commande servie',       sub: 'Bon appétit ! Merci de votre visite.',         color: '#065F46' },
+  };
+  if (isLiv) {
+    statusMessages.ready = { title: '📦 Prête pour livraison', sub: 'Votre livreur va partir', color: '#10B981' };
+    statusMessages.done  = { title: '🚴 En route !',           sub: 'Votre livreur est en chemin',      color: '#3B82F6' };
+  }
+  const msg = statusMessages[status] || statusMessages.pending;
+  if (titleEl) { titleEl.textContent = msg.title; titleEl.style.color = msg.color; }
+  if (subEl)   { subEl.textContent   = msg.sub; }
   const payStatus = order.paymentStatus;
 
   // Définir les étapes selon le type
@@ -1178,7 +1195,7 @@ function updateTrackingView(order) {
         <div class="step-circle">${iconHtml}</div>
         <div class="step-content">
           <div class="step-label">${step.label}</div>
-          <div class="step-time">${isDone ? '✓ Fait' : isActive ? 'En cours…' : step.sub}</div>
+          <div class="step-time">${isDone ? '✓ Terminé' : isActive ? '⏱ En cours…' : step.sub}</div>
         </div>
       </li>`;
   }).join('');
