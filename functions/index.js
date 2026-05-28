@@ -14,8 +14,8 @@
 // ════════════════════════════════════════════════════════════
 
 const functions = require('firebase-functions/v1');
-const { onCall, HttpsError } = require('firebase-functions/v2/https');
-const { setGlobalOptions }   = require('firebase-functions/v2');
+// User management uses v1 https.onCall (CORS handled by Firebase SDK automatically)
+const { HttpsError } = require('firebase-functions/v2/https');
 const admin                  = require('firebase-admin');
 
 admin.initializeApp();
@@ -211,14 +211,14 @@ exports.dailyReport = region.pubsub.schedule('59 23 * * *').timeZone('Africa/Abi
 //  4. CALLABLE : Définir le rôle admin/staff d'un user
 //  Usage client : functions.httpsCallable('setUserRole')({uid, role})
 // ─────────────────────────────────────────────────────────
-exports.setUserRole = onCall(async (request) => { const data = request.data; const context = { auth: request.auth };
+exports.setUserRole = onCall(async (data, context) => {
   // Seul un admin peut assigner des rôles
   if (context.auth?.token?.role !== 'admin') {
-    throw new HttpsError('permission-denied', 'Admin requis');
+    throw new functions.https.HttpsError('permission-denied', 'Admin requis');
   }
   const { uid, role } = data;
   if (!uid || !['admin', 'staff'].includes(role)) {
-    throw new HttpsError('invalid-argument', 'uid et role (admin|staff) requis');
+    throw new functions.https.HttpsError('invalid-argument', 'uid et role (admin|staff) requis');
   }
   await admin.auth().setCustomUserClaims(uid, { role });
   await db.collection('staff').doc(uid).set({ uid, role, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
@@ -374,25 +374,25 @@ exports.onOrderReady = region.firestore.document('commandes/{orderId}').onUpdate
 
 // Helper : vérifier que l'appelant est admin
 async function checkAdmin(context) {
-  if (!context.auth) throw new HttpsError('unauthenticated', 'Non authentifié');
+  if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Non authentifié');
   if (context.auth.token.role !== 'admin') {
-    throw new HttpsError('permission-denied', 'Réservé aux administrateurs');
+    throw new functions.https.HttpsError('permission-denied', 'Réservé aux administrateurs');
   }
 }
 
 // ── Créer un employé ──────────────────────────────────────
-exports.createEmployee = onCall({ cors: ['https://delices-etoiles.web.app', 'https://delices-etoiles.firebaseapp.com'] }, async (request) => { const data = request.data; const context = { auth: request.auth };
+exports.createEmployee = functions.https.onCall( async (data, context) => {
   await checkAdmin(context);
 
   const { email, password, role, displayName } = data;
 
   if (!email || !password || !role) {
-    throw new HttpsError('invalid-argument', 'Email, mot de passe et rôle requis');
+    throw new functions.https.HttpsError('invalid-argument', 'Email, mot de passe et rôle requis');
   }
 
   const VALID_ROLES = ['admin', 'serveur', 'bar', 'cuisine', 'livreur', 'caissier'];
   if (!VALID_ROLES.includes(role)) {
-    throw new HttpsError('invalid-argument', 'Rôle invalide');
+    throw new functions.https.HttpsError('invalid-argument', 'Rôle invalide');
   }
 
   try {
@@ -421,22 +421,22 @@ exports.createEmployee = onCall({ cors: ['https://delices-etoiles.web.app', 'htt
     return { success: true, uid: userRecord.uid };
   } catch (e) {
     if (e.code === 'auth/email-already-exists') {
-      throw new HttpsError('already-exists', 'Cet email est déjà utilisé');
+      throw new functions.https.HttpsError('already-exists', 'Cet email est déjà utilisé');
     }
-    throw new HttpsError('internal', e.message);
+    throw new functions.https.HttpsError('internal', e.message);
   }
 });
 
 // ── Modifier le rôle d'un employé ────────────────────────
-exports.updateEmployeeRole = onCall({ cors: ['https://delices-etoiles.web.app', 'https://delices-etoiles.firebaseapp.com'] }, async (request) => { const data = request.data; const context = { auth: request.auth };
+exports.updateEmployeeRole = functions.https.onCall( async (data, context) => {
   await checkAdmin(context);
 
   const { uid, role } = data;
-  if (!uid || !role) throw new HttpsError('invalid-argument', 'UID et rôle requis');
+  if (!uid || !role) throw new functions.https.HttpsError('invalid-argument', 'UID et rôle requis');
 
   const VALID_ROLES = ['admin', 'serveur', 'bar', 'cuisine', 'livreur', 'caissier'];
   if (!VALID_ROLES.includes(role)) {
-    throw new HttpsError('invalid-argument', 'Rôle invalide');
+    throw new functions.https.HttpsError('invalid-argument', 'Rôle invalide');
   }
 
   await admin.auth().setCustomUserClaims(uid, { role });
@@ -450,11 +450,11 @@ exports.updateEmployeeRole = onCall({ cors: ['https://delices-etoiles.web.app', 
 });
 
 // ── Désactiver/Activer un employé ─────────────────────────
-exports.toggleEmployee = onCall({ cors: ['https://delices-etoiles.web.app', 'https://delices-etoiles.firebaseapp.com'] }, async (request) => { const data = request.data; const context = { auth: request.auth };
+exports.toggleEmployee = functions.https.onCall( async (data, context) => {
   await checkAdmin(context);
 
   const { uid, disabled } = data;
-  if (!uid) throw new HttpsError('invalid-argument', 'UID requis');
+  if (!uid) throw new functions.https.HttpsError('invalid-argument', 'UID requis');
 
   await admin.auth().updateUser(uid, { disabled });
   await db.collection('employees').doc(uid).update({
@@ -466,15 +466,15 @@ exports.toggleEmployee = onCall({ cors: ['https://delices-etoiles.web.app', 'htt
 });
 
 // ── Supprimer un employé ──────────────────────────────────
-exports.deleteEmployee = onCall({ cors: ['https://delices-etoiles.web.app', 'https://delices-etoiles.firebaseapp.com'] }, async (request) => { const data = request.data; const context = { auth: request.auth };
+exports.deleteEmployee = functions.https.onCall( async (data, context) => {
   await checkAdmin(context);
 
   const { uid } = data;
-  if (!uid) throw new HttpsError('invalid-argument', 'UID requis');
+  if (!uid) throw new functions.https.HttpsError('invalid-argument', 'UID requis');
 
   // Empêcher l'admin de se supprimer lui-même
   if (uid === context.auth.uid) {
-    throw new HttpsError('failed-precondition', 'Vous ne pouvez pas supprimer votre propre compte');
+    throw new functions.https.HttpsError('failed-precondition', 'Vous ne pouvez pas supprimer votre propre compte');
   }
 
   await admin.auth().deleteUser(uid);
@@ -484,7 +484,7 @@ exports.deleteEmployee = onCall({ cors: ['https://delices-etoiles.web.app', 'htt
 });
 
 // ── Lister tous les employés ──────────────────────────────
-exports.listEmployees = onCall({ cors: ['https://delices-etoiles.web.app', 'https://delices-etoiles.firebaseapp.com'] }, async (request) => { const data = request.data; const context = { auth: request.auth };
+exports.listEmployees = functions.https.onCall( async (data, context) => {
   await checkAdmin(context);
 
   const snap = await db.collection('employees').orderBy('createdAt', 'desc').get();
