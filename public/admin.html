@@ -393,7 +393,7 @@ import {
 import {
   collection, doc, addDoc, updateDoc, deleteDoc, setDoc, getDoc,
   getDocs, onSnapshot, query, orderBy, where,
-  serverTimestamp, disableNetwork
+  serverTimestamp, disableNetwork, increment as admin_increment
 } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import {
   ref, uploadBytes, getDownloadURL
@@ -815,46 +815,145 @@ function renderUpselling(c, a) {
 
 
 
-// ── Stocks ───────────────────────────────────────────────
+// ── Stocks Boissons ──────────────────────────────────────
 function renderStocks(c) {
-  c.innerHTML = '<div class="card">'
-    + '<div class="card-title">📦 Gestion des stocks</div>'
-    + '<div id="stocks-content"><div class="loading"><div class="spinner"></div>'
-    + '<p>Chargement des stocks…</p></div></div></div>';
-  loadStocks();
+  c.innerHTML = '<div id="stocks-wrap"><div class="loading"><div class="spinner"></div><p>Chargement…</p></div></div>';
+  loadStocksPage();
 }
 
-async function loadStocks() {
-  const el = document.getElementById('stocks-content');
-  if (!el) return;
+async function loadStocksPage() {
+  const wrap = document.getElementById('stocks-wrap');
+  if (!wrap) return;
   try {
-    const snap = await getDocs(collection(db, 'stocks'));
-    if (snap.empty) {
-      el.innerHTML = '<p style="color:var(--muted);text-align:center;padding:24px">'
-        + 'Aucun article en stock. Ajoutez des articles depuis le menu.</p>';
-      return;
-    }
-    const rows = snap.docs.map(function(d) {
-      const s = d.data();
-      const alert = s.qty <= (s.threshold || 5)
-        ? '<span style="color:#EF4444;font-weight:700">⚠️ ' + s.qty + '</span>'
-        : '<span style="color:#10B981;font-weight:700">' + s.qty + '</span>';
-      return '<tr>'
-        + '<td style="padding:10px 12px">' + (s.name || d.id) + '</td>'
-        + '<td style="padding:10px 12px">' + alert + ' ' + (s.unit || '') + '</td>'
-        + '<td style="padding:10px 12px;color:var(--muted)">' + (s.category || '—') + '</td>'
+    const snap = await getDocs(query(collection(db, 'stocks'), orderBy('name')));
+    const items = snap.docs.map(function(d) { return { id: d.id, ...d.data() }; });
+
+    const rows = items.map(function(s) {
+      const low     = s.qty <= (s.threshold || 5);
+      const empty   = s.qty <= 0;
+      const qtyHtml = empty
+        ? '<span style="color:#EF4444;font-weight:800">🚫 RUPTURE</span>'
+        : low
+          ? '<span style="color:#F59E0B;font-weight:800">⚠️ ' + s.qty + ' ' + (s.unit||'u') + '</span>'
+          : '<span style="color:#10B981;font-weight:700">' + s.qty + ' ' + (s.unit||'u') + '</span>';
+      return '<tr style="border-bottom:1px solid var(--border)">'
+        + '<td style="padding:10px 14px">'
+        +   '<div style="font-weight:700;color:var(--brown)">' + s.name + '</div>'
+        +   '<div style="font-size:11px;color:var(--muted)">' + (s.category||'Boisson') + ' · Seuil alerte : ' + (s.threshold||5) + ' ' + (s.unit||'u') + '</div>'
+        + '</td>'
+        + '<td style="padding:10px 14px">' + qtyHtml + '</td>'
+        + '<td style="padding:10px 14px;text-align:right">'
+        +   '<button onclick="window.Admin.stockEntry('' + s.id + '','' + s.name + '')" class="btn btn-sm" style="background:#ECFDF5;color:#065F46;margin-right:4px">📥 Entrée</button>'
+        +   '<button onclick="window.Admin.stockAdjust('' + s.id + '','' + s.name + '',' + s.qty + ')" class="btn btn-sm btn-secondary">✏️ Ajuster</button>'
+        + '</td>'
         + '</tr>';
     }).join('');
-    el.innerHTML = '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">'
-      + '<thead><tr style="background:var(--bg);border-bottom:2px solid var(--border)">'
-      + '<th style="padding:10px 12px;text-align:left;font-size:13px;color:var(--muted)">Article</th>'
-      + '<th style="padding:10px 12px;text-align:left;font-size:13px;color:var(--muted)">Quantité</th>'
-      + '<th style="padding:10px 12px;text-align:left;font-size:13px;color:var(--muted)">Catégorie</th>'
-      + '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+
+    wrap.innerHTML = '<div class="card">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">'
+      +   '<div class="card-title" style="margin:0">🍺 Stocks Boissons</div>'
+      +   '<div style="display:flex;gap:8px">'
+      +     '<button onclick="window.Admin.addStockItem()" class="btn btn-sm btn-secondary">+ Ajouter article</button>'
+      +     '<button onclick="loadStocksPage()" class="btn btn-sm btn-secondary">🔄</button>'
+      +   '</div>'
+      + '</div>'
+      + (items.length === 0
+          ? '<p style="color:var(--muted);text-align:center;padding:32px">Aucun article. Cliquez "+ Ajouter article".</p>'
+          : '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">'
+          + '<thead><tr style="background:var(--bg);border-bottom:2px solid var(--border)">'
+          + '<th style="padding:10px 14px;text-align:left;font-size:12px;color:var(--muted);text-transform:uppercase">Article</th>'
+          + '<th style="padding:10px 14px;text-align:left;font-size:12px;color:var(--muted);text-transform:uppercase">Stock</th>'
+          + '<th style="padding:10px 14px;text-align:right;font-size:12px;color:var(--muted);text-transform:uppercase">Actions</th>'
+          + '</tr></thead><tbody>' + rows + '</tbody></table></div>'
+        )
+      + '</div>';
   } catch(e) {
-    el.innerHTML = '<p style="color:red">Erreur : ' + e.message + '</p>';
+    wrap.innerHTML = '<div class="card"><p style="color:red">Erreur : ' + e.message + '</p></div>';
   }
 }
+
+window.Admin.addStockItem = function() {
+  const modal = document.createElement('div');
+  modal.id = 'stock-modal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(43,29,22,.65);z-index:9000;display:flex;align-items:center;justify-content:center;padding:20px';
+  modal.innerHTML = '<div style="max-width:400px;width:100%;background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 20px 60px rgba(43,29,22,.3)">'
+    + '<div style="background:linear-gradient(135deg,#2B1D16,#4A3020);padding:20px 24px;position:relative">'
+    +   '<div style="font-size:24px;margin-bottom:4px">🍺</div>'
+    +   '<div style="font-size:16px;font-weight:800;color:#fff">Ajouter une boisson</div>'
+    +   '<button onclick="document.getElementById('stock-modal').remove()" style="position:absolute;top:14px;right:14px;background:rgba(255,255,255,.15);border:none;border-radius:50%;width:28px;height:28px;color:#fff;font-size:16px;cursor:pointer">×</button>'
+    + '</div>'
+    + '<div style="padding:20px;display:flex;flex-direction:column;gap:12px">'
+    +   '<div><label class="form-label">Nom *</label><input class="form-input" id="sk-name" placeholder="Ex: Bock, Coca-Cola 50cl…"></div>'
+    +   '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'
+    +     '<div><label class="form-label">Quantité initiale *</label><input class="form-input" id="sk-qty" type="number" min="0" value="0"></div>'
+    +     '<div><label class="form-label">Unité</label><input class="form-input" id="sk-unit" placeholder="bouteille, casier…"></div>'
+    +   '</div>'
+    +   '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'
+    +     '<div><label class="form-label">Seuil alerte</label><input class="form-input" id="sk-threshold" type="number" min="0" value="5"></div>'
+    +     '<div><label class="form-label">Catégorie</label>'
+    +       '<select class="form-input" id="sk-cat"><option>Bière</option><option>Soda</option><option>Eau</option><option>Jus</option><option>Alcool</option><option>Autre</option></select>'
+    +     '</div>'
+    +   '</div>'
+    + '</div>'
+    + '<div style="padding:12px 20px 20px;display:flex;gap:10px;justify-content:flex-end">'
+    +   '<button onclick="document.getElementById('stock-modal').remove()" style="padding:10px 20px;border:2px solid #E0D4C8;border-radius:10px;background:#fff;color:#7A6356;font-size:14px;font-weight:600;cursor:pointer">Annuler</button>'
+    +   '<button id="sk-save" style="padding:10px 24px;background:#F26522;border:none;border-radius:10px;color:#fff;font-size:14px;font-weight:700;cursor:pointer">✓ Ajouter</button>'
+    + '</div></div>';
+  document.body.appendChild(modal);
+  document.getElementById('sk-save').addEventListener('click', async function() {
+    const name = document.getElementById('sk-name').value.trim();
+    const qty  = parseInt(document.getElementById('sk-qty').value) || 0;
+    const unit = document.getElementById('sk-unit').value.trim() || 'bouteille';
+    const thr  = parseInt(document.getElementById('sk-threshold').value) || 5;
+    const cat  = document.getElementById('sk-cat').value;
+    if (!name) { toast('⚠️ Nom obligatoire'); return; }
+    // Chercher l'article correspondant dans le menu
+    let menuItemId = null;
+    try {
+      const mSnap = await getDocs(query(collection(db, 'menus'), where('name_fr', '==', name)));
+      if (!mSnap.empty) menuItemId = mSnap.docs[0].id;
+    } catch(e) {}
+    await addDoc(collection(db, 'stocks'), {
+      name, qty, unit, threshold: thr, category: cat,
+      menuItemId, // lien direct avec le menu
+      updatedAt: serverTimestamp()
+    });
+    // Mettre à jour la disponibilité menu si stock = 0
+    if (qty === 0 && menuItemId) {
+      await updateDoc(doc(db, 'menus', menuItemId), { available: false, stockStatus: 'rupture' });
+    }
+    document.getElementById('stock-modal').remove();
+    toast('✅ Article ajouté' + (menuItemId ? ' et lié au menu ✓' : ' (non trouvé dans le menu)'));
+    loadStocksPage();
+  });
+};
+
+window.Admin.stockEntry = function(id, name) {
+  const qty = parseInt(prompt('Quantité reçue pour "' + name + '" :'));
+  if (!qty || qty <= 0) return;
+  updateDoc(doc(db, 'stocks', id), {
+    qty: admin_increment(qty),
+    updatedAt: serverTimestamp()
+  }).then(async function() {
+    await addDoc(collection(db, 'stock-movements'), { stockId: id, name, type: 'entree', qty, date: serverTimestamp() });
+    toast('✅ +' + qty + ' ajoutés — le menu sera mis à jour automatiquement');
+    loadStocksPage();
+  }).catch(function(e) { toast('Erreur : ' + e.message); });
+};
+
+window.Admin.stockAdjust = function(id, name, current) {
+  const val = parseInt(prompt('Nouvelle quantité pour "' + name + '" (actuel : ' + current + ') :'));
+  if (isNaN(val) || val < 0) return;
+  const diff = val - current;
+  updateDoc(doc(db, 'stocks', id), { qty: val, updatedAt: serverTimestamp() })
+    .then(function() {
+      if (diff !== 0) addDoc(collection(db, 'stock-movements'), {
+        stockId: id, name, type: diff > 0 ? 'entree' : 'sortie', qty: Math.abs(diff), date: serverTimestamp()
+      });
+      toast('✅ Stock ajusté à ' + val);
+      loadStocksPage();
+    }).catch(function(e) { toast('Erreur : ' + e.message); });
+};
 
 // ── Statistiques ─────────────────────────────────────────
 async function renderStats(c) {

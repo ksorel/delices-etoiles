@@ -55,6 +55,50 @@ exports.onNewOrder = region.firestore
         );
       } catch (e) { console.error('WhatsApp error:', e.message); }
     }
+    // Décrémenter le stock des boissons commandées
+    try {
+      const items = order.items || [];
+      const boissons = items.filter(function(i) {
+        return i.category && ['boisson','bar','biere','soda','eau','jus','alcool']
+          .some(function(c) { return i.category.toLowerCase().includes(c); });
+      });
+      for (const item of boissons) {
+        // Chercher dans /stocks par nom d'article
+        const stockSnap = await db.collection('stocks')
+          .where('name', '==', item.name).limit(1).get();
+        if (!stockSnap.empty) {
+          const stockDoc = stockSnap.docs[0];
+          const newQty = Math.max(0, (stockDoc.data().qty || 0) - (item.qty || 1));
+          await stockDoc.ref.update({
+            qty: newQty,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+          });
+          // Log mouvement
+          await db.collection('stock-movements').add({
+            stockId: stockDoc.id,
+            name: item.name,
+            type: 'sortie',
+            qty: item.qty || 1,
+            orderId: order.id,
+            date: admin.firestore.FieldValue.serverTimestamp()
+          });
+          // Si stock à 0 → désactiver l'article dans le menu
+          if (newQty === 0) {
+            const menuSnap = await db.collection('menus')
+              .where('name_fr', '==', item.name).limit(1).get();
+            if (!menuSnap.empty) {
+              await menuSnap.docs[0].ref.update({
+                available: false,
+                stockStatus: 'rupture',
+                updatedAt: admin.firestore.FieldValue.serverTimestamp()
+              });
+              console.log('Menu item disabled (stock 0):', item.name);
+            }
+          }
+        }
+      }
+    } catch(e) { console.error('Stock decrement error:', e.message); }
+
     return null;
   });
 
@@ -158,6 +202,56 @@ exports.onOrderReady = region.firestore
         data: { orderId: context.params.orderId, status: 'ready' },
       });
     } catch (e) { console.error('FCM error:', e.message); }
+
+    return null;
+  });
+
+
+// ─────────────────────────────────────────────────────────
+//  6. TRIGGER : Stock mis à jour → disponibilité menu
+// ─────────────────────────────────────────────────────────
+exports.onStockUpdate = region.firestore
+  .document('stocks/{stockId}')
+  .onUpdate(async (change, context) => {
+    const before = change.before.data();
+    const after  = change.after.data();
+
+    // Ignorer si la quantité n'a pas changé
+    if (before.qty === after.qty) return null;
+
+    const name   = after.name;
+    const newQty = after.qty || 0;
+
+    try {
+      // Chercher l'article dans le menu
+      const menuSnap = await db.collection('menus')
+        .where('name_fr', '==', name).limit(1).get();
+
+      if (menuSnap.empty) return null;
+
+      const menuDoc  = menuSnap.docs[0];
+      const menuData = menuDoc.data();
+
+      if (newQty === 0 && menuData.available !== false) {
+        // Stock épuisé → désactiver
+        await menuDoc.ref.update({
+          available:   false,
+          stockStatus: 'rupture',
+          updatedAt:   admin.firestore.FieldValue.serverTimestamp()
+        });
+        console.log('Article désactivé (rupture):', name);
+      } else if (newQty > 0 && menuData.available === false && menuData.stockStatus === 'rupture') {
+        // Stock réapprovisionné → réactiver
+        await menuDoc.ref.update({
+          available:   true,
+          stockStatus: 'disponible',
+          updatedAt:   admin.firestore.FieldValue.serverTimestamp()
+        });
+        console.log('Article réactivé (stock réapprovisionné):', name);
+      }
+    } catch(e) {
+      console.error('onStockUpdate error:', e.message);
+    }
 
     return null;
   });
