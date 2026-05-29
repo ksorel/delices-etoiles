@@ -262,23 +262,41 @@ export const DASHBOARD_STEPS = [
 export const ADMIN_STEPS = [
   { target: null, position: 'center',
     title: '👋 Bienvenue dans l\'Administration !',
-    text: 'Ce panneau vous permet de gérer le restaurant : menu, stocks, zones, statistiques, paiements. Suivez ce tour pour maîtriser les fonctions essentielles.' },
+    text: 'Ce panneau vous permet de gérer tout le restaurant : articles, stocks, utilisateurs, zones, statistiques et configuration. Suivez ce tour pour maîtriser les fonctions essentielles.' },
+
   { target: '.sidebar', position: 'right',
-    title: '🗂️ Menu de navigation',
-    text: 'Toutes les sections sont accessibles depuis cette barre latérale. Tableau de bord, Menu, Zones, Stocks, Statistiques, Paiements et plus encore.' },
-  { target: '[onclick*="\'menu\'"]', position: 'right',
-    title: '🍽️ Gestion du menu',
+    title: '🗂️ Navigation',
+    text: 'Toutes les sections sont accessibles depuis cette barre latérale. Articles, Stocks, Utilisateurs, Plan de salle, QR Codes, Plat du jour, Statistiques, Configuration...' },
+
+  { target: '[onclick*="menu"]', position: 'right',
+    title: '🍽️ Gestion des articles',
     text: 'Ajoutez, modifiez ou désactivez des articles. Uploadez les photos depuis le formulaire d\'édition. Les articles désactivés disparaissent immédiatement du menu client.' },
-  { target: '[onclick*="\'stocks\'"]', position: 'right',
-    title: '📦 Gestion des stocks',
-    text: 'Suivez les stocks des boissons en temps réel. Quand le stock atteint 0, l\'article est automatiquement masqué du menu. Entrez les livraisons dans l\'onglet "Entrée de stock".' },
-  { target: '[onclick*="\'stats\'"]', position: 'right',
+
+  { target: '[onclick*="stocks"]', position: 'right',
+    title: '🍺 Stocks boissons',
+    text: 'Suivez les stocks en casiers (24 bouteilles). Quand le stock atteint 0, l\'article est automatiquement masqué du menu client. Ajoutez une entrée à chaque livraison fournisseur.' },
+
+  { target: '[onclick*="users"]', position: 'right',
+    title: '👥 Gestion des utilisateurs',
+    text: 'Créez les comptes de vos employés avec un identifiant court (ex: cuisine01). Attribuez les rôles : Serveur, Bar, Cuisine, Livreur, Caissier. Réinitialisez les mots de passe depuis ici.' },
+
+  { target: '[onclick*="floorplan"]', position: 'right',
+    title: '🗺️ Plan de salle',
+    text: 'Configurez la disposition de vos tables par glisser-déposer. Double-cliquez pour renommer. Les QR Codes sont automatiquement synchronisés avec les noms de tables.' },
+
+  { target: '[onclick*="config"]', position: 'right',
+    title: '⚙️ Configuration',
+    text: 'Modifiez le nom du restaurant, l\'identifiant (pour la chaîne multi-restaurant) et le numéro du gérant affiché sur la page de connexion du dashboard.' },
+
+  { target: '[onclick*="stats"]', position: 'right',
     title: '📈 Statistiques',
-    text: 'Consultez le chiffre d\'affaires nourriture vs boissons, les plats les plus commandés et l\'évolution journalière. Filtrez par période en haut de la page.' },
-  { target: '[onclick*="\'paiements\'"]', position: 'right',
+    text: 'Consultez le chiffre d\'affaires, les commandes servies et le CA du jour en temps réel.' },
+
+  { target: '[onclick*="paiements"]', position: 'right',
     title: '💳 Paiements',
-    text: 'Historique complet de tous les règlements encaissés par mode de paiement (espèces, Wave, Orange Money, MTN). Les paiements sont enregistrés depuis le dashboard.' },
+    text: 'Historique complet de tous les règlements encaissés : espèces, Wave, Orange Money, MTN.' },
 ];
+
 
 // ── API publique ──────────────────────────────────────────
 export function startOnboarding(type) {

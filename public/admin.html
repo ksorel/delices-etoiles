@@ -347,7 +347,7 @@
     </button>
 
     <div class="nav-item active" onclick="showPage('dashboard',this)"><span class="nav-icon">📊</span>Tableau de bord</div>
-    <div class="nav-item" onclick="showPage('menu',this)"><span class="nav-icon">🍽️</span>Menu</div>
+    <div class="nav-item" onclick="showPage('menu',this)"><span class="nav-icon">🍽️</span>Articles</div>
     <div class="nav-item" onclick="showPage('zones',this)"><span class="nav-icon">🗺️</span>Zones livraison</div>
     <div class="nav-item" onclick="showPage('upselling',this)"><span class="nav-icon">⬆️</span>Upselling</div>
     <div class="nav-item" onclick="showPage('users',this)"><span class="nav-icon">👥</span>Utilisateurs</div>
@@ -489,7 +489,7 @@ window.showPage = (page, el) => {
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
   el.classList.add('active');
   const titles = {
-    dashboard:'Tableau de bord', menu:'Gestion du menu',
+    dashboard:'Tableau de bord', menu:'Gestion des articles',
     zones:'Zones de livraison', upselling:'Règles d\'upselling', platdujour:'Plat du jour', cache:'Gestion du cache',
     qrcodes:'QR Codes tables', floorplan:'Plan de salle', commandes:'Historique commandes',
     users:'Utilisateurs', stats:'Statistiques', stocks:'Stocks', paiements:'Paiements'
