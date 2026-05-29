@@ -821,55 +821,98 @@ function renderStocks(c) {
   loadStocksPage();
 }
 
+// State pagination/recherche stocks
+let _stocksAll = [], _stocksPage = 1;
+const STOCKS_PER_PAGE = 10;
+
 async function loadStocksPage() {
   const wrap = document.getElementById('stocks-wrap');
   if (!wrap) return;
   try {
     const snap = await getDocs(query(collection(db, 'stocks'), orderBy('name')));
-    const items = snap.docs.map(function(d) { return { id: d.id, ...d.data() }; });
-
-    const rows = items.map(function(s) {
-      const low     = s.qty <= (s.threshold || 5);
-      const empty   = s.qty <= 0;
-      const qtyHtml = empty
-        ? '<span style="color:#EF4444;font-weight:800">🚫 RUPTURE</span>'
-        : low
-          ? '<span style="color:#F59E0B;font-weight:800">⚠️ ' + s.qty + ' ' + (s.unit||'u') + '</span>'
-          : '<span style="color:#10B981;font-weight:700">' + s.qty + ' ' + (s.unit||'u') + '</span>';
-      return '<tr style="border-bottom:1px solid var(--border)">'
-        + '<td style="padding:10px 14px">'
-        +   '<div style="font-weight:700;color:var(--brown)">' + s.name + '</div>'
-        +   '<div style="font-size:11px;color:var(--muted)">' + (s.category||'Boisson') + ' · Seuil alerte : ' + (s.threshold||5) + ' ' + (s.unit||'u') + '</div>'
-        + '</td>'
-        + '<td style="padding:10px 14px">' + qtyHtml + '</td>'
-        + '<td style="padding:10px 14px;text-align:right">'
-        + '<td style="padding:10px 14px;text-align:right">'
-        +   '<button class="btn btn-sm" style="background:#ECFDF5;color:#065F46;margin-right:4px" data-sid="' + s.id + '" data-sname="' + s.name + '" onclick="window.Admin.stockEntry(this.dataset.sid,this.dataset.sname)">📥 Entrée</button>'
-        +   '<button class="btn btn-sm btn-secondary" data-sid="' + s.id + '" data-sname="' + s.name + '" data-sqty="' + s.qty + '" onclick="window.Admin.stockAdjust(this.dataset.sid,this.dataset.sname,parseInt(this.dataset.sqty))">✏️ Ajuster</button>'
-        + '</tr>';
-    }).join('');
-
-    wrap.innerHTML = '<div class="card">'
-      + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">'
-      +   '<div class="card-title" style="margin:0">🍺 Stocks Boissons</div>'
-      +   '<div style="display:flex;gap:8px">'
-      +     '<button onclick="window.Admin.addStockItem()" class="btn btn-sm btn-secondary">+ Ajouter article</button>'
-      +     '<button onclick="loadStocksPage()" class="btn btn-sm btn-secondary">🔄</button>'
-      +   '</div>'
-      + '</div>'
-      + (items.length === 0
-          ? '<p style="color:var(--muted);text-align:center;padding:32px">Aucun article. Cliquez "+ Ajouter article".</p>'
-          : '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">'
-          + '<thead><tr style="background:var(--bg);border-bottom:2px solid var(--border)">'
-          + '<th style="padding:10px 14px;text-align:left;font-size:12px;color:var(--muted);text-transform:uppercase">Article</th>'
-          + '<th style="padding:10px 14px;text-align:left;font-size:12px;color:var(--muted);text-transform:uppercase">Stock</th>'
-          + '<th style="padding:10px 14px;text-align:right;font-size:12px;color:var(--muted);text-transform:uppercase">Actions</th>'
-          + '</tr></thead><tbody>' + rows + '</tbody></table></div>'
-        )
-      + '</div>';
+    _stocksAll = snap.docs.map(function(d) { return { id: d.id, ...d.data() }; });
+    _stocksPage = 1;
+    renderStocksTable();
   } catch(e) {
-    wrap.innerHTML = '<div class="card"><p style="color:red">Erreur : ' + e.message + '</p></div>';
+    if (wrap) wrap.innerHTML = '<div class="card"><p style="color:red">Erreur : ' + e.message + '</p></div>';
   }
+}
+
+function renderStocksTable() {
+  const wrap = document.getElementById('stocks-wrap');
+  if (!wrap) return;
+
+  const search  = (document.getElementById('stocks-search')?.value || '').toLowerCase();
+  const filtered = _stocksAll.filter(function(s) {
+    return !search || s.name.toLowerCase().includes(search) || (s.category||'').toLowerCase().includes(search);
+  });
+
+  const total   = filtered.length;
+  const pages   = Math.ceil(total / STOCKS_PER_PAGE) || 1;
+  _stocksPage   = Math.min(_stocksPage, pages);
+  const start   = (_stocksPage - 1) * STOCKS_PER_PAGE;
+  const page    = filtered.slice(start, start + STOCKS_PER_PAGE);
+
+  const rows = page.map(function(s) {
+    const qty     = (s.qty !== undefined && s.qty !== null) ? Number(s.qty) : 0;
+    const unit    = s.unit || 'unité';
+    const thr     = s.threshold || 5;
+    const empty   = qty <= 0;
+    const low     = !empty && qty <= thr;
+    // Pour les bières : afficher casiers + équivalent bouteilles
+    const isBeer    = (s.category||'').toLowerCase().includes('bier') || (s.unit||'').toLowerCase().includes('casier');
+    const bottleEq  = isBeer ? ' <span style="font-size:11px;color:var(--muted)">= ' + (qty * 24) + ' bouteilles</span>' : '';
+    const qtyHtml   = empty
+      ? '<span style="color:#EF4444;font-weight:800">🚫 RUPTURE</span>'
+      : low
+        ? '<span style="color:#F59E0B;font-weight:800">⚠️ ' + qty + ' ' + unit + '</span>' + bottleEq
+        : '<span style="color:#10B981;font-weight:700">' + qty + ' ' + unit + '</span>' + bottleEq;
+    return '<tr style="border-bottom:1px solid var(--border)">'
+      + '<td style="padding:10px 14px">'
+      +   '<div style="font-weight:700;color:var(--brown)">' + s.name + '</div>'
+      +   '<div style="font-size:11px;color:var(--muted)">' + (s.category||'Boisson') + ' · Seuil alerte : ' + thr + ' ' + unit + '</div>'
+      + '</td>'
+      + '<td style="padding:10px 14px">' + qtyHtml + '</td>'
+      + '<td style="padding:10px 14px;text-align:right;white-space:nowrap">'
+      +   '<button class="btn btn-sm" style="background:#ECFDF5;color:#065F46;margin-right:4px" data-sid="' + s.id + '" data-sname="' + s.name + '" onclick="window.Admin.stockEntry(this.dataset.sid,this.dataset.sname)">📥 Entrée</button>'
+      +   '<button class="btn btn-sm btn-secondary" data-sid="' + s.id + '" data-sname="' + s.name + '" data-sqty="' + qty + '" onclick="window.Admin.stockAdjust(this.dataset.sid,this.dataset.sname,parseInt(this.dataset.sqty))">✏️ Ajuster</button>'
+      + '</td>'
+      + '</tr>';
+  }).join('');
+
+  // Pagination
+  const paginHtml = pages <= 1 ? '' :
+    '<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-top:1px solid var(--border)">'
+    + '<span style="font-size:13px;color:var(--muted)">' + total + ' article' + (total>1?'s':'') + ' · Page ' + _stocksPage + '/' + pages + '</span>'
+    + '<div style="display:flex;gap:6px">'
+    + (_stocksPage > 1 ? '<button class="btn btn-sm btn-secondary" onclick="_stocksPage--;renderStocksTable()">‹ Préc</button>' : '')
+    + (_stocksPage < pages ? '<button class="btn btn-sm btn-secondary" onclick="_stocksPage++;renderStocksTable()">Suiv ›</button>' : '')
+    + '</div></div>';
+
+  wrap.innerHTML = '<div class="card">'
+    // En-tête
+    + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px">'
+    +   '<div class="card-title" style="margin:0">🍺 Stocks Boissons <span style="font-size:13px;color:var(--muted);font-weight:400">(' + total + ')</span></div>'
+    +   '<div style="display:flex;gap:8px;align-items:center">'
+    +     '<input id="stocks-search" type="text" placeholder="🔍 Rechercher…" value="' + (document.getElementById('stocks-search')?.value||'') + '"'
+    +       ' oninput="_stocksPage=1;renderStocksTable()"'
+    +       ' style="padding:7px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;outline:none;width:180px">'
+    +     '<button onclick="window.Admin.addStockItem()" class="btn btn-sm btn-secondary">+ Ajouter</button>'
+    +     '<button onclick="loadStocksPage()" class="btn btn-sm btn-secondary" title="Rafraîchir">🔄</button>'
+    +   '</div>'
+    + '</div>'
+    // Tableau
+    + (page.length === 0
+        ? '<p style="color:var(--muted);text-align:center;padding:32px">Aucun article' + (search ? ' pour "'+search+'"' : '') + '.</p>'
+        : '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">'
+        + '<thead><tr style="background:var(--bg);border-bottom:2px solid var(--border)">'
+        + '<th style="padding:10px 14px;text-align:left;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Article</th>'
+        + '<th style="padding:10px 14px;text-align:left;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Stock</th>'
+        + '<th style="padding:10px 14px;text-align:right;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Actions</th>'
+        + '</tr></thead><tbody>' + rows + '</tbody></table></div>'
+      )
+    + paginHtml
+    + '</div>';
 }
 
 // ── Statistiques ─────────────────────────────────────────
@@ -1811,7 +1854,8 @@ window.Admin.addStockItem = function() {
     +     '<div><label class="form-label">Unité</label><input class="form-input" id="sk-unit" placeholder="bouteille, casier…"></div>'
     +   '</div>'
     +   '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'
-    +     '<div><label class="form-label">Seuil alerte</label><input class="form-input" id="sk-threshold" type="number" min="0" value="5"></div>'
+    +     '<div><label class="form-label">Seuil alerte</label><input class="form-input" id="sk-threshold" type="number" min="0" value="2">'
+    +       '<div style="font-size:11px;color:var(--muted);margin-top:2px">Ex: 2 casiers = alerte à 48 btl</div></div>'
     +     '<div><label class="form-label">Catégorie</label>'
     +       '<select class="form-input" id="sk-cat"><option>Bière</option><option>Soda</option><option>Eau</option><option>Jus</option><option>Alcool</option><option>Autre</option></select>'
     +     '</div>'

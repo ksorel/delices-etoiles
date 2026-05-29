@@ -68,9 +68,14 @@ exports.onNewOrder = region.firestore
           .where('name', '==', item.name).limit(1).get();
         if (!stockSnap.empty) {
           const stockDoc = stockSnap.docs[0];
-          const newQty = Math.max(0, (stockDoc.data().qty || 0) - (item.qty || 1));
+          const stockData = stockDoc.data();
+          const isCasier  = (stockData.unit || '').toLowerCase().includes('casier');
+          // Si le stock est en casiers, convertir les bouteilles commandées
+          const deduct    = isCasier ? (item.qty || 1) / 24 : (item.qty || 1);
+          const newQty    = Math.max(0, (stockData.qty || 0) - deduct);
+          const newQtyRounded = isCasier ? Math.round(newQty * 100) / 100 : Math.floor(newQty);
           await stockDoc.ref.update({
-            qty: newQty,
+            qty: newQtyRounded,
             updatedAt: admin.firestore.FieldValue.serverTimestamp()
           });
           // Log mouvement
@@ -83,7 +88,7 @@ exports.onNewOrder = region.firestore
             date: admin.firestore.FieldValue.serverTimestamp()
           });
           // Si stock à 0 → désactiver l'article dans le menu
-          if (newQty === 0) {
+          if (newQtyRounded <= 0) {
             const menuSnap = await db.collection('menus')
               .where('name_fr', '==', item.name).limit(1).get();
             if (!menuSnap.empty) {
