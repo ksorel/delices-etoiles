@@ -848,28 +848,6 @@ async function renderConfig(c) {
     + '</div></div>';
 }
 
-window.Admin.saveConfig = async function() {
-  const name    = document.getElementById('cfg-name')?.value.trim();
-  const restoId = document.getElementById('cfg-restoid')?.value.trim();
-  const phone   = document.getElementById('cfg-phone')?.value.trim();
-  const msg     = document.getElementById('cfg-msg');
-
-  try {
-    await setDoc(doc(db, 'config', 'restaurant'), {
-      restaurantName: name,
-      restoId:        restoId,
-      managerPhone:   phone,
-      updatedAt:      serverTimestamp(),
-    }, { merge: true });
-    msg.style.cssText = 'display:block;color:#10B981;font-weight:700';
-    msg.textContent   = '✅ Configuration enregistrée';
-    setTimeout(() => msg.style.display = 'none', 3000);
-  } catch(e) {
-    msg.style.cssText = 'display:block;color:#EF4444';
-    msg.textContent   = 'Erreur : ' + e.message;
-  }
-};
-
 
 // ── Plan de salle ─────────────────────────────────────────
 const FP_COLS = 10;
@@ -1680,6 +1658,29 @@ window.Admin = {
   openAddZone()  { showZoneModal(); },
   openAddRule()  { showRuleModal(); },
 };
+
+window.Admin.saveConfig = async function() {
+  const name    = document.getElementById('cfg-name')?.value.trim();
+  const restoId = document.getElementById('cfg-restoid')?.value.trim();
+  const phone   = document.getElementById('cfg-phone')?.value.trim();
+  const msg     = document.getElementById('cfg-msg');
+
+  try {
+    await setDoc(doc(db, 'config', 'restaurant'), {
+      restaurantName: name,
+      restoId:        restoId,
+      managerPhone:   phone,
+      updatedAt:      serverTimestamp(),
+    }, { merge: true });
+    msg.style.cssText = 'display:block;color:#10B981;font-weight:700';
+    msg.textContent   = '✅ Configuration enregistrée';
+    setTimeout(() => msg.style.display = 'none', 3000);
+  } catch(e) {
+    msg.style.cssText = 'display:block;color:#EF4444';
+    msg.textContent   = 'Erreur : ' + e.message;
+  }
+};
+
 
 // ── Gestion des utilisateurs ─────────────────────────────
 const ROLE_INFO = {
