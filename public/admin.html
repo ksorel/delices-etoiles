@@ -843,9 +843,9 @@ async function loadStocksPage() {
         + '</td>'
         + '<td style="padding:10px 14px">' + qtyHtml + '</td>'
         + '<td style="padding:10px 14px;text-align:right">'
-        +   '<button onclick="window.Admin.stockEntry('' + s.id + '','' + s.name + '')" class="btn btn-sm" style="background:#ECFDF5;color:#065F46;margin-right:4px">📥 Entrée</button>'
-        +   '<button onclick="window.Admin.stockAdjust('' + s.id + '','' + s.name + '',' + s.qty + ')" class="btn btn-sm btn-secondary">✏️ Ajuster</button>'
-        + '</td>'
+        + '<td style="padding:10px 14px;text-align:right">'
+        +   '<button class="btn btn-sm" style="background:#ECFDF5;color:#065F46;margin-right:4px" data-sid="' + s.id + '" data-sname="' + s.name + '" onclick="window.Admin.stockEntry(this.dataset.sid,this.dataset.sname)">📥 Entrée</button>'
+        +   '<button class="btn btn-sm btn-secondary" data-sid="' + s.id + '" data-sname="' + s.name + '" data-sqty="' + s.qty + '" onclick="window.Admin.stockAdjust(this.dataset.sid,this.dataset.sname,parseInt(this.dataset.sqty))">✏️ Ajuster</button>'
         + '</tr>';
     }).join('');
 
