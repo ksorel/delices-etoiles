@@ -8,9 +8,12 @@ function getItems()  { return window._getCartItems ? window._getCartItems() : []
 function getTotal()  { return window._getCartTotal ? window._getCartTotal() : 0; }
 function clearCart() { if (window._clearCart) window._clearCart(); }
 function serializeItems(lang = 'fr') {
-  const items = window._serializeCartItems ? window._serializeCartItems(lang) : getItems();
-  if (window._serializeCartItems) return items; // already serialized
-  // fallback manual serialization
+  // Use the serializer from app.js if available (returns already-formatted items)
+  if (window._serializeCartItems) {
+    return window._serializeCartItems(lang);
+  }
+  // Fallback: manual serialization
+  const items = getItems();
   return items.flatMap(item => {
     const base = {
       id: item.id, name: lang === 'en' ? item.name_en : item.name_fr,
@@ -36,7 +39,7 @@ import { getLang } from './i18n.js';
  * @param {string} clientUid
  * @returns {string} orderId
  */
-export async function submitSalleOrder(tableId, clientUid, operateur = 'especes') {
+export async function submitSalleOrder(tableId, clientUid, operateur = 'especes', sessionId = null) {
   const items = getItems();
   if (!items.length) throw new Error('Panier vide');
 
@@ -49,14 +52,13 @@ export async function submitSalleOrder(tableId, clientUid, operateur = 'especes'
   const orderId = await createOrder({
     type:          'salle',
     tableId,
+    sessionId,
     clientUid,
     items:         lines,
     total,
     comment:       '',
     operateur,
     paymentStatus: isMobileMoney ? 'awaiting_payment' : 'pending_cash',
-    // pending_cash   = en attente de paiement espèces (staff valide)
-    // awaiting_payment = en attente de confirmation Mobile Money
   });
 
   clearCart();

@@ -1043,7 +1043,8 @@ async function confirmSalle() {
     updateCartBadge();
     renderView('confirm', { orderId, operateur });
   } catch (e) {
-    showToast(t('err_order'));
+    console.error('[confirmSalle] Erreur:', e.message, e.code, e);
+    showToast(t('err_order') + ' : ' + (e.message || e.code || ''));
     if (btn) { btn.disabled = false; btn.textContent = t('confirm_salle'); }
   }
 }
@@ -1076,7 +1077,8 @@ async function confirmLivraison() {
     updateCartBadge();
     renderView('confirm', { orderId, operateur });
   } catch (e) {
-    showToast(t('err_order'));
+    console.error('[confirmLivraison] Erreur:', e.message, e.code, e);
+    showToast(t('err_order') + ' : ' + (e.message || e.code || ''));
     if (btn) { btn.disabled = false; btn.textContent = t('confirm_liv'); }
   }
 }
