@@ -4,9 +4,11 @@ service cloud.firestore {
 
     // ─── Helpers ───────────────────────────────────────────────
     function isAuth()    { return request.auth != null; }
-    function isStaff()   { return isAuth() && request.auth.token.role in ['staff', 'admin']; }
+    function isStaff()   { return isAuth() && request.auth.token.role in ['admin','serveur','bar','cuisine','livreur','caissier']; }
     function isAdmin()   { return isAuth() && request.auth.token.role == 'admin'; }
     function isAnon()    { return isAuth() && request.auth.token.firebase.sign_in_provider == 'anonymous'; }
+    function isCaissier() { return isAuth() && request.auth.token.role == 'caissier'; }
+    function canEncaisser(){ return isAdmin() || isCaissier(); }
 
     // ─── Menu (lecture publique, écriture admin) ───────────────
     match /menus/{itemId} {
@@ -78,13 +80,13 @@ service cloud.firestore {
     // ─── Paiements ──────────────────────────────────────────────
     match /paiements/{paiementId} {
       allow read:   if isStaff();
-      allow create: if isStaff();
-      allow update: if isAdmin();
+      allow create: if isStaff() || canEncaisser();
+      allow update: if isAdmin() || canEncaisser();
     }
 
     // ─── Stocks boissons ────────────────────────────────────────
     match /stocks/{itemId} {
-      allow read: if isStaff();
+      allow read:  if isAuth(); // Dashboard staff + admin
       allow write: if isAdmin();
     }
     match /stock-movements/{id} {
@@ -109,7 +111,7 @@ service cloud.firestore {
 
     // ─── Configuration restaurant ────────────────────────────
     match /config/{docId} {
-      allow read:  if isStaff(); // Le dashboard lit le numéro du gérant
+      allow read:  if isAuth(); // Clients anonymes lisent le numéro du gérant
       allow write: if isAdmin();
     }
   }
