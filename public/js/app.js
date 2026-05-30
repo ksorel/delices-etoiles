@@ -1189,11 +1189,8 @@ window.App.openTrackingModal = function(orderId) {
     +     '<div style="font-size:18px;font-weight:800;color:#2B1D16">📍 Suivi de commande</div>'
     +     '<div style="font-size:13px;color:#7A6356;margin-top:2px">N° ' + orderId.slice(-6).toUpperCase() + '</div>'
     +   '</div>'
-    +   '<button onclick="document.getElementById('tracking-modal').remove();'
-    +     'if(window._trackingUnsub){window._trackingUnsub();window._trackingUnsub=null;}"'
-    +     ' style="background:#F0E8E0;border:none;border-radius:50%;width:32px;height:32px;'
-    +     'font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center">×</button>'
-    + '</div>'
+    +   '<button id="close-tracking-btn"'
+    +     ' style="background:#F0E8E0;border:none;border-radius:50%;width:32px;height:32px;font-size:18px;cursor:pointer">×</button>'
     + '<!-- Contenu statut -->'
     + '<div id="tracking-modal-body" style="padding:20px">'
     +   '<div style="text-align:center;padding:32px"><div class="spinner"></div><p>Chargement…</p></div>'
@@ -1201,6 +1198,12 @@ window.App.openTrackingModal = function(orderId) {
     + '</div>';
 
   document.body.appendChild(modal);
+
+  // Bind close button
+  document.getElementById('close-tracking-btn')?.addEventListener('click', function() {
+    modal.remove();
+    if (window._trackingUnsub) { window._trackingUnsub(); window._trackingUnsub = null; }
+  });
 
   // Fermer en cliquant en dehors
   modal.addEventListener('click', function(e) {
