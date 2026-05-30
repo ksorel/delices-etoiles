@@ -272,9 +272,26 @@ async function init() {
   // 7. UI header
   updateHeader();
 
-  // 8. Rendu initial
+  // 8. Vérifier si commande récente à suivre (< 2h)
+  const lastOrder = (() => {
+    try {
+      const d = JSON.parse(localStorage.getItem('de_last_order') || 'null');
+      return d && (Date.now() - d.ts < 2 * 60 * 60 * 1000) ? d : null;
+    } catch { return null; }
+  })();
+
+  // 9. Rendu initial
   if (State.mode === 'salle' && State.tableId) {
     await initSalleSession();
+  } else if (lastOrder && !State.tableId) {
+    // Proposer de reprendre le suivi
+    const resume = confirm('Vous avez une commande en cours. Voulez-vous suivre son état ?');
+    if (resume) {
+      navigate('tracking', { orderId: lastOrder.orderId });
+    } else {
+      localStorage.removeItem('de_last_order');
+      navigate('menu');
+    }
   } else {
     navigate('menu');
   }
@@ -1054,6 +1071,8 @@ async function confirmSalle() {
     const orderId    = await submitSalleOrder(State.tableId, State.uid, operateur, State.sessionId, cartItems);
     clearCart();
     updateCartBadge();
+    // Sauvegarder pour retrouver le suivi après rechargement
+    localStorage.setItem('de_last_order', JSON.stringify({ orderId, operateur, ts: Date.now() }));
     renderView('confirm', { orderId, operateur });
   } catch (e) {
     console.error('[confirmSalle] Erreur:', e.message, e.code, e);
@@ -1103,6 +1122,7 @@ async function confirmLivraison() {
     clearCart();
     updateCartBadge();
     const operateur = window._selectedPayment || 'wave';
+    localStorage.setItem('de_last_order', JSON.stringify({ orderId, operateur, ts: Date.now() }));
     renderView('confirm', { orderId, operateur });
   } catch (e) {
     console.error('[confirmLivraison] Erreur:', e.message, e.code, e);
@@ -1135,14 +1155,131 @@ function renderConfirm(container, orderId, operateur) {
       <div class="confirm-sub">${sub}</div>
       ${payBadge}
       <div class="order-id">${t('order_number')}${orderId?.slice(-6).toUpperCase()}</div>
-      <button class="btn btn-brown" style="margin-top:8px;width:auto;padding:12px 28px"
-              onclick="window.App.navigate('tracking',{orderId:'${orderId}'})">
+      <button class="btn btn-brown" style="margin-top:16px;width:100%;max-width:280px;padding:14px 28px;font-size:16px"
+              onclick="window.App.openTrackingModal('${orderId}')">
         📍 Suivre ma commande
       </button>
-      <button class="btn btn-secondary" style="margin-top:8px;width:auto;padding:10px 24px"
+      <button class="btn btn-secondary" style="margin-top:8px;width:100%;max-width:280px;padding:12px 24px"
               onclick="window.App.navigate('menu')">${t('back_menu')}</button>
     </div>`;
 }
+
+
+// ─── Modale suivi commande ────────────────────────────────
+window.App.openTrackingModal = function(orderId) {
+  // Fermer si déjà ouverte
+  document.getElementById('tracking-modal')?.remove();
+  if (window._trackingUnsub) { window._trackingUnsub(); window._trackingUnsub = null; }
+
+  const modal = document.createElement('div');
+  modal.id = 'tracking-modal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(43,29,22,.75);z-index:9000;'
+    + 'display:flex;align-items:flex-end;justify-content:center;padding:0';
+
+  modal.innerHTML = '<div style="background:#fff;border-radius:24px 24px 0 0;width:100%;max-width:480px;'
+    + 'max-height:85vh;overflow-y:auto;padding:0 0 32px">'
+    + '<!-- Handle -->'
+    + '<div style="display:flex;justify-content:center;padding:12px">'
+    +   '<div style="width:40px;height:4px;background:#E0D4C8;border-radius:2px"></div>'
+    + '</div>'
+    + '<!-- Header -->'
+    + '<div style="padding:0 20px 16px;display:flex;justify-content:space-between;align-items:center;'
+    +   'border-bottom:1px solid #F0E8E0">'
+    +   '<div>'
+    +     '<div style="font-size:18px;font-weight:800;color:#2B1D16">📍 Suivi de commande</div>'
+    +     '<div style="font-size:13px;color:#7A6356;margin-top:2px">N° ' + orderId.slice(-6).toUpperCase() + '</div>'
+    +   '</div>'
+    +   '<button onclick="document.getElementById('tracking-modal').remove();'
+    +     'if(window._trackingUnsub){window._trackingUnsub();window._trackingUnsub=null;}"'
+    +     ' style="background:#F0E8E0;border:none;border-radius:50%;width:32px;height:32px;'
+    +     'font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center">×</button>'
+    + '</div>'
+    + '<!-- Contenu statut -->'
+    + '<div id="tracking-modal-body" style="padding:20px">'
+    +   '<div style="text-align:center;padding:32px"><div class="spinner"></div><p>Chargement…</p></div>'
+    + '</div>'
+    + '</div>';
+
+  document.body.appendChild(modal);
+
+  // Fermer en cliquant en dehors
+  modal.addEventListener('click', function(e) {
+    if (e.target === modal) {
+      modal.remove();
+      if (window._trackingUnsub) { window._trackingUnsub(); window._trackingUnsub = null; }
+    }
+  });
+
+  // Écoute temps réel
+  const STATUS_STEPS = [
+    { key: 'pending',    icon: '📋', label: 'Commande reçue',      color: '#F59E0B', done: false },
+    { key: 'preparing',  icon: '👨‍🍳', label: 'En préparation',      color: '#3B82F6', done: false },
+    { key: 'ready',      icon: '🍽️', label: 'Prête à servir',       color: '#10B981', done: false },
+    { key: 'done',       icon: '✅', label: 'Commande servie',       color: '#065F46', done: false },
+  ];
+  const LIV_STEPS = [
+    { key: 'pending',    icon: '📋', label: 'Commande reçue',      color: '#F59E0B' },
+    { key: 'preparing',  icon: '👨‍🍳', label: 'En préparation',      color: '#3B82F6' },
+    { key: 'ready',      icon: '📦', label: 'Prête pour livraison', color: '#10B981' },
+    { key: 'done',       icon: '🚴', label: 'En route !',           color: '#3B82F6' },
+  ];
+
+  window._trackingUnsub = listenOrder(orderId, function(order) {
+    const body = document.getElementById('tracking-modal-body');
+    if (!body) return;
+
+    const status = order.status || 'pending';
+    const isLiv  = order.type === 'livraison';
+    const steps  = isLiv ? LIV_STEPS : STATUS_STEPS;
+    const curIdx = steps.findIndex(s => s.key === status);
+
+    const stepsHtml = steps.map(function(step, i) {
+      const isDone    = i <= curIdx;
+      const isActive  = i === curIdx;
+      const lineColor = isDone ? step.color : '#E0D4C8';
+      return '<div style="display:flex;align-items:flex-start;gap:14px;margin-bottom:20px">'
+        + '<div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0">'
+        +   '<div style="width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px;'
+        +     'background:' + (isDone ? step.color + '20' : '#F5F5F5') + ';'
+        +     'border:2px solid ' + lineColor + ';'
+        +     (isActive ? 'box-shadow:0 0 0 4px ' + step.color + '30;' : '') + '">'
+        +     (isDone ? step.icon : '<span style="color:#C8BFBA">○</span>')
+        +   '</div>'
+        +   (i < steps.length - 1
+              ? '<div style="width:2px;height:20px;background:' + lineColor + ';margin:4px 0"></div>'
+              : '')
+        + '</div>'
+        + '<div style="padding-top:8px">'
+        +   '<div style="font-size:15px;font-weight:' + (isActive ? '800' : isDone ? '600' : '400') + ';'
+        +     'color:' + (isActive ? step.color : isDone ? '#2B1D16' : '#B0A8A4') + '">' + step.label + '</div>'
+        +   (isActive ? '<div style="font-size:12px;color:' + step.color + ';margin-top:2px">En cours…</div>' : '')
+        + '</div>'
+        + '</div>';
+    }).join('');
+
+    // Message selon statut
+    const messages = {
+      pending:   '⏳ Votre commande a bien été reçue. Elle sera bientôt prise en charge.',
+      preparing: '🔥 La cuisine prépare votre commande avec soin !',
+      ready:     isLiv ? '📦 Votre commande est prête. Le livreur va partir !' : '🎉 Votre commande est prête ! Le serveur arrive.',
+      done:      isLiv ? '🚴 Votre livreur est en route. Bonne dégustation !' : '✅ Bon appétit ! Merci de votre visite.',
+    };
+
+    // Clear localStorage si terminé
+    if (status === 'done') localStorage.removeItem('de_last_order');
+
+    body.innerHTML = '<div style="margin-bottom:20px;padding:14px 16px;background:#FFF8F5;'
+      + 'border-radius:12px;border-left:4px solid #F26522">'
+      +   '<div style="font-size:14px;color:#4A3020">' + (messages[status] || messages.pending) + '</div>'
+      + '</div>'
+      + stepsHtml
+      + (status === 'done'
+          ? '<button onclick="document.getElementById('tracking-modal').remove();window.App.navigate('menu')" '
+            + 'style="width:100%;padding:14px;background:#2B1D16;color:#fff;border:none;border-radius:12px;'
+            + 'font-size:15px;font-weight:700;cursor:pointer;margin-top:8px">← Retour au menu</button>'
+          : '');
+  });
+};
 
 // ─── Suivi commande ───────────────────────────────────────
 let _trackingUnsub = null;
