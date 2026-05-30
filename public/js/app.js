@@ -1040,7 +1040,9 @@ async function confirmSalle() {
   try {
     const operateur  = window._selectedPayment || 'especes';
     const cartItems  = getItems(); // passer directement les articles
-    console.log('[confirmSalle] items:', cartItems.length, 'operateur:', operateur);
+    // DEBUG: afficher le contenu du panier
+    alert('DEBUG panier: ' + cartItems.length + ' articles, total: ' + getTotal() + ' FCFA\n' + cartItems.map(i=>i.name_fr+'×'+i.qty).join(', '));
+    console.log('[confirmSalle] items:', cartItems, 'operateur:', operateur);
     const orderId    = await submitSalleOrder(State.tableId, State.uid, operateur, State.sessionId, cartItems);
     clearCart();
     updateCartBadge();
