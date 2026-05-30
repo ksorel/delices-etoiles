@@ -1040,9 +1040,7 @@ async function confirmSalle() {
   try {
     const operateur  = window._selectedPayment || 'especes';
     const cartItems  = getItems(); // passer directement les articles
-    // DEBUG: afficher le contenu du panier
-    alert('DEBUG panier: ' + cartItems.length + ' articles, total: ' + getTotal() + ' FCFA\n' + cartItems.map(i=>i.name_fr+'×'+i.qty).join(', '));
-    console.log('[confirmSalle] items:', cartItems, 'operateur:', operateur);
+    console.log('[confirmSalle] items:', cartItems.length, cartItems.map(i=>i.name_fr+'×'+i.qty));
     const orderId    = await submitSalleOrder(State.tableId, State.uid, operateur, State.sessionId, cartItems);
     clearCart();
     updateCartBadge();
@@ -1068,13 +1066,15 @@ async function confirmLivraison() {
   if (btn) { btn.disabled = true; btn.textContent = 'Traitement…'; }
 
   try {
+    const cartItems = getItems();
     const orderId = await submitLivraisonOrder({
       nom, telephone: tel, adresse,
       zoneId:          zone.id,
-      zoneName:        zone.name,
-      fraisLivraison:  zone.frais,
-      operateur:       window._selectedPayment,
-    }, State.uid);
+      zoneName:        zone.name || zone.nom,
+      fraisLivraison:  zone.frais || 0,
+      operateur:       window._selectedPayment || 'wave',
+      comment:         document.getElementById('liv-comment')?.value || '',
+    }, State.uid, cartItems);
 
     // TODO: Rediriger vers le gateway Mobile Money ici
     // Ex: window.location.href = getMobileMoneyUrl(window._selectedPayment, total, orderId);
