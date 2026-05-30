@@ -25,10 +25,8 @@ service cloud.firestore {
 
     // ─── Commandes ─────────────────────────────────────────────
     match /commandes/{orderId} {
-      // Création : client anonyme (salle) ou livraison
-      allow create: if isAuth()
-        && request.resource.data.total is number
-        && request.resource.data.items.size() > 0;
+      // Création : tout utilisateur authentifié (anonyme ou staff)
+      allow create: if isAuth();
 
       // Lecture : staff ou propriétaire de la commande
       allow read: if isStaff()

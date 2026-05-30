@@ -1038,9 +1038,13 @@ async function confirmSalle() {
   const btn = document.getElementById('confirm-btn');
   if (btn) { btn.disabled = true; btn.textContent = 'Envoi…'; }
   try {
+    // Garantir l'authentification avant d'envoyer
+    if (!State.uid) {
+      State.uid = await authWithRetry();
+      if (!State.uid) throw new Error('Authentification impossible. Vérifiez votre connexion.');
+    }
     const operateur  = window._selectedPayment || 'especes';
-    const cartItems  = getItems(); // passer directement les articles
-    console.log('[confirmSalle] items:', cartItems.length, cartItems.map(i=>i.name_fr+'×'+i.qty));
+    const cartItems  = getItems();
     const orderId    = await submitSalleOrder(State.tableId, State.uid, operateur, State.sessionId, cartItems);
     clearCart();
     updateCartBadge();
@@ -1066,6 +1070,11 @@ async function confirmLivraison() {
   if (btn) { btn.disabled = true; btn.textContent = 'Traitement…'; }
 
   try {
+    // Garantir l'authentification avant d'envoyer
+    if (!State.uid) {
+      State.uid = await authWithRetry();
+      if (!State.uid) throw new Error('Authentification impossible. Vérifiez votre connexion.');
+    }
     const cartItems = getItems();
     const orderId = await submitLivraisonOrder({
       nom, telephone: tel, adresse,
