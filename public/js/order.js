@@ -3,12 +3,14 @@
 // ════════════════════════════════════════════════════════════
 
 import { createOrder } from './db.js';
-// Fonctions panier — inlinées depuis app.js (cart.js supprimé)
-function getItems()  { return typeof _cartItems !== 'undefined' ? [..._cartItems] : []; }
-function getTotal()  { return typeof _cartItems !== 'undefined' ? _cartItems.reduce((s, i) => s + i.price * i.qty, 0) : 0; }
-function clearCart() { if (typeof _cartItems !== 'undefined') { _cartItems = []; localStorage.setItem('de_cart', '[]'); } }
+// Fonctions panier — accès via window (définies dans app.js)
+function getItems()  { return window._getCartItems ? window._getCartItems() : []; }
+function getTotal()  { return window._getCartTotal ? window._getCartTotal() : 0; }
+function clearCart() { if (window._clearCart) window._clearCart(); }
 function serializeItems(lang = 'fr') {
-  const items = getItems();
+  const items = window._serializeCartItems ? window._serializeCartItems(lang) : getItems();
+  if (window._serializeCartItems) return items; // already serialized
+  // fallback manual serialization
   return items.flatMap(item => {
     const base = {
       id: item.id, name: lang === 'en' ? item.name_en : item.name_fr,

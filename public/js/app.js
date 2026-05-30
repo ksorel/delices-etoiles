@@ -337,62 +337,49 @@ function withTimeout(promise, ms) {
 
 // ─── Bannière "Ouvrir dans le vrai navigateur" ───────────
 function showOpenInBrowserBanner() {
-  // Construire le lien intent Android pour forcer Chrome
   const pageUrl   = window.location.href;
-  const chromeUrl = 'googlechrome://' + pageUrl.replace(/^https?:\/\//, '');
   const intentUrl = 'intent://' + pageUrl.replace(/^https?:\/\//, '')
     + '#Intent;scheme=https;package=com.android.chrome;end';
   const isAndroid = /Android/.test(navigator.userAgent);
   const isIOS     = /iPhone|iPad|iPod/.test(navigator.userAgent);
+  const openUrl   = isAndroid ? intentUrl : pageUrl;
 
-  // Overlay plein écran bloquant — force l'action
   const overlay = document.createElement('div');
   overlay.id = 'webview-overlay';
-  overlay.style.cssText = [
-    'position:fixed','inset:0','z-index:99999',
-    'background:rgba(43,29,22,.97)',
-    'display:flex','flex-direction:column',
-    'align-items:center','justify-content:center',
-    'padding:32px 24px','font-family:sans-serif',
-    'text-align:center'
-  ].join(';');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(43,29,22,.97);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px;font-family:sans-serif;text-align:center';
 
-  overlay.innerHTML = [
-    '<div style="font-size:48px;margin-bottom:16px">📱</div>',
-    '<div style="font-size:20px;font-weight:800;color:#fff;margin-bottom:8px">',
-      'Ouvrir dans Chrome',
-    '</div>',
-    '<div style="font-size:14px;color:rgba(255,255,255,.7);margin-bottom:28px;line-height:1.6">',
-      'Pour commander, veuillez ouvrir<br>ce lien dans votre navigateur Chrome.',
-    '</div>',
-    // Bouton principal - intent Android ou lien direct
-    '<a href="' + (isAndroid ? intentUrl : pageUrl) + '"',
-    '   style="background:#F26522;color:#fff;padding:14px 32px;border-radius:24px;',
-    '          font-weight:800;font-size:16px;text-decoration:none;',
-    '          display:block;margin-bottom:12px;width:100%;max-width:280px"',
-    '   onclick="document.getElementById(&quot;webview-overlay&quot;).remove()">',
-    '  🟠 Ouvrir dans Chrome',
-    '</a>',
-    // Lien copie pour iOS
-    isIOS ? [
-      '<div style="margin-top:16px;color:rgba(255,255,255,.5);font-size:12px">',
-        'Ou copiez ce lien dans Safari :',
-      '</div>',
-      '<div style="background:rgba(255,255,255,.1);color:#fff;padding:8px 16px;',
-      '     border-radius:8px;margin-top:8px;font-size:11px;word-break:break-all;',
-      '     max-width:280px">',
-        pageUrl,
-      '</div>',
-    ].join('') : '',
-    // Bouton continuer quand même
-    '<button onclick="document.getElementById(&quot;webview-overlay&quot;).remove()"',
-  ].join('');
+  const btn = document.createElement('a');
+  btn.href = openUrl;
+  btn.textContent = '🟠 Ouvrir dans Chrome';
+  btn.style.cssText = 'background:#F26522;color:#fff;padding:14px 32px;border-radius:24px;font-weight:800;font-size:16px;text-decoration:none;display:block;margin-bottom:12px;width:100%;max-width:280px;box-sizing:border-box';
+  btn.addEventListener('click', function() {
+    document.getElementById('webview-overlay')?.remove();
+  });
 
+  const skipBtn = document.createElement('button');
+  skipBtn.textContent = 'Continuer quand même';
+  skipBtn.style.cssText = 'background:none;border:none;color:rgba(255,255,255,.4);font-size:12px;margin-top:20px;cursor:pointer;text-decoration:underline';
+  skipBtn.addEventListener('click', function() {
+    document.getElementById('webview-overlay')?.remove();
+  });
+
+  let iosHint = '';
+  if (isIOS) {
+    const hint = document.createElement('div');
+    hint.style.cssText = 'margin-top:16px;color:rgba(255,255,255,.5);font-size:12px';
+    hint.textContent = 'Ou copiez ce lien dans Safari : ' + pageUrl;
+    overlay.appendChild(hint);
+  }
+
+  overlay.innerHTML = '<div style="font-size:48px;margin-bottom:16px">📱</div>'
+    + '<div style="font-size:20px;font-weight:800;color:#fff;margin-bottom:8px">Ouvrir dans Chrome</div>'
+    + '<div style="font-size:14px;color:rgba(255,255,255,.7);margin-bottom:28px;line-height:1.6">Pour commander, veuillez ouvrir<br>ce lien dans votre navigateur Chrome.</div>';
+  overlay.appendChild(btn);
+  overlay.appendChild(skipBtn);
   document.body.appendChild(overlay);
 }
 
 
-// ─── Écran Réessayer ──────────────────────────────────────
 function showRetryScreen() {
   const main = document.getElementById('view');
   if (!main) return;
@@ -1047,7 +1034,7 @@ function selectPayment(op) {
   });
 }
 
-async function confirmSalle() {
+async async function confirmSalle() {
   const btn = document.getElementById('confirm-btn');
   if (btn) { btn.disabled = true; btn.textContent = 'Envoi…'; }
   try {
@@ -1061,7 +1048,7 @@ async function confirmSalle() {
   }
 }
 
-async function confirmLivraison() {
+async async function confirmLivraison() {
   const nom     = document.getElementById('liv-nom')?.value.trim();
   const tel     = document.getElementById('liv-tel')?.value.trim();
   const adresse = document.getElementById('liv-adresse')?.value.trim();
