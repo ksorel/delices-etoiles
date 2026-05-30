@@ -1038,8 +1038,11 @@ async function confirmSalle() {
   const btn = document.getElementById('confirm-btn');
   if (btn) { btn.disabled = true; btn.textContent = 'Envoi…'; }
   try {
-    const operateur = window._selectedPayment || 'especes';
-    const orderId   = await submitSalleOrder(State.tableId, State.uid, operateur, State.sessionId);
+    const operateur  = window._selectedPayment || 'especes';
+    const cartItems  = getItems(); // passer directement les articles
+    console.log('[confirmSalle] items:', cartItems.length, 'operateur:', operateur);
+    const orderId    = await submitSalleOrder(State.tableId, State.uid, operateur, State.sessionId, cartItems);
+    clearCart();
     updateCartBadge();
     renderView('confirm', { orderId, operateur });
   } catch (e) {

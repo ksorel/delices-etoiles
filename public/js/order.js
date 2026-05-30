@@ -3,51 +3,44 @@
 // ════════════════════════════════════════════════════════════
 
 import { createOrder } from './db.js';
-// Fonctions panier — accès via window (définies dans app.js)
-function getItems()  { return window._getCartItems ? window._getCartItems() : []; }
-function getTotal()  { return window._getCartTotal ? window._getCartTotal() : 0; }
-function clearCart() { if (window._clearCart) window._clearCart(); }
-function serializeItems(lang = 'fr') {
-  // Use the serializer from app.js if available (returns already-formatted items)
-  if (window._serializeCartItems) {
-    return window._serializeCartItems(lang);
-  }
-  // Fallback: manual serialization
-  const items = getItems();
+import { getLang }     from './i18n.js';
+
+// ─── Sérialiser les articles du panier ───────────────────
+function serializeItems(items, lang = 'fr') {
   return items.flatMap(item => {
     const base = {
-      id: item.id, name: lang === 'en' ? item.name_en : item.name_fr,
-      price: item.price, qty: item.qty, subtotal: item.price * item.qty,
-      glace: item.glace, format: item.format, comment: item.comment,
+      id:       item.id,
+      name:     lang === 'en' ? (item.name_en || item.name_fr) : item.name_fr,
+      price:    item.price,
+      qty:      item.qty,
+      subtotal: item.price * item.qty,
+      glace:    item.glace   || null,
+      format:   item.format  || null,
+      comment:  item.comment || '',
     };
     const lines = [base];
     for (const u of item.upsells || []) {
       lines.push({
-        id: u.id, name: lang === 'en' ? (u.name_en || u.name_fr) : u.name_fr,
-        price: u.price, qty: item.qty, subtotal: u.price * item.qty,
-        parentId: item.id, isUpsell: true,
+        id:       u.id,
+        name:     lang === 'en' ? (u.name_en || u.name_fr) : u.name_fr,
+        price:    u.price,
+        qty:      item.qty,
+        subtotal: u.price * item.qty,
+        parentId: item.id,
+        isUpsell: true,
       });
     }
     return lines;
   });
 }
-import { getLang } from './i18n.js';
 
-/**
- * Soumet une commande salle (QR Code)
- * @param {string} tableId
- * @param {string} clientUid
- * @returns {string} orderId
- */
-export async function submitSalleOrder(tableId, clientUid, operateur = 'especes', sessionId = null) {
-  const items = getItems();
-  if (!items.length) throw new Error('Panier vide');
+// ─── Commande salle ───────────────────────────────────────
+export async function submitSalleOrder(tableId, clientUid, operateur = 'especes', sessionId = null, cartItems = []) {
+  if (!cartItems.length) throw new Error('Panier vide');
 
   const lang  = getLang();
-  const lines = serializeItems(lang);
-  const total = getTotal();
-
-  const isMobileMoney = operateur !== 'especes';
+  const lines = serializeItems(cartItems, lang);
+  const total = cartItems.reduce((s, i) => s + i.price * i.qty, 0);
 
   const orderId = await createOrder({
     type:          'salle',
@@ -58,27 +51,20 @@ export async function submitSalleOrder(tableId, clientUid, operateur = 'especes'
     total,
     comment:       '',
     operateur,
-    paymentStatus: isMobileMoney ? 'awaiting_payment' : 'pending_cash',
+    paymentStatus: operateur !== 'especes' ? 'awaiting_payment' : 'pending_cash',
   });
 
-  clearCart();
   return orderId;
 }
 
-/**
- * Soumet une commande livraison
- * @param {Object} livraison - { nom, telephone, adresse, zoneId, zoneName, fraisLivraison, operateur }
- * @param {string} clientUid
- * @returns {string} orderId
- */
-export async function submitLivraisonOrder(livraison, clientUid) {
-  const items = getItems();
-  if (!items.length) throw new Error('Panier vide');
+// ─── Commande livraison ───────────────────────────────────
+export async function submitLivraisonOrder(livraison, clientUid, cartItems = []) {
+  if (!cartItems.length) throw new Error('Panier vide');
 
-  const lang  = getLang();
-  const lines = serializeItems(lang);
-  const sous_total = getTotal();
-  const total = sous_total + livraison.fraisLivraison;
+  const lang       = getLang();
+  const lines      = serializeItems(cartItems, lang);
+  const sous_total = cartItems.reduce((s, i) => s + i.price * i.qty, 0);
+  const total      = sous_total + (livraison.fraisLivraison || 0);
 
   const orderId = await createOrder({
     type:      'livraison',
@@ -87,26 +73,23 @@ export async function submitLivraisonOrder(livraison, clientUid) {
     sous_total,
     total,
     livraison: {
-      nom:        livraison.nom,
-      telephone:  livraison.telephone,
-      adresse:    livraison.adresse,
-      zoneId:     livraison.zoneId,
-      zoneName:   livraison.zoneName,
-      frais:      livraison.fraisLivraison,
-      operateur:  livraison.operateur,
-      transactionId: null,         // Mis à jour par le webhook Mobile Money
+      nom:           livraison.nom,
+      telephone:     livraison.telephone,
+      adresse:       livraison.adresse,
+      zoneId:        livraison.zoneId,
+      zoneName:      livraison.zoneName,
+      frais:         livraison.fraisLivraison || 0,
+      operateur:     livraison.operateur,
+      transactionId: null,
     },
     paymentStatus: 'awaiting_payment',
-    comment: livraison.comment || '',
+    comment:       livraison.comment || '',
   });
 
-  clearCart();
   return orderId;
 }
 
-/**
- * Formate un montant en FCFA
- */
+// ─── Formater FCFA ────────────────────────────────────────
 export function formatFCFA(amount) {
   if (!amount || amount === 0) return 'Sur devis';
   return new Intl.NumberFormat('fr-FR').format(amount) + ' FCFA';
