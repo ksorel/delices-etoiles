@@ -995,6 +995,19 @@ window.showSessionInvoice = async function(sessionId, tableId) {
   w.document.close();
 };
 
+// ── Exposer updateStatus globalement ─────────────────────
+window.updateStatus = async function(orderId, newStatus) {
+  try {
+    await updateDoc(doc(db, 'commandes', orderId), {
+      status: newStatus,
+      updatedAt: serverTimestamp(),
+    });
+  } catch(e) {
+    alert('Erreur statut : ' + e.message);
+  }
+};
+
+
 </script>
 </body>
 </html>
