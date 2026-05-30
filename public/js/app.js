@@ -1271,17 +1271,24 @@ window.App.openTrackingModal = function(orderId) {
     // Clear localStorage si terminé
     if (status === 'done') localStorage.removeItem('de_last_order');
 
+    // Bind back to menu button after render
+    setTimeout(function() {
+      document.getElementById('back-menu-btn')?.addEventListener('click', function() {
+        document.getElementById('tracking-modal')?.remove();
+        if (window._trackingUnsub) { window._trackingUnsub(); window._trackingUnsub = null; }
+        window.App.navigate('menu');
+      });
+    }, 100);
+
     body.innerHTML = '<div style="margin-bottom:20px;padding:14px 16px;background:#FFF8F5;'
       + 'border-radius:12px;border-left:4px solid #F26522">'
       +   '<div style="font-size:14px;color:#4A3020">' + (messages[status] || messages.pending) + '</div>'
       + '</div>'
       + stepsHtml
       + (status === 'done'
-          ? '<button onclick="document.getElementById('tracking-modal').remove();window.App.navigate('menu')" '
-            + 'style="width:100%;padding:14px;background:#2B1D16;color:#fff;border:none;border-radius:12px;'
-            + 'font-size:15px;font-weight:700;cursor:pointer;margin-top:8px">← Retour au menu</button>'
+      + (status === 'done'
+          ? '<button id="back-menu-btn" style="width:100%;padding:14px;background:#2B1D16;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;margin-top:8px">← Retour au menu</button>'
           : '');
-  });
 };
 
 // ─── Suivi commande ───────────────────────────────────────
