@@ -1034,7 +1034,7 @@ function selectPayment(op) {
   });
 }
 
-async async function confirmSalle() {
+async function confirmSalle() {
   const btn = document.getElementById('confirm-btn');
   if (btn) { btn.disabled = true; btn.textContent = 'Envoi…'; }
   try {
@@ -1048,7 +1048,7 @@ async async function confirmSalle() {
   }
 }
 
-async async function confirmLivraison() {
+async function confirmLivraison() {
   const nom     = document.getElementById('liv-nom')?.value.trim();
   const tel     = document.getElementById('liv-tel')?.value.trim();
   const adresse = document.getElementById('liv-adresse')?.value.trim();
