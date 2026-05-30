@@ -1286,7 +1286,6 @@ window.App.openTrackingModal = function(orderId) {
       + '</div>'
       + stepsHtml
       + (status === 'done'
-      + (status === 'done'
           ? '<button id="back-menu-btn" style="width:100%;padding:14px;background:#2B1D16;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;margin-top:8px">← Retour au menu</button>'
           : '');
 };
