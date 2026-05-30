@@ -1038,11 +1038,17 @@ async function confirmSalle() {
   const btn = document.getElementById('confirm-btn');
   if (btn) { btn.disabled = true; btn.textContent = 'Envoi…'; }
   try {
-    // Garantir l'authentification avant d'envoyer
-    if (!State.uid) {
+    // Garantir l'authentification + forcer refresh du token
+    const { getAuth: _getAuth } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
+    const _currentUser = _getAuth().currentUser;
+    if (!_currentUser) {
       State.uid = await authWithRetry();
-      if (!State.uid) throw new Error('Authentification impossible. Vérifiez votre connexion.');
+    } else {
+      await _currentUser.getIdToken(true);
+      State.uid = _currentUser.uid;
     }
+    if (!State.uid) throw new Error('Authentification impossible. Vérifiez votre connexion.');
+
     const operateur  = window._selectedPayment || 'especes';
     const cartItems  = getItems();
     const orderId    = await submitSalleOrder(State.tableId, State.uid, operateur, State.sessionId, cartItems);
@@ -1070,11 +1076,17 @@ async function confirmLivraison() {
   if (btn) { btn.disabled = true; btn.textContent = 'Traitement…'; }
 
   try {
-    // Garantir l'authentification avant d'envoyer
-    if (!State.uid) {
+    // Garantir l'authentification + forcer refresh du token
+    const { getAuth } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
+    const currentUser = getAuth().currentUser;
+    if (!currentUser) {
       State.uid = await authWithRetry();
-      if (!State.uid) throw new Error('Authentification impossible. Vérifiez votre connexion.');
+    } else {
+      await currentUser.getIdToken(true); // force refresh
+      State.uid = currentUser.uid;
     }
+    if (!State.uid) throw new Error('Authentification impossible. Vérifiez votre connexion.');
+
     const cartItems = getItems();
     const orderId = await submitLivraisonOrder({
       nom, telephone: tel, adresse,
@@ -1088,7 +1100,9 @@ async function confirmLivraison() {
     // TODO: Rediriger vers le gateway Mobile Money ici
     // Ex: window.location.href = getMobileMoneyUrl(window._selectedPayment, total, orderId);
 
+    clearCart();
     updateCartBadge();
+    const operateur = window._selectedPayment || 'wave';
     renderView('confirm', { orderId, operateur });
   } catch (e) {
     console.error('[confirmLivraison] Erreur:', e.message, e.code, e);
