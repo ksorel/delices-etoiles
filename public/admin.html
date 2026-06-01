@@ -1927,7 +1927,17 @@ window.Admin.saveConfig = async function() {
       restaurantName: name,
       restoId:        restoId,
       managerPhone:   phone,
-      updatedAt:      serverTimestamp(),
+      contacts: {
+        tel1:        document.getElementById('cfg-tel1')?.value.trim()       || '',
+        tel1_label:  document.getElementById('cfg-tel1-label')?.value.trim() || 'Fixe',
+        tel1_show:   document.getElementById('cfg-tel1-show')?.checked       ?? true,
+        tel2:        document.getElementById('cfg-tel2')?.value.trim()       || '',
+        tel2_label:  document.getElementById('cfg-tel2-label')?.value.trim() || 'Mobile',
+        tel2_show:   document.getElementById('cfg-tel2-show')?.checked       ?? true,
+        email:       document.getElementById('cfg-email')?.value.trim()      || '',
+        email_show:  document.getElementById('cfg-email-show')?.checked      ?? true,
+      },
+      updatedAt: serverTimestamp(),
     }, { merge: true });
     msg.style.cssText = 'display:block;color:#10B981;font-weight:700';
     msg.textContent   = '✅ Configuration enregistrée';

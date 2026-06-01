@@ -566,6 +566,38 @@ function renderPDJCarousel(slides, lang) {
 
 
 // ─── Rendu Menu ───────────────────────────────────────────
+function buildContactBlock() {
+  const c = State.contacts;
+  if (!c) return '';
+  const items = [];
+  if (c.tel1 && c.tel1_show !== false) {
+    items.push('<a href="tel:' + c.tel1.replace(/\s/g,'') + '" style="display:flex;align-items:center;gap:12px;padding:12px 0;text-decoration:none;color:var(--brown);border-bottom:1px solid var(--border)">'
+      + '<div style="width:40px;height:40px;background:var(--orange-soft);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">📞</div>'
+      + '<div><div style="font-size:12px;color:var(--muted)">' + (c.tel1_label||'Téléphone') + '</div>'
+      + '<div style="font-weight:700;font-size:15px">' + c.tel1 + '</div></div></a>');
+  }
+  if (c.tel2 && c.tel2_show !== false) {
+    items.push('<a href="tel:' + c.tel2.replace(/\s/g,'') + '" style="display:flex;align-items:center;gap:12px;padding:12px 0;text-decoration:none;color:var(--brown);border-bottom:1px solid var(--border)">'
+      + '<div style="width:40px;height:40px;background:var(--orange-soft);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">📱</div>'
+      + '<div><div style="font-size:12px;color:var(--muted)">' + (c.tel2_label||'Mobile') + '</div>'
+      + '<div style="font-weight:700;font-size:15px">' + c.tel2 + '</div></div></a>');
+  }
+  if (c.email && c.email_show !== false) {
+    items.push('<a href="mailto:' + c.email + '" style="display:flex;align-items:center;gap:12px;padding:12px 0;text-decoration:none;color:var(--brown)">'
+      + '<div style="width:40px;height:40px;background:var(--orange-soft);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">✉️</div>'
+      + '<div><div style="font-size:12px;color:var(--muted)">Email</div>'
+      + '<div style="font-weight:700;font-size:15px">' + c.email + '</div></div></a>');
+  }
+  if (!items.length) return '';
+  return '<div style="margin:16px;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(43,29,22,.08)">'
+    + '<div style="background:linear-gradient(135deg,#2B1D16,#4A3020);padding:14px 20px;display:flex;align-items:center;gap:10px">'
+    +   '<div style="font-size:20px">📬</div>'
+    +   '<div style="font-size:15px;font-weight:800;color:#fff">Nous contacter</div>'
+    + '</div>'
+    + '<div style="padding:0 20px">' + items.join('') + '</div>'
+    + '</div>';
+}
+
 function renderMenu(container) {
   if (!State.menu.length) {
     container.innerHTML = `<div class="loading"><div class="spinner"></div><p>${t('loading')}</p></div>`;
@@ -619,6 +651,7 @@ function renderMenu(container) {
     ${pdjHtml}
     <div class="cat-tabs">${catTabsHtml}</div>
     <div class="menu-grid">${cardsHtml}</div>
+    ${buildContactBlock()}
   `;
 
   // Initialiser le carrousel si présent
