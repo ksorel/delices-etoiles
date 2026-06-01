@@ -127,22 +127,39 @@ class AIAssistant {
 
   _createFAB() {
     this.fab = document.createElement('button');
-    this.fab.className   = 'ai-fab';
-    this.fab.title       = 'Assistant IA — Posez vos questions';
-    this.fab.innerHTML   = '💬<span class="ai-notif">IA</span>';
-    this.fab.onclick     = () => this.toggle();
+    this.fab.className   = 'ai-fab ai-fab--' + this.contextType;
+    this.fab.title       = 'Assistant — Posez vos questions';
+    // On client: position bottom-right above the cart bar
+    if (this.contextType === 'client') {
+      this.fab.style.cssText = 'position:fixed;bottom:80px;right:16px;z-index:8000;'
+        + 'width:52px;height:52px;border-radius:50%;background:#F26522;color:#fff;'
+        + 'border:none;cursor:pointer;font-size:22px;box-shadow:0 4px 16px rgba(242,101,34,.4);'
+        + 'display:flex;align-items:center;justify-content:center';
+      this.fab.innerHTML = '💬';
+    } else {
+      this.fab.innerHTML = '💬<span class="ai-notif">IA</span>';
+    }
+    this.fab.onclick = () => this.toggle();
     document.body.appendChild(this.fab);
   }
 
   _createPanel() {
     this.panel = document.createElement('div');
-    this.panel.className = 'ai-panel';
+    this.panel.className = 'ai-panel ai-panel--' + this.contextType;
+    if (this.contextType === 'client') {
+      this.panel.style.zIndex = '8001';
+      this.panel.style.bottom = '140px'; // au-dessus de la barre de panier
+    }
     this.panel.innerHTML = `
       <div class="ai-head">
-        <div class="ai-avatar">⭐</div>
+        <div class="ai-avatar">
+          <img src="/img/icon-192.png" alt="Délices Étoiles"
+               style="width:36px;height:36px;border-radius:50%;object-fit:cover"
+               onerror="this.outerHTML='⭐'">
+        </div>
         <div>
           <div class="ai-head-title">Assistant Délices Étoiles</div>
-          <div class="ai-head-sub">Powered by Claude · Toujours disponible</div>
+          <div class="ai-head-sub">Toujours disponible pour vous aider</div>
         </div>
         <button class="ai-head-close" onclick="window._ai.close()">×</button>
       </div>
