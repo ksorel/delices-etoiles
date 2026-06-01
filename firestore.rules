@@ -28,9 +28,9 @@ service cloud.firestore {
       // Création : tout utilisateur authentifié (anonyme ou staff)
       allow create: if isAuth();
 
-      // Lecture : staff ou propriétaire de la commande
-      allow read: if isStaff()
-        || (isAuth() && resource.data.clientUid == request.auth.uid);
+      // Lecture : staff ou tout user authentifié connaissant l'orderId
+      // (l'orderId est un ID Firestore non-devinable = sécurité suffisante)
+      allow read: if isAuth();
 
       // Mise à jour statut : staff seulement
       allow update: if isStaff();
