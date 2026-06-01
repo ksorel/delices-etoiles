@@ -59,6 +59,7 @@ import { submitSalleOrder, submitLivraisonOrder, formatFCFA } from './order.js';
 // ─── État global de l'app ────────────────────────────────
 const State = {
   mode:        'livraison',  // 'salle' | 'livraison'
+  payments:    { especes:true, wave:true, orange:false, mtn:false }, // chargé depuis Firestore
   tableId:     null,
   uid:         null,
   menu:        [],
@@ -240,11 +241,12 @@ async function init() {
   // 5. Charger le menu depuis localStorage d'abord (affichage instantané)
   // Charger les données depuis Firestore
   try {
-    const [menu, zones, rules, pdj] = await Promise.all([
+    const [menu, zones, rules, pdj, cfg] = await Promise.all([
       withTimeout(fetchMenu(),        15000),
       withTimeout(fetchZones(),       15000),
       withTimeout(fetchUpsellRules(), 15000),
       withTimeout(fetchPlatDuJour(),  10000).catch(() => null),
+      getDoc(doc(db, 'config', 'restaurant')).catch(() => null),
     ]);
     State.menu       = menu       || [];
     State.zones      = zones      || [];
@@ -1051,6 +1053,77 @@ function selectPayment(op) {
   });
 }
 
+
+// ─── Liens de paiement Mobile Money ──────────────────────
+const WAVE_MERCHANT_ID  = 'M_REMPLACER'; // ← Remplacer par votre ID Wave Business
+const OM_MERCHANT_ID    = '';             // ← Orange Money (si disponible)
+
+function getMobileMoneyUrl(operateur, amount, orderId) {
+  const num = '0759731911'; // numéro marchand restaurant
+  const ref = 'DE-' + orderId.slice(-6).toUpperCase();
+  const amt = Math.round(amount);
+  if (operateur === 'wave') {
+    // Deep link Wave CI — ouvre l'app Wave avec numéro + montant pré-remplis
+    return 'waveci://transfer?phone=' + num + '&amount=' + amt + '&note=' + ref;
+  }
+  if (operateur === 'orange') {
+    // Deep link Orange Money CI
+    return 'orangemoney://send?phone=' + num + '&amount=' + amt;
+  }
+  if (operateur === 'mtn') {
+    // USSD MTN MoMo
+    return 'tel:*133*' + num + '*' + amt + '#';
+  }
+  return null;
+}
+
+function showPaymentInstructions(operateur, amount, orderId) {
+  const num   = '0759731911';
+  const amt   = Math.round(amount).toLocaleString('fr-FR');
+  const ref   = 'DE-' + orderId.slice(-6).toUpperCase();
+  const payUrl = getMobileMoneyUrl(operateur, amount, orderId);
+
+  const icons = { wave:'🌊', orange:'🟠', mtn:'💛' };
+  const names = { wave:'Wave CI', orange:'Orange Money', mtn:'MTN MoMo' };
+
+  const overlay = document.createElement('div');
+  overlay.id = 'payment-instructions';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(43,29,22,.8);z-index:9999;display:flex;align-items:flex-end;justify-content:center';
+
+  const sheet = document.createElement('div');
+  sheet.style.cssText = 'background:#fff;border-radius:24px 24px 0 0;width:100%;max-width:480px;padding:28px 24px 40px';
+
+  sheet.innerHTML = '<div style="text-align:center;margin-bottom:24px">'
+    + '<div style="font-size:48px;margin-bottom:8px">' + (icons[operateur]||'📱') + '</div>'
+    + '<div style="font-size:20px;font-weight:800;color:#2B1D16">Paiement ' + (names[operateur]||operateur) + '</div>'
+    + '<div style="font-size:28px;font-weight:800;color:#F26522;margin:8px 0">' + amt + ' FCFA</div>'
+    + '</div>'
+    + '<div style="background:#F9F5F0;border-radius:12px;padding:16px;margin-bottom:20px">'
+    +   '<div style="font-size:13px;color:#7A6356;margin-bottom:6px">Envoyez ce montant au :</div>'
+    +   '<div style="font-size:22px;font-weight:800;color:#2B1D16;letter-spacing:2px">' + num + '</div>'
+    +   '<div style="font-size:12px;color:#7A6356;margin-top:4px">Référence : <strong>' + ref + '</strong></div>'
+    + '</div>';
+
+  // Button to open app directly
+  const openBtn = document.createElement('a');
+  openBtn.href = payUrl;
+  openBtn.style.cssText = 'display:block;width:100%;padding:16px;background:#F26522;color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:800;cursor:pointer;text-align:center;text-decoration:none;margin-bottom:10px;box-sizing:border-box';
+  openBtn.textContent = 'Ouvrir ' + (names[operateur]||operateur);
+  openBtn.addEventListener('click', function() {
+    setTimeout(function() { overlay.remove(); }, 1500);
+  });
+
+  const doneBtn = document.createElement('button');
+  doneBtn.textContent = "J'ai effectué le paiement";
+  doneBtn.style.cssText = 'width:100%;padding:14px;background:#2B1D16;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer';
+  doneBtn.addEventListener('click', function() { overlay.remove(); });
+
+  sheet.appendChild(openBtn);
+  sheet.appendChild(doneBtn);
+  overlay.appendChild(sheet);
+  document.body.appendChild(overlay);
+}
+
 async function confirmSalle() {
   const btn = document.getElementById('confirm-btn');
   if (btn) { btn.disabled = true; btn.textContent = 'Envoi…'; }
@@ -1071,9 +1144,14 @@ async function confirmSalle() {
     const orderId    = await submitSalleOrder(State.tableId, State.uid, operateur, State.sessionId, cartItems);
     clearCart();
     updateCartBadge();
-    // Sauvegarder pour retrouver le suivi après rechargement
     localStorage.setItem('de_last_order', JSON.stringify({ orderId, operateur, ts: Date.now() }));
+
     renderView('confirm', { orderId, operateur });
+    // Afficher les instructions de paiement Mobile Money
+    if (operateur !== 'especes') {
+      const totalCart = getItems().reduce(function(s,i){return s+i.price*i.qty;},0);
+      showPaymentInstructions(operateur, totalCart, orderId);
+    }
   } catch (e) {
     console.error('[confirmSalle] Erreur:', e.message, e.code, e);
     showToast(t('err_order') + ' : ' + (e.message || e.code || ''));
@@ -1116,14 +1194,18 @@ async function confirmLivraison() {
       comment:         document.getElementById('liv-comment')?.value || '',
     }, State.uid, cartItems);
 
-    // TODO: Rediriger vers le gateway Mobile Money ici
-    // Ex: window.location.href = getMobileMoneyUrl(window._selectedPayment, total, orderId);
-
     clearCart();
     updateCartBadge();
-    const operateur = window._selectedPayment || 'wave';
+    const operateur  = window._selectedPayment || 'wave';
+    const sousTotal  = getItems().reduce(function(s,i){return s+i.price*i.qty;},0);
+    const totalOrder = sousTotal + (zone.frais || 0);
     localStorage.setItem('de_last_order', JSON.stringify({ orderId, operateur, ts: Date.now() }));
+
     renderView('confirm', { orderId, operateur });
+    // Afficher les instructions de paiement Mobile Money
+    if (operateur !== 'especes') {
+      showPaymentInstructions(operateur, totalOrder, orderId);
+    }
   } catch (e) {
     console.error('[confirmLivraison] Erreur:', e.message, e.code, e);
     showToast(t('err_order') + ' : ' + (e.message || e.code || ''));

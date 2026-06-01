@@ -992,34 +992,81 @@ async function renderPaiements(c) {
 async function renderConfig(c) {
   c.innerHTML = '<div class="loading"><div class="spinner"></div><p>Chargement…</p></div>';
 
-  let cfg = { managerPhone: '0779939254', restaurantName: 'Délices Étoiles', restoId: 'bassam' };
+  let cfg = {
+    managerPhone:  '0779939254',
+    restaurantName:'Délices Étoiles',
+    restoId:       'bassam',
+    payments: { especes:true, wave:true, orange:false, mtn:false }
+  };
   try {
     const snap = await getDoc(doc(db, 'config', 'restaurant'));
     if (snap.exists()) cfg = { ...cfg, ...snap.data() };
+    if (!cfg.payments) cfg.payments = { especes:true, wave:true, orange:false, mtn:false };
   } catch(e) {}
 
-  c.innerHTML = '<div class="card">'
-    + '<div class="card-title">⚙️ Configuration du restaurant</div>'
-    + '<div style="display:flex;flex-direction:column;gap:16px;max-width:480px">'
+  const pm = cfg.payments;
+  const payModes = [
+    { id:'especes', icon:'💵', label:'Espèces',        desc:'Paiement en cash au moment de la livraison/service', always:true },
+    { id:'wave',    icon:'🌊', label:'Wave CI',         desc:'Numéro marchand : ' + (cfg.managerPhone||'0759731911') },
+    { id:'orange',  icon:'🟠', label:'Orange Money',    desc:'Numéro marchand : ' + (cfg.managerPhone||'0759731911') },
+    { id:'mtn',     icon:'💛', label:'MTN MoMo',        desc:'Numéro marchand : ' + (cfg.managerPhone||'0759731911') },
+  ];
 
-    // Nom du restaurant
+  const payRows = payModes.map(function(p) {
+    const checked = pm[p.id] !== false;
+    return '<div style="display:flex;align-items:center;justify-content:space-between;'
+      + 'padding:12px 0;border-bottom:1px solid var(--border)">'
+      +   '<div style="display:flex;align-items:center;gap:12px">'
+      +     '<span style="font-size:24px">' + p.icon + '</span>'
+      +     '<div>'
+      +       '<div style="font-weight:700;color:var(--brown)">' + p.label + '</div>'
+      +       '<div style="font-size:12px;color:var(--muted)">' + p.desc + '</div>'
+      +     '</div>'
+      +   '</div>'
+      +   '<label style="display:flex;align-items:center;gap:8px;cursor:' + (p.always?'default':'pointer') + '">'
+      +     (p.always ? '<span style="font-size:11px;color:var(--muted)">Toujours actif</span>'
+         : '<input type="checkbox" id="pay-' + p.id + '" ' + (checked?'checked':'') + ' '
+         +   'style="width:18px;height:18px;cursor:pointer" '
+         +   'onchange="window.Admin.togglePayment('' + p.id + '',this.checked)">')
+      +   '</label>'
+      + '</div>';
+  }).join('');
+
+  c.innerHTML = '<div class="card" style="max-width:600px">'
+    + '<div class="card-title">⚙️ Configuration</div>'
+
+    + '<div style="display:flex;flex-direction:column;gap:14px">'
+
     + '<div><label class="form-label">Nom du restaurant</label>'
-    + '<input class="form-input" id="cfg-name" value="' + (cfg.restaurantName||'') + '" placeholder="Délices Étoiles"></div>'
+    + '<input class="form-input" id="cfg-name" value="' + (cfg.restaurantName||'') + '"></div>'
 
-    // Identifiant restaurant (pour multi-restaurant)
-    + '<div><label class="form-label">Identifiant restaurant</label>'
-    + '<input class="form-input" id="cfg-restoid" value="' + (cfg.restoId||'') + '" placeholder="bassam, abobo, anyama…">'
-    + '<div style="font-size:11px;color:var(--muted);margin-top:4px">Utilisé pour la chaîne multi-restaurant (ex: bassam, abobo, anyama)</div></div>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'
+    +   '<div><label class="form-label">Identifiant restaurant</label>'
+    +     '<input class="form-input" id="cfg-restoid" value="' + (cfg.restoId||'') + '" placeholder="bassam, abobo…">'
+    +     '<div style="font-size:11px;color:var(--muted);margin-top:3px">Pour le multi-restaurant</div></div>'
+    +   '<div><label class="form-label">📞 Numéro du gérant</label>'
+    +     '<input class="form-input" id="cfg-phone" value="' + (cfg.managerPhone||'') + '" type="tel">'
+    +     '<div style="font-size:11px;color:var(--muted);margin-top:3px">Affiché sur la page login</div></div>'
+    + '</div>'
 
-    // Numéro gérant
-    + '<div><label class="form-label">📞 Numéro du gérant (affiché sur la page login)</label>'
-    + '<input class="form-input" id="cfg-phone" value="' + (cfg.managerPhone||'') + '" type="tel" placeholder="0779939254">'
-    + '<div style="font-size:11px;color:var(--muted);margin-top:4px">Affiché aux employés qui ont oublié leur mot de passe</div></div>'
+    + '<div><label class="form-label" style="margin-bottom:8px">💳 Modes de paiement disponibles</label>'
+    +   '<div style="background:var(--bg);border-radius:10px;padding:0 14px">' + payRows + '</div>'
+    + '</div>'
 
     + '<button onclick="window.Admin.saveConfig()" class="btn btn-primary" style="align-self:flex-start">💾 Enregistrer</button>'
     + '<div id="cfg-msg" style="font-size:13px;display:none"></div>'
     + '</div></div>';
 }
+
+window.Admin.togglePayment = async function(mode, enabled) {
+  try {
+    const snap = await getDoc(doc(db, 'config', 'restaurant'));
+    const payments = snap.exists() ? (snap.data().payments || {}) : {};
+    payments[mode] = enabled;
+    await setDoc(doc(db, 'config', 'restaurant'), { payments }, { merge: true });
+    toast((enabled ? '✅ ' : '❌ ') + mode.toUpperCase() + (enabled ? ' activé' : ' désactivé'));
+  } catch(e) { toast('Erreur : ' + e.message); }
+};
 
 
 // ── Plan de salle ─────────────────────────────────────────
