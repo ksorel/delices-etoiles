@@ -2017,7 +2017,7 @@ window.Admin.addStockItem = function() {
     document.getElementById('stock-modal').remove();
     toast('✅ Article ajouté' + (menuItemId ? ' et lié au menu ✓' : ' (non trouvé dans le menu)'));
     loadStocksPage();
-  });
+  }, err => { if (err.code !== 'permission-denied') console.error('onSnapshot err:', err); });
 };
 
 window.Admin.stockEntry = function(id, name) {
