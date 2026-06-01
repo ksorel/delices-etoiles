@@ -1589,8 +1589,14 @@ window.App.openTrackingModal = function(orderId) {
   // Header
   const header = document.createElement('div');
   header.style.cssText = 'padding:0 20px 16px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #F0E8E0';
-  header.innerHTML = '<div><div style="font-size:18px;font-weight:800;color:#2B1D16">📍 Suivi de commande</div>'
-    + '<div style="font-size:13px;color:#7A6356;margin-top:2px">N° ' + orderId.slice(-6).toUpperCase() + '</div></div>';
+  header.innerHTML = '<div>'
+    + '<div style="display:flex;align-items:center;gap:8px">'
+    +   '<div style="font-size:18px;font-weight:800;color:#2B1D16">📍 Suivi de commande</div>'
+    +   '<div style="width:8px;height:8px;border-radius:50%;background:#10B981;'
+    +     'animation:pulse-dot 1.5s infinite" title="Mis à jour en temps réel"></div>'
+    + '</div>'
+    + '<div style="font-size:13px;color:#7A6356;margin-top:2px">N° ' + orderId.slice(-6).toUpperCase()
+    + ' · <span style="color:#10B981;font-size:11px">● En direct</span></div></div>';
 
   const closeBtn = document.createElement('button');
   closeBtn.textContent = '×';

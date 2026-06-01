@@ -12,13 +12,13 @@ import {
 
 // ─── Menu ────────────────────────────────────────────────
 export async function fetchMenu() {
-  const snap = await getDocs(collection(db, 'menus'));
-  const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-  return items.sort((a, b) => {
-    if (a.category < b.category) return -1;
-    if (a.category > b.category) return 1;
-    return (a.order || 0) - (b.order || 0);
-  });
+  const q = query(
+    collection(db, 'menus'),
+    orderBy('category'),
+    orderBy('order')
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
 // ─── Zones de livraison ──────────────────────────────────
@@ -209,11 +209,35 @@ export async function setPlatDuJour(data) {
 
 // ─── Suivi commande en temps réel ────────────────────────
 export function listenOrder(orderId, callback) {
-  return onSnapshot(
-    doc(db, 'commandes', orderId),
-    snap => { if (snap.exists()) callback({ id: snap.id, ...snap.data() }); },
-    err  => { console.info('listenOrder error:', err.code); }
-  );
+  let unsub = null;
+  let retryCount = 0;
+
+  function start() {
+    unsub = onSnapshot(
+      doc(db, 'commandes', orderId),
+      snap => {
+        retryCount = 0; // reset on success
+        if (snap.exists()) callback({ id: snap.id, ...snap.data() });
+      },
+      err => {
+        console.warn('listenOrder error:', err.code);
+        if (err.code === 'permission-denied' && retryCount < 3) {
+          retryCount++;
+          // Retry after short delay (token may not be ready yet)
+          setTimeout(function() {
+            if (unsub) { try { unsub(); } catch(e) {} }
+            start();
+          }, 2000 * retryCount);
+        }
+      }
+    );
+  }
+
+  start();
+  // Return unsubscribe function
+  return function() {
+    if (unsub) { try { unsub(); } catch(e) {} }
+  };
 }
 // ─── Helpers ─────────────────────────────────────────────
 export function formatDate(ts) {
