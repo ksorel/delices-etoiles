@@ -1030,9 +1030,9 @@ async function renderConfig(c) {
       +   '</div>'
       +   '<label style="display:flex;align-items:center;gap:8px;cursor:' + (p.always?'default':'pointer') + '">'
       +     (p.always ? '<span style="font-size:11px;color:var(--muted)">Toujours actif</span>'
-         : '<input type="checkbox" id="pay-' + p.id + '" ' + (checked?'checked':'') + ' '
-         +   'style="width:18px;height:18px;cursor:pointer" '
-         +   'onchange="window.Admin.togglePayment('' + p.id + '',this.checked)">')
+         : '<input type="checkbox" id="pay-' + p.id + '" data-mode="' + p.id + '" ' + (checked?'checked':'') + ' '
+         +   'style="width:18px;height:18px;cursor:pointer"'
+         +   ' onchange="window.Admin.togglePayment(this.dataset.mode,this.checked)">')
       +   '</label>'
       + '</div>';
   }).join('');
