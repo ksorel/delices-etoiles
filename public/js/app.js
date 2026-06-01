@@ -295,13 +295,15 @@ async function init() {
     await initSalleSession();
   } else if (lastOrder && !State.tableId) {
     // Proposer de reprendre le suivi
-    const resume = confirm('Vous avez une commande en cours. Voulez-vous suivre son état ?');
-    if (resume) {
-      navigate('tracking', { orderId: lastOrder.orderId });
-    } else {
-      localStorage.removeItem('de_last_order');
-      navigate('menu');
-    }
+    navigate('menu'); // charger le menu d'abord
+    setTimeout(function() {
+      const resume = confirm('Vous avez une commande en cours. Voulez-vous suivre son état ?');
+      if (resume) {
+        window.App.openTrackingModal(lastOrder.orderId);
+      } else {
+        localStorage.removeItem('de_last_order');
+      }
+    }, 1000);
   } else {
     navigate('menu');
   }
@@ -1574,10 +1576,10 @@ window.App.openTrackingModal = function(orderId) {
   // Build modal DOM
   const overlay = document.createElement('div');
   overlay.id = 'tracking-modal';
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(43,29,22,.75);z-index:9000;display:flex;align-items:flex-end;justify-content:center';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(43,29,22,.75);z-index:9000;display:flex;align-items:center;justify-content:center;padding:20px';
 
   const sheet = document.createElement('div');
-  sheet.style.cssText = 'background:#fff;border-radius:24px 24px 0 0;width:100%;max-width:480px;max-height:85vh;overflow-y:auto;padding-bottom:32px';
+  sheet.style.cssText = 'background:#fff;border-radius:20px;width:100%;max-width:480px;max-height:88vh;overflow-y:auto;padding-bottom:24px';
 
   // Handle bar
   const handle = document.createElement('div');
