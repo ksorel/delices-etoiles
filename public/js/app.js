@@ -59,7 +59,8 @@ import { submitSalleOrder, submitLivraisonOrder, formatFCFA } from './order.js';
 // ─── État global de l'app ────────────────────────────────
 const State = {
   mode:        'livraison',  // 'salle' | 'livraison'
-  payments:    { especes:true, wave:true, orange:false, mtn:false }, // chargé depuis Firestore
+  payments:    { especes:true, wave:true, orange:false, mtn:false },
+  contacts:    null, // chargé depuis Firestore
   tableId:     null,
   uid:         null,
   menu:        [],

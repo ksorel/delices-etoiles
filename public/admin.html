@@ -993,10 +993,15 @@ async function renderConfig(c) {
   c.innerHTML = '<div class="loading"><div class="spinner"></div><p>Chargement…</p></div>';
 
   let cfg = {
-    managerPhone:  '0779939254',
-    restaurantName:'Délices Étoiles',
-    restoId:       'bassam',
-    payments: { especes:true, wave:true, orange:false, mtn:false }
+    managerPhone:   '0779939254',
+    restaurantName: 'Délices Étoiles',
+    restoId:        'bassam',
+    payments:  { especes:true, wave:true, orange:false, mtn:false },
+    contacts:  {
+      tel1: '', tel1_label: 'Fixe', tel1_show: true,
+      tel2: '', tel2_label: 'Mobile', tel2_show: true,
+      email: '', email_show: true
+    }
   };
   try {
     const snap = await getDoc(doc(db, 'config', 'restaurant'));
@@ -1047,6 +1052,37 @@ async function renderConfig(c) {
     +   '<div><label class="form-label">📞 Numéro du gérant</label>'
     +     '<input class="form-input" id="cfg-phone" value="' + (cfg.managerPhone||'') + '" type="tel">'
     +     '<div style="font-size:11px;color:var(--muted);margin-top:3px">Affiché sur la page login</div></div>'
+    + '</div>'
+
+    + '<div>'
+    +   '<label class="form-label" style="margin-bottom:8px">📞 Contacts affichés sur le portail client</label>'
+    +   '<div style="background:var(--bg);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:14px">'
+
+    +   '<div style="display:grid;grid-template-columns:1fr 2fr auto;gap:8px;align-items:center">'
+    +     '<input class="form-input" id="cfg-tel1-label" value="' + (cfg.contacts?.tel1_label||'Fixe') + '" placeholder="Fixe" style="font-size:13px">'
+    +     '<input class="form-input" id="cfg-tel1" value="' + (cfg.contacts?.tel1||'') + '" type="tel" placeholder="Ex: 27xxxxxxxx">'
+    +     '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap;font-size:13px">'
+    +       '<input type="checkbox" id="cfg-tel1-show" ' + (cfg.contacts?.tel1_show!==false?'checked':'') + ' style="width:16px;height:16px"> Afficher'
+    +     '</label>'
+    +   '</div>'
+
+    +   '<div style="display:grid;grid-template-columns:1fr 2fr auto;gap:8px;align-items:center">'
+    +     '<input class="form-input" id="cfg-tel2-label" value="' + (cfg.contacts?.tel2_label||'Mobile') + '" placeholder="Mobile" style="font-size:13px">'
+    +     '<input class="form-input" id="cfg-tel2" value="' + (cfg.contacts?.tel2||'') + '" type="tel" placeholder="Ex: 07xxxxxxxx">'
+    +     '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap;font-size:13px">'
+    +       '<input type="checkbox" id="cfg-tel2-show" ' + (cfg.contacts?.tel2_show!==false?'checked':'') + ' style="width:16px;height:16px"> Afficher'
+    +     '</label>'
+    +   '</div>'
+
+    +   '<div style="display:grid;grid-template-columns:1fr 2fr auto;gap:8px;align-items:center">'
+    +     '<div class="form-input" style="background:#F5F5F5;color:var(--muted);font-size:13px">Email</div>'
+    +     '<input class="form-input" id="cfg-email" value="' + (cfg.contacts?.email||'') + '" type="email" placeholder="contact@restaurant.ci">'
+    +     '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap;font-size:13px">'
+    +       '<input type="checkbox" id="cfg-email-show" ' + (cfg.contacts?.email_show!==false?'checked':'') + ' style="width:16px;height:16px"> Afficher'
+    +     '</label>'
+    +   '</div>'
+
+    +   '</div>'
     + '</div>'
 
     + '<div><label class="form-label" style="margin-bottom:8px">💳 Modes de paiement disponibles</label>'
