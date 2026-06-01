@@ -1567,10 +1567,11 @@ window.App.openTrackingModal = function(orderId) {
     { key:'done',      icon:'✅', label:'Commande servie',    color:'#065F46' },
   ];
   const STEPS_LIV = [
-    { key:'pending',   icon:'📋', label:'Commande reçue',           color:'#F59E0B' },
-    { key:'preparing', icon:'👨‍🍳', label:'En préparation',           color:'#3B82F6' },
-    { key:'ready',     icon:'📦', label:'Prête pour livraison',      color:'#10B981' },
-    { key:'done',      icon:'🚴', label:'En route vers vous !',      color:'#3B82F6' },
+    { key:'pending',    icon:'📋', label:'Commande reçue',        color:'#F59E0B' },
+    { key:'preparing',  icon:'👨‍🍳', label:'En préparation',        color:'#3B82F6' },
+    { key:'ready',      icon:'📦', label:'Prête pour livraison',   color:'#10B981' },
+    { key:'delivering', icon:'🚴', label:'En route vers vous !',   color:'#3B82F6' },
+    { key:'done',       icon:'🎉', label:'Livré et payé !',        color:'#065F46' },
   ];
 
   // Build modal DOM
@@ -1635,10 +1636,11 @@ window.App.openTrackingModal = function(orderId) {
     const curIdx = steps.findIndex(function(s) { return s.key === status; });
 
     const msgs = {
-      pending:   'Votre commande a bien été reçue. Elle sera bientôt prise en charge.',
-      preparing: '🔥 La cuisine prépare votre commande avec soin !',
-      ready:     isLiv ? '📦 Prête ! Le livreur va partir.' : '🎉 Prête ! Le serveur arrive.',
-      done:      isLiv ? '🚴 Votre livreur est en route !' : '✅ Bon appétit ! Merci de votre visite.',
+      pending:    'Votre commande a bien été reçue. Elle sera bientôt prise en charge.',
+      preparing:  '🔥 La cuisine prépare votre commande avec soin !',
+      ready:      isLiv ? '📦 Prête ! Le livreur va partir.' : '🎉 Prête ! Le serveur arrive.',
+      delivering: '🚴 Votre livreur est en route. Préparez le paiement à la réception !',
+      done:       isLiv ? '🎉 Livré ! Merci et bonne dégustation !' : '✅ Bon appétit ! Merci de votre visite.',
     };
 
     if (status === 'done') localStorage.removeItem('de_last_order');
