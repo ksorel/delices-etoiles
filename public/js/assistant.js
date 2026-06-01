@@ -339,7 +339,17 @@ class AIAssistant {
       ? '💬'
       : '💬<span class="ai-notif">IA</span>';
     this.fab.onclick = () => this.toggle();
+    this.fab.style.display = 'none'; // caché par défaut - affiché après login
     document.body.appendChild(this.fab);
+  }
+
+  show() {
+    if (this.fab) this.fab.style.display = 'flex';
+  }
+
+  hide() {
+    if (this.fab) this.fab.style.display = 'none';
+    this.close();
   }
 
   _createPanel() {
@@ -374,20 +384,26 @@ class AIAssistant {
   }
 
   _addWelcomeMessage() {
-    const suggestions = [
-      'Comment ajouter un article au menu ?',
-      'Comment modifier les frais de livraison ?',
-      'Comment voir les statistiques du mois ?',
-      'Comment assigner un rôle à un employé ?',
-      'Comment gérer les stocks des boissons ?',
-    ];
+    const ctx = this.contextType || 'admin';
 
-    this._appendMessage('bot',
-      '👋 Bonjour ! Je suis votre assistant pour la plateforme Délices Étoiles.\n\n' +
-      'Posez-moi n\'importe quelle question sur l\'utilisation de l\'application — ' +
-      'gestion du menu, stocks, commandes, statistiques, paiements…'
-    );
-    this._renderSuggestions(suggestions);
+    const configs = {
+      admin: {
+        msg: '👋 Bonjour ! Je suis votre assistant de gestion.\n\nJe vous aide à configurer et administrer la plateforme Délices Étoiles.',
+        sugs: ['Comment ajouter un article ?', 'Comment gérer les stocks ?', 'Comment créer un employé ?', 'Comment configurer les zones de livraison ?'],
+      },
+      dashboard: {
+        msg: '👋 Bonjour ! Je suis votre assistant opérationnel.\n\nJe vous aide à gérer les commandes, les statuts et les paiements.',
+        sugs: ['Comment changer un statut ?', 'Comment confirmer une livraison ?', 'Comment encaisser en espèces ?', 'Comment voir le plan de salle ?'],
+      },
+      client: {
+        msg: '👋 Bienvenue chez Délices Étoiles !\n\nJe suis là pour vous aider à choisir vos plats, passer votre commande ou la suivre. 😊',
+        sugs: ['Voir le menu du jour', 'Commander en livraison', 'Suivre ma commande', 'Nous contacter'],
+      },
+    };
+
+    const cfg = configs[ctx] || configs.admin;
+    this._appendMessage('bot', cfg.msg);
+    this._renderSuggestions(cfg.sugs);
   }
 
   toggle() {

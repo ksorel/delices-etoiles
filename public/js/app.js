@@ -670,6 +670,8 @@ function renderMenu(container) {
   if (pdj?.isCarousel && pdj.slides?.length > 1) {
     requestAnimationFrame(() => window.App.pdjInit(pdj.slides.length));
   }
+  // Afficher l'assistant après chargement du menu
+  if (window._ai) window._ai.show();
 }
 
 // ─── Modal Item ───────────────────────────────────────────

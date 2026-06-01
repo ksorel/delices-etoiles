@@ -420,6 +420,10 @@ onAuthStateChanged(auth, async user => {
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('dash-app').style.display     = 'block';
 
+    // Init assistant IA (après login seulement)
+    if (!window._ai) initAssistant('dashboard');
+    else window._ai.show();
+
     // Afficher le bouton "Commande" uniquement pour admin, serveur, bar
     // ── Matrice des permissions par rôle ──────────────────
     const ROLES_CONFIG = {
