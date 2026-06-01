@@ -339,7 +339,9 @@ class AIAssistant {
       ? '💬'
       : '💬<span class="ai-notif">IA</span>';
     this.fab.onclick = () => this.toggle();
-    this.fab.style.display = 'none'; // caché par défaut - affiché après login
+    // Admin: toujours visible (déjà protégé par auth)
+    // Dashboard/client: caché jusqu'au login/chargement
+    this.fab.style.display = this.contextType === 'admin' ? 'flex' : 'none';
     document.body.appendChild(this.fab);
   }
 
@@ -356,7 +358,8 @@ class AIAssistant {
     this.panel = document.createElement('div');
     this.panel.className = 'ai-panel ai-panel--' + this.contextType;
     if (this.contextType === 'client') {
-      this.panel.style.bottom = '130px';
+      this.panel.style.bottom = '90px';
+      this.panel.style.maxHeight = 'calc(100vh - 180px)';
     }
     this.panel.innerHTML = `
       <div class="ai-head">
@@ -438,18 +441,17 @@ class AIAssistant {
     // Réponses rapides locales pour le portail client
     if (this.contextType === 'client') {
       const q = msg.toLowerCase();
-      if (q.includes('menu') && q.includes('jour') || q === 'voir le menu du jour') {
-        this._appendMessage("bot", "📜 Le plat du jour est affiché en haut de la page dans le carrousel. Scrollez vers le haut pour le voir !");
-        this._renderContextualSuggestions(msg);
-        return;
-      }
-      if (q.includes('contacter') || q === 'nous contacter') {
-        this._appendMessage("bot", "📬 Nos coordonnées sont affichées en bas du menu. Vous pouvez appeler directement en cliquant sur le numéro ou écrire un email.");
-        this._renderContextualSuggestions(msg);
-        return;
-      }
-      if (q.includes('suivre') && q.includes('commande') || q === 'suivre ma commande') {
-        this._appendMessage("bot", "📍 Si vous avez passé une commande, le bouton Suivre ma commande s'affiche sur la page de confirmation. Retrouvez-le via le bouton orange si vous avez rechargé la page.");
+      const localResponses = {
+        'voir le menu du jour':      "📜 Le plat du jour est affiché en haut de la page dans le carrousel. Scrollez vers le haut !",
+        'nous contacter':            "📬 Nos coordonnées sont affichées en bas du menu. Appelez en cliquant sur le numéro.",
+        'suivre ma commande':        "📍 Après votre commande, cliquez sur '📍 Suivre ma commande'. Si vous avez rechargé, un message vous propose de reprendre le suivi.",
+        'commander en livraison':    "🚴 Choisissez le mode Livraison en haut de la page, sélectionnez vos articles, puis validez votre commande avec votre adresse.",
+        'voir le menu':              "📋 Tous nos plats sont affichés sur cette page. Utilisez les onglets de catégories pour filtrer.",
+      };
+
+      const localKey = Object.keys(localResponses).find(k => q.includes(k) || q === k);
+      if (localKey) {
+        this._appendMessage('bot', localResponses[localKey]);
         this._renderContextualSuggestions(msg);
         return;
       }
@@ -487,7 +489,9 @@ class AIAssistant {
 
     } catch (e) {
       this._setLoading(false);
-      this._appendMessage('bot', '❌ Erreur de connexion. Vérifiez votre connexion internet et réessayez.');
+      console.error('Assistant error:', e);
+      // Most likely a CORS or network issue
+      this._appendMessage("bot", "❌ Service temporairement indisponible. Réessayez dans quelques instants.");
     }
   }
 
