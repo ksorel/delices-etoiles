@@ -356,6 +356,14 @@
 
     /* Hamburger caché sur desktop */
     .hamburger { display: none; }
+    /* ── Tables overflow fix ─── */
+    .content table { width: 100%; border-collapse: collapse; }
+    .content div:has(> table) { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    @media(max-width:768px) {
+      .content table { min-width: 480px; font-size: 13px; }
+      .content td, .content th { padding: 8px 10px !important; }
+    }
+
 
   </style>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
@@ -2787,20 +2795,20 @@ function toast(msg) {
   setTimeout(() => el.classList.remove('show'), 2500);
 }
 // ── Sidebar mobile ───────────────────────────────────────
-function toggleSidebar() {
+window.toggleSidebar = function() {
   const sidebar = document.querySelector('.sidebar');
   const overlay = document.getElementById('sidebar-overlay');
   sidebar?.classList.toggle('open');
   overlay?.classList.toggle('open');
-}
-function closeSidebar() {
+};
+window.closeSidebar = function() {
   document.querySelector('.sidebar')?.classList.remove('open');
   document.getElementById('sidebar-overlay')?.classList.remove('open');
-}
+};
 // Fermer sidebar après navigation sur mobile
 const _origShowPage = window.showPage;
 window.showPage = function(page, el) {
-  if (window.innerWidth <= 768) closeSidebar();
+  if (window.innerWidth <= 768) window.closeSidebar();
   _origShowPage(page, el);
 };
 
