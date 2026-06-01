@@ -254,6 +254,12 @@ async function init() {
     State.zones      = zones      || [];
     State.platDuJour = pdj;
     initUpselling(rules || [], State.menu);
+    // Charger config restaurant (paiements + contacts)
+    if (cfg && cfg.exists && cfg.exists()) {
+      const cfgData = cfg.data();
+      if (cfgData.payments) State.payments = cfgData.payments;
+      if (cfgData.contacts) State.contacts = cfgData.contacts;
+    }
   } catch (e) {
     // Afficher l'erreur visible sur mobile pour diagnostic
     const view = document.getElementById('view');
