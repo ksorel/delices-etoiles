@@ -924,6 +924,56 @@ function doRemoveItem(uid) { removeItem(uid); updateCartBadge(); renderView('car
 function goCheckout() { navigate('checkout'); }
 
 // ─── Rendu Checkout ───────────────────────────────────────
+
+// ─── Modes de paiement dynamiques ────────────────────────
+function buildPaymentOptions(mode) {
+  const pm  = State.payments || { especes: true, wave: true, orange: false, mtn: false };
+  const tel = (State.contacts?.tel1 && State.contacts.tel1_show !== false)
+              ? State.contacts.tel1
+              : (State.contacts?.tel2 || '');
+  const descEspeces = mode === 'salle' ? t('pay_cash_table') || 'Paiement en liquide à la table'
+                                       : t('pay_cash_delivery') || 'Paiement à la livraison';
+
+  // Déterminer le mode sélectionné par défaut
+  const defaultMode = pm.wave !== false ? 'especes'
+                    : pm.orange ? 'orange'
+                    : pm.mtn ? 'mtn' : 'especes';
+
+  let html = '<div class="payment-options">';
+  html += `<label class="payment-option selected" id="pay-especes" onclick="window.App.selectPayment('especes')">
+    <input type="radio" name="payment" value="especes" checked>
+    <span class="payment-logo">💵</span>
+    <div><div class="payment-name">Espèces</div><div class="payment-desc">${descEspeces}</div></div>
+  </label>`;
+
+  if (pm.wave !== false) {
+    html += `<label class="payment-option" id="pay-wave" onclick="window.App.selectPayment('wave')">
+      <input type="radio" name="payment" value="wave">
+      <span class="payment-logo">🌊</span>
+      <div><div class="payment-name">Wave</div>
+      <div class="payment-desc">Wave CI${tel ? ' · ' + tel : ''}</div></div>
+    </label>`;
+  }
+  if (pm.orange) {
+    html += `<label class="payment-option" id="pay-orange" onclick="window.App.selectPayment('orange')">
+      <input type="radio" name="payment" value="orange">
+      <span class="payment-logo">🟠</span>
+      <div><div class="payment-name">Orange Money</div>
+      <div class="payment-desc">Orange Money${tel ? ' · ' + tel : ''}</div></div>
+    </label>`;
+  }
+  if (pm.mtn) {
+    html += `<label class="payment-option" id="pay-mtn" onclick="window.App.selectPayment('mtn')">
+      <input type="radio" name="payment" value="mtn">
+      <span class="payment-logo">💛</span>
+      <div><div class="payment-name">MTN Mobile Money</div>
+      <div class="payment-desc">Paiement MTN MoMo</div></div>
+    </label>`;
+  }
+  html += '</div>';
+  return html;
+}
+
 function renderCheckout(container) {
   if (isEmpty()) { navigate('menu'); return; }
 
@@ -952,31 +1002,7 @@ function renderCheckout(container) {
 
       <div class="checkout-section" style="margin-top:12px">
         <div class="checkout-section-title">${t('payment_title')}</div>
-        <div class="payment-options">
-          <label class="payment-option selected" id="pay-especes" onclick="window.App.selectPayment('especes')">
-            <input type="radio" name="payment" value="especes" checked>
-            <span class="payment-logo">💵</span>
-            <div>
-              <div class="payment-name">Espèces</div>
-              <div class="payment-desc">Paiement en liquide à la table</div>
-            </div>
-          </label>
-          <label class="payment-option" id="pay-wave" onclick="window.App.selectPayment('wave')">
-            <input type="radio" name="payment" value="wave">
-            <span class="payment-logo">🌊</span>
-            <div><div class="payment-name">Wave</div><div class="payment-desc">Wave CI · 0759731911</div></div>
-          </label>
-          <label class="payment-option" id="pay-orange" onclick="window.App.selectPayment('orange')">
-            <input type="radio" name="payment" value="orange">
-            <span class="payment-logo">🟠</span>
-            <div><div class="payment-name">Orange Money</div><div class="payment-desc">Orange Money · 0759731911</div></div>
-          </label>
-          <label class="payment-option" id="pay-mtn" onclick="window.App.selectPayment('mtn')">
-            <input type="radio" name="payment" value="mtn">
-            <span class="payment-logo">💛</span>
-            <div><div class="payment-name">MTN Mobile Money</div><div class="payment-desc">Paiement MTN MoMo</div></div>
-          </label>
-        </div>
+        ${buildPaymentOptions('salle')}
       </div>
 
       <div style="padding:16px">
@@ -1030,23 +1056,7 @@ function renderCheckout(container) {
 
     <div class="checkout-section" style="margin-top:12px">
       <div class="checkout-section-title">${t('payment_title')}</div>
-      <div class="payment-options">
-        <label class="payment-option selected" id="pay-wave" onclick="window.App.selectPayment('wave')">
-          <input type="radio" name="payment" value="wave" checked>
-          <span class="payment-logo">🌊</span>
-          <div><div class="payment-name">Wave</div><div class="payment-desc">Wave CI · 0759731911</div></div>
-        </label>
-        <label class="payment-option" id="pay-orange" onclick="window.App.selectPayment('orange')">
-          <input type="radio" name="payment" value="orange">
-          <span class="payment-logo">🟠</span>
-          <div><div class="payment-name">Orange Money</div><div class="payment-desc">Orange Money · 0759731911</div></div>
-        </label>
-        <label class="payment-option" id="pay-mtn" onclick="window.App.selectPayment('mtn')">
-          <input type="radio" name="payment" value="mtn">
-          <span class="payment-logo">💛</span>
-          <div><div class="payment-name">MTN Mobile Money</div><div class="payment-desc">Paiement MTN MoMo</div></div>
-        </label>
-      </div>
+      ${buildPaymentOptions('livraison')}
     </div>
 
     <div style="padding:16px">
