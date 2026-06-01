@@ -353,9 +353,12 @@
       .stats-grid { grid-template-columns: 1fr 1fr !important; }
       .topbar { padding: 10px 12px; }
     }
+    @media(max-width:768px) {
+      #topbar-logout { display: flex !important; }
+    }
 
     /* Hamburger caché sur desktop */
-    .hamburger { display: none; }
+    @media(min-width:769px) { .hamburger { display: none !important; } }
     /* ── Tables overflow fix ─── */
     .content table { width: 100%; border-collapse: collapse; }
     .content div:has(> table) { overflow-x: auto; -webkit-overflow-scrolling: touch; }
@@ -474,7 +477,15 @@ function closeSidebar() {
         </button>
         <div class="page-title" id="page-title">Tableau de bord</div>
       </div>
-      <div id="topbar-action"></div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div id="topbar-action"></div>
+        <button id="topbar-logout" onclick="doAdminLogout()"
+          style="background:#EF4444;color:#fff;border:none;border-radius:8px;
+                 padding:8px 12px;font-size:13px;font-weight:700;cursor:pointer;
+                 display:none;align-items:center;gap:6px">
+          ✕ Quitter
+        </button>
+      </div>
     </div>
     <div class="content" id="page-content">Chargement…</div>
   </div>
