@@ -419,6 +419,26 @@ class AIAssistant {
     this._clearSuggestions();
     this._appendMessage('user', msg);
 
+    // Réponses rapides locales pour le portail client
+    if (this.contextType === 'client') {
+      const q = msg.toLowerCase();
+      if (q.includes('menu') && q.includes('jour') || q === 'voir le menu du jour') {
+        this._appendMessage('bot', '📜 Le plat du jour est affiché en haut de la page d'accueil dans le carrousel. Scrollez vers le haut pour le voir !');
+        this._renderContextualSuggestions(msg);
+        return;
+      }
+      if (q.includes('contacter') || q === 'nous contacter') {
+        this._appendMessage('bot', '📬 Nos coordonnées sont affichées en bas du menu. Vous pouvez appeler directement en cliquant sur le numéro ou écrire un email.');
+        this._renderContextualSuggestions(msg);
+        return;
+      }
+      if (q.includes('suivre') && q.includes('commande') || q === 'suivre ma commande') {
+        this._appendMessage('bot', '📍 Si vous avez passé une commande, le bouton **"Suivre ma commande"** s'affiche sur la page de confirmation. Vous pouvez aussi retrouver votre commande via le bouton orange si vous avez rechargé la page.');
+        this._renderContextualSuggestions(msg);
+        return;
+      }
+    }
+
     this.history.push({ role: 'user', content: msg });
     this._setLoading(true);
 
