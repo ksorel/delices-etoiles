@@ -56,6 +56,7 @@ function removeItem(uid) {
 function clearCart() { _cartItems = []; _cartPersist(); }
 import { initUpselling, getUpsells, isBoisson, hasFormats, getPrixForFormat, getFormatLabels } from './upselling.js';
 import { submitSalleOrder, submitLivraisonOrder, formatFCFA } from './order.js';
+import { initAssistant } from './assistant.js';
 
 // ─── État global de l'app ────────────────────────────────
 const State = {
@@ -278,6 +279,8 @@ async function init() {
 
   // 6. Panier
   initCart();
+  // Assistant IA client
+  initAssistant('client');
 
   // 7. UI header
   updateHeader();

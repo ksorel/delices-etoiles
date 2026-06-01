@@ -340,6 +340,10 @@
 <script type="module">
 import { auth, db }              from '/js/config.js';
 import { startOnboarding, forceOnboarding } from '/js/onboarding.js';
+import { initAssistant } from '/js/assistant.js';
+// Init assistant IA dashboard
+initAssistant('dashboard');
+
 window.forceOnboarding = forceOnboarding;
 import { signInWithEmailAndPassword, signOut, onAuthStateChanged,
                    browserLocalPersistence, setPersistence }
