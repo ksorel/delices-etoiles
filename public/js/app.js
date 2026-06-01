@@ -8,6 +8,7 @@ import { signInAnonymously }       from 'https://www.gstatic.com/firebasejs/10.1
 import { t, initLang, getLang, setLang, itemName, itemDesc } from './i18n.js';
 import { fetchMenu, fetchZones, fetchUpsellRules, getOrCreateTable, fetchPlatDuJour, listenOrder,
          createSession, getOpenSessions, updateSessionStatus, getSessionOrders } from './db.js';
+import { getDoc, doc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { requestNotificationPermission, listenForegroundMessages } from './fcm.js';
 // ─── Panier inline (cart.js supprimé) ───────────────────────
 const CART_KEY = 'de_cart';
