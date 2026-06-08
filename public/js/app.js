@@ -1571,7 +1571,7 @@ window.App.submitDevis = async function() {
   }
 };
 
-function selectEventType(type) {
+window.selectEventType = function(type) {
   document.getElementById('tr-type').value = type;
   document.querySelectorAll('#event-type-grid [data-type]').forEach(el => {
     if (el.dataset.type === type) {
@@ -1584,7 +1584,7 @@ function selectEventType(type) {
       el.style.color       = 'var(--brown)';
     }
   });
-}
+};
 
 
 
