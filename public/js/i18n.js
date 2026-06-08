@@ -122,7 +122,8 @@ const translations = {
     tr_ev_seminaire:    '📊 Séminaire',
     tr_ev_autre:        '✨ Autre événement',
     tr_lieu_ph:         'Ville / lieu de l\'événement',
-    tr_upload_hint:     'Joindre un document (optionnel)',
+    tr_upload_hint:     'Joindre un document',
+    tr_upload_whatsapp: 'Après envoi du formulaire, vous pouvez nous transmettre vos documents (cahier des charges, menu souhaité…) par WhatsApp au numéro du restaurant.',
     tr_upload_types:    'PDF, Word, image · max 5 MB',
   },
 
@@ -236,7 +237,8 @@ const translations = {
     tr_ev_seminaire:    '📊 Seminar',
     tr_ev_autre:        '✨ Other event',
     tr_lieu_ph:         'City / event venue',
-    tr_upload_hint:     'Attach a document (optional)',
+    tr_upload_hint:     'Attach a document',
+    tr_upload_whatsapp: 'After submitting the form, you can send us your documents (brief, desired menu…) via WhatsApp to the restaurant number.',
     tr_upload_types:    'PDF, Word, image · max 5 MB',
   },
 };
