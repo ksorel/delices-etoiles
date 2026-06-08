@@ -456,3 +456,37 @@ exports.onNewDevis = region.firestore
     }
     return null;
   });
+
+// ─────────────────────────────────────────────────────────
+//  9. UPLOAD FICHIER DEVIS — via Admin SDK (contourne rules)
+// ─────────────────────────────────────────────────────────
+exports.uploadDevisFile = region.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Non authentifié');
+  }
+
+  const { fileData, fileName, mimeType } = data;
+  if (!fileData || !fileName) {
+    throw new functions.https.HttpsError('invalid-argument', 'Fichier manquant');
+  }
+
+  try {
+    const bucket   = admin.storage().bucket();
+    const safeName = Date.now() + '_' + fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const filePath = 'devis/' + safeName;
+    const fileRef  = bucket.file(filePath);
+
+    const buffer = Buffer.from(fileData, 'base64');
+    await fileRef.save(buffer, {
+      metadata: { contentType: mimeType || 'application/octet-stream' },
+    });
+
+    await fileRef.makePublic();
+    const publicUrl = 'https://storage.googleapis.com/' + bucket.name + '/' + filePath;
+
+    return { url: publicUrl, nom: fileName };
+  } catch(e) {
+    console.error('uploadDevisFile error:', e);
+    throw new functions.https.HttpsError('internal', 'Erreur upload: ' + e.message);
+  }
+});

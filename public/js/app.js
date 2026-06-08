@@ -1649,17 +1649,26 @@ window.App.submitDevis = async function() {
         // Forcer un refresh du token si besoin
         if (currentUser) await currentUser.getIdToken(true);
 
-        const { getStorage, ref, uploadBytes } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js');
+        // Convertir le fichier en base64
+        const base64 = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload  = () => resolve(reader.result.split(',')[1]);
+          reader.onerror = reject;
+          reader.readAsDataURL(window._traiteurFile);
+        });
+
+        // Uploader via Cloud Function (Admin SDK — contourne les règles Storage)
+        const { getFunctions, httpsCallable } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-functions.js');
         const { getApp } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
-        const storage  = getStorage(getApp());
-        const fileName = Date.now() + '_' + window._traiteurFile.name;
-        const storageRef = ref(storage, 'devis/' + fileName);
-        await uploadBytes(storageRef, window._traiteurFile);
-        // Construire l'URL sans getDownloadURL (évite un GET supplémentaire)
-        const bucket = 'delices-etoiles.firebasestorage.app';
-        fichierUrl = 'https://firebasestorage.googleapis.com/v0/b/' + bucket
-                   + '/o/devis%2F' + encodeURIComponent(fileName) + '?alt=media';
-        fichierNom = window._traiteurFile.name;
+        const fns    = getFunctions(getApp(), 'europe-west1');
+        const upload = httpsCallable(fns, 'uploadDevisFile');
+        const result = await upload({
+          fileData: base64,
+          fileName: window._traiteurFile.name,
+          mimeType: window._traiteurFile.type,
+        });
+        fichierUrl = result.data.url;
+        fichierNom = result.data.nom;
         console.log('[Upload] Success:', fichierNom);
       } catch(uploadErr) {
         console.warn('[Upload] Ignoré:', uploadErr.message);
