@@ -1367,7 +1367,7 @@ function renderTraiteur(container) {
       <!-- Type d'événement -->
       <div style="margin-bottom:20px">
         <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;
-                    letter-spacing:.05em;margin-bottom:10px">Type d'événement *</div>
+                    letter-spacing:.05em;margin-bottom:10px">${t('tr_event_type')}</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px" id="event-type-grid">
           ${eventTypes.map(e => `
             <div data-type="${e.id}"
@@ -1388,9 +1388,10 @@ function renderTraiteur(container) {
           <input type="date" id="tr-date" class="form-input"
                  style="width:100%;padding:10px 12px;border:1.5px solid var(--border);
                         border-radius:10px;font-size:14px;outline:none"
-                 min="${new Date().toISOString().split('T')[0]}">
+                 min="${new Date().toISOString().split('T')[0]}"
+                 placeholder="${getLang() === 'en' ? 'MM/DD/YYYY' : 'JJ/MM/AAAA'}">
           <div style="font-size:10px;color:var(--muted);margin-top:3px">
-            ${getLang() === 'en' ? 'Format: MM/DD/YYYY' : 'Format : JJ/MM/AAAA'}
+            ${getLang() === 'en' ? 'Format: MM/DD/YYYY' : 'Format : JJ/MM/AAAA'}
           </div>
         </div>
         <div>
@@ -1404,7 +1405,7 @@ function renderTraiteur(container) {
       <div style="margin-bottom:16px">
         <label style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;
                       letter-spacing:.05em;display:block;margin-bottom:5px">${t('tr_lieu')}</label>
-        <input type="text" id="tr-lieu" class="form-input" placeholder="Ville / lieu de l'événement"
+        <input type="text" id="tr-lieu" class="form-input" placeholder="${t('tr_lieu_ph')}"
                style="width:100%;padding:10px 12px;border:1.5px solid var(--border);
                       border-radius:10px;font-size:14px;outline:none">
       </div>
@@ -1445,9 +1446,7 @@ function renderTraiteur(container) {
       </div>
       <!-- Contact -->
       <div style="background:#FFF8F5;border-radius:12px;padding:16px;margin-bottom:16px">
-        <div style="font-size:13px;font-weight:700;color:var(--brown);margin-bottom:12px">
-          📞 Vos coordonnées
-        </div>
+        <div style="font-size:13px;font-weight:700;color:var(--brown);margin-bottom:12px">${t('tr_contact_title')}</div>
         <div style="margin-bottom:10px">
           <input type="text" id="tr-nom" class="form-input" placeholder="${t('tr_nom_ph')}"
                  style="width:100%;padding:10px 12px;border:1.5px solid var(--border);
@@ -1465,9 +1464,7 @@ function renderTraiteur(container) {
       <div id="tr-err" style="color:#EF4444;font-size:13px;margin-bottom:10px;display:none"></div>
       <button onclick="window.App.submitDevis()"
               style="width:100%;padding:14px;background:#F26522;color:#fff;border:none;
-                     border-radius:12px;font-size:15px;font-weight:800;cursor:pointer">
-        📨 Envoyer ma demande de devis
-      </button>
+                     border-radius:12px;font-size:15px;font-weight:800;cursor:pointer">${t('tr_send_btn')}</button>
       <div style="text-align:center;margin-top:12px;font-size:12px;color:var(--muted)">
         ${t('tr_footer_note')}
       </div>
@@ -1651,7 +1648,7 @@ window.App.submitDevis = async function() {
     err.textContent = 'Erreur : ' + e.message;
     err.style.display = 'block';
     btn.disabled = false;
-    btn.textContent = '📨 Envoyer ma demande de devis';
+    btn.textContent = t('tr_send_btn');
   }
 };
 
