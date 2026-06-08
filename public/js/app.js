@@ -1657,18 +1657,27 @@ window.App.submitDevis = async function() {
           reader.readAsDataURL(window._traiteurFile);
         });
 
-        // Uploader via Cloud Function (Admin SDK — contourne les règles Storage)
-        const { getFunctions, httpsCallable } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-functions.js');
-        const { getApp } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
-        const fns    = getFunctions(getApp(), 'europe-west1');
-        const upload = httpsCallable(fns, 'uploadDevisFile');
-        const result = await upload({
-          fileData: base64,
-          fileName: window._traiteurFile.name,
-          mimeType: window._traiteurFile.type,
+        // Uploader via Cloud Function avec token explicite
+        const idToken = await currentUser.getIdToken(true);
+        const cfUrl   = 'https://europe-west1-delices-etoiles.cloudfunctions.net/uploadDevisFile';
+        const cfResp  = await fetch(cfUrl, {
+          method:  'POST',
+          headers: {
+            'Content-Type':  'application/json',
+            'Authorization': 'Bearer ' + idToken,
+          },
+          body: JSON.stringify({
+            data: {
+              fileData: base64,
+              fileName: window._traiteurFile.name,
+              mimeType: window._traiteurFile.type,
+            }
+          }),
         });
-        fichierUrl = result.data.url;
-        fichierNom = result.data.nom;
+        const cfData = await cfResp.json();
+        if (!cfResp.ok) throw new Error(cfData.error?.message || 'Upload échoué');
+        fichierUrl = cfData.result?.url;
+        fichierNom = cfData.result?.nom;
         console.log('[Upload] Success:', fichierNom);
       } catch(uploadErr) {
         console.warn('[Upload] Ignoré:', uploadErr.message);

@@ -460,14 +460,27 @@ exports.onNewDevis = region.firestore
 // ─────────────────────────────────────────────────────────
 //  9. UPLOAD FICHIER DEVIS — via Admin SDK (contourne rules)
 // ─────────────────────────────────────────────────────────
-exports.uploadDevisFile = region.https.onCall(async (data, context) => {
-  if (!context.auth) {
-    throw new functions.https.HttpsError('unauthenticated', 'Non authentifié');
+exports.uploadDevisFile = region.https.onRequest(async (req, res) => {
+  res.set('Access-Control-Allow-Origin', 'https://delices-etoiles.web.app');
+  res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  if (req.method === 'OPTIONS') { res.status(204).send(''); return; }
+  if (req.method !== 'POST')   { res.status(405).json({ error: 'Method not allowed' }); return; }
+
+  // Vérifier le token Firebase
+  const authHeader = req.headers.authorization || '';
+  const idToken    = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+  if (!idToken) { res.status(401).json({ error: { message: 'Non authentifié' } }); return; }
+
+  try {
+    await admin.auth().verifyIdToken(idToken);
+  } catch(e) {
+    res.status(401).json({ error: { message: 'Token invalide' } }); return;
   }
 
-  const { fileData, fileName, mimeType } = data;
+  const { fileData, fileName, mimeType } = req.body.data || {};
   if (!fileData || !fileName) {
-    throw new functions.https.HttpsError('invalid-argument', 'Fichier manquant');
+    res.status(400).json({ error: { message: 'Fichier manquant' } }); return;
   }
 
   try {
@@ -475,18 +488,17 @@ exports.uploadDevisFile = region.https.onCall(async (data, context) => {
     const safeName = Date.now() + '_' + fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
     const filePath = 'devis/' + safeName;
     const fileRef  = bucket.file(filePath);
+    const buffer   = Buffer.from(fileData, 'base64');
 
-    const buffer = Buffer.from(fileData, 'base64');
     await fileRef.save(buffer, {
       metadata: { contentType: mimeType || 'application/octet-stream' },
     });
-
     await fileRef.makePublic();
-    const publicUrl = 'https://storage.googleapis.com/' + bucket.name + '/' + filePath;
 
-    return { url: publicUrl, nom: fileName };
+    const publicUrl = 'https://storage.googleapis.com/' + bucket.name + '/' + filePath;
+    res.json({ result: { url: publicUrl, nom: fileName } });
   } catch(e) {
     console.error('uploadDevisFile error:', e);
-    throw new functions.https.HttpsError('internal', 'Erreur upload: ' + e.message);
+    res.status(500).json({ error: { message: e.message } });
   }
 });
