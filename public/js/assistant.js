@@ -293,6 +293,9 @@ class AIAssistant {
         padding: 10px 12px;
         border-top: 1px solid #F0E8E0;
         flex-shrink: 0;
+        align-items: flex-end;
+        background: #fff;
+        border-radius: 0 0 20px 20px;
       }
       .ai-input {
         flex: 1;
@@ -304,6 +307,10 @@ class AIAssistant {
         outline: none;
         font-family: inherit;
         transition: border .15s;
+        min-height: 36px;
+        max-height: 80px;
+        line-height: 1.4;
+        box-sizing: border-box;
       }
       .ai-input:focus { border-color: #F26522; }
       .ai-send {
@@ -459,6 +466,9 @@ class AIAssistant {
 
     this.history.push({ role: 'user', content: msg });
     this._setLoading(true);
+
+    // Simuler un court délai puis afficher le message
+    await new Promise(r => setTimeout(r, 400));
 
     try {
       const response = await fetch('https://api.anthropic.com/v1/messages', {
