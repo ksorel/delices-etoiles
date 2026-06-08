@@ -1385,11 +1385,13 @@ function renderTraiteur(container) {
         <div>
           <label style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;
                         letter-spacing:.05em;display:block;margin-bottom:5px">${t('tr_date')}</label>
-          <input type="date" id="tr-date" class="form-input"
+          <input type="text" id="tr-date" inputmode="numeric"
                  style="width:100%;padding:10px 12px;border:1.5px solid var(--border);
                         border-radius:10px;font-size:14px;outline:none"
-                 min="${new Date().toISOString().split('T')[0]}"
-                 placeholder="${getLang() === 'en' ? 'MM/DD/YYYY' : 'JJ/MM/AAAA'}">
+                 placeholder="${getLang() === 'en' ? 'MM/DD/YYYY' : 'JJ/MM/AAAA'}"
+                 maxlength="10"
+                 oninput="window.formatDateInput(this, '${getLang()}')"
+                 autocomplete="off">
           <div style="font-size:10px;color:var(--muted);margin-top:3px">
             ${getLang() === 'en' ? 'Format: MM/DD/YYYY' : 'Format : JJ/MM/AAAA'}
           </div>
@@ -1544,6 +1546,23 @@ window.App = {
   toggleLang,
 };
 
+
+window.formatDateInput = function(input, lang) {
+  let val = input.value.replace(/\D/g, ''); // chiffres seulement
+  if (val.length > 8) val = val.slice(0, 8);
+
+  if (lang === 'en') {
+    // MM/DD/YYYY
+    if (val.length >= 3)      val = val.slice(0,2) + '/' + val.slice(2);
+    if (val.length >= 6)      val = val.slice(0,5) + '/' + val.slice(5);
+  } else {
+    // JJ/MM/AAAA
+    if (val.length >= 3)      val = val.slice(0,2) + '/' + val.slice(2);
+    if (val.length >= 6)      val = val.slice(0,5) + '/' + val.slice(5);
+  }
+  input.value = val;
+};
+
 window.handleTraiteurFile = function(file) {
   if (!file) return;
   const maxSize = 5 * 1024 * 1024; // 5MB
@@ -1582,7 +1601,21 @@ window.removeTraiteurFile = function() {
 
 window.App.submitDevis = async function() {
   const type    = document.getElementById('tr-type')?.value;
-  const date    = document.getElementById('tr-date')?.value;
+  const dateRaw  = document.getElementById('tr-date')?.value;
+  // Convert display format to ISO (YYYY-MM-DD)
+  let date = '';
+  if (dateRaw) {
+    const parts = dateRaw.split('/');
+    if (parts.length === 3) {
+      if (getLang() === 'en') {
+        // MM/DD/YYYY → YYYY-MM-DD
+        date = parts[2] + '-' + parts[0].padStart(2,'0') + '-' + parts[1].padStart(2,'0');
+      } else {
+        // JJ/MM/AAAA → YYYY-MM-DD
+        date = parts[2] + '-' + parts[1].padStart(2,'0') + '-' + parts[0].padStart(2,'0');
+      }
+    }
+  }
   const nb      = document.getElementById('tr-nb')?.value;
   const lieu    = document.getElementById('tr-lieu')?.value.trim();
   const besoins = document.getElementById('tr-besoins')?.value.trim();
