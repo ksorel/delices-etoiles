@@ -1,0 +1,31 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // ─── Photos des plats (admin uniquement) ─────────────────
+    match /plats/{imageId} {
+      allow read:  if true;
+      allow write: if request.auth != null
+                   && request.auth.token.role == 'admin';
+    }
+
+    // ─── Documents devis traiteur (clients authentifiés) ─────
+    match /devis/{fileName} {
+      allow read:  if request.auth != null
+                   && request.auth.token.role == 'admin';
+      allow write: if request.auth != null
+                   && request.resource.size < 5 * 1024 * 1024
+                   && request.resource.contentType.matches(
+                        'application/pdf|application/msword|'
+                        + 'application/vnd.openxmlformats-officedocument.wordprocessingml.document|'
+                        + 'image/jpeg|image/png'
+                      );
+    }
+
+    // ─── Autres fichiers ─────────────────────────────────────
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
