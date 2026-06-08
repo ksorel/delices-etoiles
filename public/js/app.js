@@ -1384,15 +1384,18 @@ function renderTraiteur(container) {
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
         <div>
           <label style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;
-                        letter-spacing:.05em;display:block;margin-bottom:5px">Date *</label>
+                        letter-spacing:.05em;display:block;margin-bottom:5px">${t('tr_date')}</label>
           <input type="date" id="tr-date" class="form-input"
                  style="width:100%;padding:10px 12px;border:1.5px solid var(--border);
                         border-radius:10px;font-size:14px;outline:none"
                  min="${new Date().toISOString().split('T')[0]}">
+          <div style="font-size:10px;color:var(--muted);margin-top:3px">
+            ${getLang() === 'en' ? 'Format: MM/DD/YYYY' : 'Format : JJ/MM/AAAA'}
+          </div>
         </div>
         <div>
           <label style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;
-                        letter-spacing:.05em;display:block;margin-bottom:5px">Nb personnes *</label>
+                        letter-spacing:.05em;display:block;margin-bottom:5px">${t('tr_nb_persons')}</label>
           <input type="number" id="tr-nb" class="form-input" placeholder="Ex: 150" min="10"
                  style="width:100%;padding:10px 12px;border:1.5px solid var(--border);
                         border-radius:10px;font-size:14px;outline:none">
@@ -1400,14 +1403,14 @@ function renderTraiteur(container) {
       </div>
       <div style="margin-bottom:16px">
         <label style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;
-                      letter-spacing:.05em;display:block;margin-bottom:5px">Lieu *</label>
+                      letter-spacing:.05em;display:block;margin-bottom:5px">${t('tr_lieu')}</label>
         <input type="text" id="tr-lieu" class="form-input" placeholder="Ville / lieu de l'événement"
                style="width:100%;padding:10px 12px;border:1.5px solid var(--border);
                       border-radius:10px;font-size:14px;outline:none">
       </div>
       <div style="margin-bottom:16px">
         <label style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;
-                      letter-spacing:.05em;display:block;margin-bottom:5px">Vos besoins</label>
+                      letter-spacing:.05em;display:block;margin-bottom:5px">${t('tr_besoins')}</label>
         <textarea id="tr-besoins" rows="3" placeholder="${t('tr_besoins_ph')}"
                   style="width:100%;padding:10px 12px;border:1.5px solid var(--border);
                          border-radius:10px;font-size:14px;outline:none;resize:vertical;
@@ -1635,7 +1638,7 @@ window.App.submitDevis = async function() {
           ${t('tr_confirm_title')}
         </div>
         <div style="font-size:14px;color:var(--muted);line-height:1.7;margin-bottom:24px">
-          Merci ${nom} ! Nous avons bien reçu votre demande de devis pour votre événement du <strong>${new Date(date).toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'})}</strong>.<br><br>
+          Merci ${nom} ! Nous avons bien reçu votre demande de devis pour votre événement du <strong>${new Date(date + 'T12:00:00').toLocaleDateString(getLang() === 'en' ? 'en-GB' : 'fr-FR',{day:'numeric',month:'long',year:'numeric'})}</strong>.<br><br>
           ${t('tr_confirm_msg1')} <strong>${tel}</strong>.
         </div>
         <button onclick="window.App.navigate('menu')"
