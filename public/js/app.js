@@ -314,6 +314,7 @@ async function authWithRetry(attempts = 3) {
   for (let i = 0; i < attempts; i++) {
     try {
       const cred = await signInAnonymously(auth);
+      window._currentUser = cred.user; // Stocker pour l'upload Storage
       return cred.user.uid;
     } catch (e) {
       if (i < attempts - 1) {
@@ -1641,8 +1642,8 @@ window.App.submitDevis = async function() {
     let fichierNom = null;
     if (window._traiteurFile) {
       try {
-        // Utiliser l'instance auth déjà initialisée dans config.js
-        const currentUser = auth.currentUser;
+        // Récupérer l'utilisateur courant
+        const currentUser = window._currentUser || auth.currentUser;
         console.log('[Upload] Auth user:', currentUser?.uid, 'isAnon:', currentUser?.isAnonymous);
 
         // Forcer un refresh du token si besoin
