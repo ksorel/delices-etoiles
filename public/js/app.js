@@ -2,7 +2,6 @@
 //  app.js — Contrôleur principal de la PWA Délices Étoiles
 //  SPA vanilla JS avec routage par hash (#menu #cart #checkout)
 // ════════════════════════════════════════════════════════════
-
 import { auth, db }                from './config.js';
 import { signInAnonymously }       from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import { t, initLang, getLang, setLang, itemName, itemDesc } from './i18n.js';
@@ -13,7 +12,6 @@ import { requestNotificationPermission, listenForegroundMessages } from './fcm.j
 // ─── Panier inline (cart.js supprimé) ───────────────────────
 const CART_KEY = 'de_cart';
 let _cartItems = [];
-
 function initCart() {
   try {
     const raw = localStorage.getItem(CART_KEY);
@@ -57,7 +55,6 @@ function clearCart() { _cartItems = []; _cartPersist(); }
 import { initUpselling, getUpsells, isBoisson, hasFormats, getPrixForFormat, getFormatLabels } from './upselling.js';
 import { submitSalleOrder, submitLivraisonOrder, formatFCFA } from './order.js';
 import { initAssistant } from './assistant.js';
-
 // ─── État global de l'app ────────────────────────────────
 const State = {
   mode:        'livraison',  // 'salle' | 'livraison'
@@ -73,7 +70,6 @@ const State = {
   activeCategory: 'all',
   lang:        'fr',
 };
-
 // ─── Bannière mise à jour ────────────────────────────────
 function showUpdateBanner(newSW) {
   // Créer la bannière si elle n'existe pas
@@ -99,20 +95,17 @@ function showUpdateBanner(newSW) {
       Mettre à jour
     </button>`;
   document.body.appendChild(banner);
-
   window._applyUpdate = () => {
     newSW.postMessage({ type: 'SKIP_WAITING' });
     banner.remove();
   };
 }
-
 // ─── Session salle ───────────────────────────────────────
 async function initSalleSession() {
   let openSessions = [];
   try {
     openSessions = await getOpenSessions(State.tableId);
   } catch(e) { console.warn('Sessions:', e); }
-
   if (openSessions.length === 0) {
     // Aucune session → créer directement
     State.sessionId = await createSession(State.tableId, State.uid);
@@ -122,11 +115,9 @@ async function initSalleSession() {
     showSessionChoice(openSessions);
   }
 }
-
 function showSessionChoice(sessions) {
   const main = document.getElementById('view');
   if (!main) return;
-
   const sessionsHtml = sessions.map(s => {
     const time = s.createdAt?.toDate?.()?.toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' }) || '';
     return `
@@ -139,7 +130,6 @@ function showSessionChoice(sessions) {
         <div class="session-card-arrow">›</div>
       </div>`;
   }).join('');
-
   main.innerHTML = `
     <div style="padding:24px 16px;max-width:480px;margin:0 auto">
       <div style="text-align:center;margin-bottom:28px">
@@ -151,19 +141,16 @@ function showSessionChoice(sessions) {
           ${sessions.length} addition${sessions.length > 1 ? 's' : ''} en cours sur cette table
         </div>
       </div>
-
       <div style="margin-bottom:20px">
         <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;
                     color:var(--text-muted);margin-bottom:10px">Additions en cours</div>
         ${sessionsHtml}
       </div>
-
       <div style="position:relative;text-align:center;margin-bottom:20px">
         <div style="height:1px;background:var(--border);position:absolute;top:50%;left:0;right:0"></div>
         <span style="position:relative;background:var(--bg);padding:0 12px;
                      font-size:13px;color:var(--text-muted)">ou</span>
       </div>
-
       <button class="btn btn-primary" onclick="window.App.newSession()">
         ➕ Nouvelle addition séparée
       </button>
@@ -172,12 +159,10 @@ function showSessionChoice(sessions) {
       </p>
     </div>`;
 }
-
 // ─── Init ─────────────────────────────────────────────────
 // ─── Cache menu localStorage ─────────────────────────────
 const MENU_CACHE_KEY = 'de_menu_cache';
 const MENU_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-
 function getMenuFromCache() {
   try {
     const raw = localStorage.getItem(MENU_CACHE_KEY);
@@ -187,13 +172,11 @@ function getMenuFromCache() {
     return data;
   } catch { return null; }
 }
-
 function setMenuCache(menu) {
   try {
     localStorage.setItem(MENU_CACHE_KEY, JSON.stringify({ data: menu, ts: Date.now() }));
   } catch {}
 }
-
 async function init() {
   // 1. Service Worker — enregistré uniquement dans de vrais navigateurs
   try {
@@ -213,18 +196,15 @@ async function init() {
   } catch (e) {
     console.info('[SW] Non enregistré :', e.message);
   }
-
   // 2. Détecter WebView → bannière "Ouvrir dans Chrome/Safari"
   const params0 = new URLSearchParams(window.location.search);
   // Afficher la bannière dans toute WebView (pas seulement QR)
   if (isWebView()) {
     showOpenInBrowserBanner();
   }
-
   // 3. Langue (anciennement 2)
   initLang();
   State.lang = getLang();
-
   // 3. Détecter mode (table = salle)
   const params  = new URLSearchParams(window.location.search);
   const tableId = params.get('table');
@@ -234,13 +214,11 @@ async function init() {
     try { await getOrCreateTable(tableId); } catch (e) { console.warn(e); }
     // La session sera choisie/créée après l'auth et le chargement du menu
   }
-
   // 4. Auth anonyme avec retry (WebViews lents à initialiser Firebase)
   const viewEl = document.getElementById('view');
   if (viewEl) viewEl.querySelector('p') && (viewEl.querySelector('p').textContent = 'Connexion...');
   State.uid = await authWithRetry();
   if (viewEl) viewEl.querySelector('p') && (viewEl.querySelector('p').textContent = 'Chargement du menu...');
-
   // 5. Charger le menu depuis localStorage d'abord (affichage instantané)
   // Charger les données depuis Firestore
   try {
@@ -276,15 +254,12 @@ async function init() {
       </div>`;
     return;
   }
-
   // 6. Panier
   initCart();
   // Assistant IA client
   initAssistant('client');
-
   // 7. UI header
   updateHeader();
-
   // 8. Vérifier si commande récente à suivre (< 2h)
   const lastOrder = (() => {
     try {
@@ -292,7 +267,6 @@ async function init() {
       return d && (Date.now() - d.ts < 2 * 60 * 60 * 1000) ? d : null;
     } catch { return null; }
   })();
-
   // 9. Rendu initial
   if (State.mode === 'salle' && State.tableId) {
     await initSalleSession();
@@ -314,14 +288,12 @@ async function init() {
   if (State.platDuJour?.isCarousel && State.platDuJour.slides?.length > 1) {
     setTimeout(() => window.App.pdjInit(State.platDuJour.slides.length), 300);
   }
-
   // 9. Écouter le hash
   window.addEventListener('hashchange', () => {
     const hash = location.hash.replace('#', '') || 'menu';
     if (hash !== 'checkout' && hash !== 'confirm') renderView(hash);
   });
 }
-
 // ─── Détection WebView ────────────────────────────────────
 function isWebView() {
   const ua = navigator.userAgent || '';
@@ -337,7 +309,6 @@ function isWebView() {
   if (/HeyTap|VivoBrowser|MiuiBrowser/.test(ua)) return true;
   return false;
 }
-
 // ─── Auth avec retry (3 tentatives) ──────────────────────
 async function authWithRetry(attempts = 3) {
   for (let i = 0; i < attempts; i++) {
@@ -356,7 +327,6 @@ async function authWithRetry(attempts = 3) {
   // Continuer sans auth — le menu public ne nécessite pas d'auth
   return null;
 }
-
 // ─── Timeout helper ───────────────────────────────────────
 function withTimeout(promise, ms) {
   return Promise.race([
@@ -366,7 +336,6 @@ function withTimeout(promise, ms) {
     ),
   ]);
 }
-
 // ─── Bannière "Ouvrir dans le vrai navigateur" ───────────
 function showOpenInBrowserBanner() {
   const pageUrl   = window.location.href;
@@ -375,11 +344,9 @@ function showOpenInBrowserBanner() {
   const isAndroid = /Android/.test(navigator.userAgent);
   const isIOS     = /iPhone|iPad|iPod/.test(navigator.userAgent);
   const openUrl   = isAndroid ? intentUrl : pageUrl;
-
   const overlay = document.createElement('div');
   overlay.id = 'webview-overlay';
   overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(43,29,22,.97);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px;font-family:sans-serif;text-align:center';
-
   const btn = document.createElement('a');
   btn.href = openUrl;
   btn.textContent = '🟠 Ouvrir dans Chrome';
@@ -387,14 +354,12 @@ function showOpenInBrowserBanner() {
   btn.addEventListener('click', function() {
     document.getElementById('webview-overlay')?.remove();
   });
-
   const skipBtn = document.createElement('button');
   skipBtn.textContent = 'Continuer quand même';
   skipBtn.style.cssText = 'background:none;border:none;color:rgba(255,255,255,.4);font-size:12px;margin-top:20px;cursor:pointer;text-decoration:underline';
   skipBtn.addEventListener('click', function() {
     document.getElementById('webview-overlay')?.remove();
   });
-
   let iosHint = '';
   if (isIOS) {
     const hint = document.createElement('div');
@@ -402,7 +367,6 @@ function showOpenInBrowserBanner() {
     hint.textContent = 'Ou copiez ce lien dans Safari : ' + pageUrl;
     overlay.appendChild(hint);
   }
-
   overlay.innerHTML = '<div style="font-size:48px;margin-bottom:16px">📱</div>'
     + '<div style="font-size:20px;font-weight:800;color:#fff;margin-bottom:8px">Ouvrir dans Chrome</div>'
     + '<div style="font-size:14px;color:rgba(255,255,255,.7);margin-bottom:28px;line-height:1.6">Pour commander, veuillez ouvrir<br>ce lien dans votre navigateur Chrome.</div>';
@@ -410,7 +374,6 @@ function showOpenInBrowserBanner() {
   overlay.appendChild(skipBtn);
   document.body.appendChild(overlay);
 }
-
 
 function showRetryScreen() {
   const main = document.getElementById('view');
@@ -434,13 +397,11 @@ function showRetryScreen() {
       </a>
     </div>`;
 }
-
 // ─── Navigation ──────────────────────────────────────────
 export function navigate(view, data = {}) {
   location.hash = view;
   renderView(view, data);
 }
-
 function renderView(view, data = {}) {
   const main = document.getElementById('view');
   if (!main) return;
@@ -454,7 +415,6 @@ function renderView(view, data = {}) {
   }
   window.scrollTo(0, 0);
 }
-
 // ─── Header ──────────────────────────────────────────────
 function updateHeader() {
   // Badge mode
@@ -470,7 +430,6 @@ function updateHeader() {
   // Badge panier
   updateCartBadge();
 }
-
 function updateCartBadge() {
   const el = document.getElementById('cart-count');
   const n  = getCount();
@@ -478,17 +437,14 @@ function updateCartBadge() {
   el.textContent = n;
   el.classList.toggle('hidden', n === 0);
 }
-
 // ─── Render Plat du Jour ─────────────────────────────────
 function renderPlatDuJour(pdj) {
   if (!pdj) return '';
   const lang = State.lang;
-
   // ── Mode carrousel (3 slides) ──────────────────────────
   if (pdj.isCarousel && pdj.slides?.length) {
     return renderPDJCarousel(pdj.slides, lang);
   }
-
   // ── Mode legacy (1 seul plat) ─────────────────────────
   const name  = lang === 'en' ? (pdj.name_en || pdj.name_fr) : pdj.name_fr;
   const desc  = lang === 'en' ? (pdj.description_en || pdj.description_fr || '') : (pdj.description_fr || '');
@@ -496,7 +452,6 @@ function renderPlatDuJour(pdj) {
   const imgHtml = pdj.imageUrl
     ? `<img class="pdj-slide-img" src="${pdj.imageUrl}" alt="${name}">`
     : `<div class="pdj-slide-noimg">🍽️</div>`;
-
   return `
     <div class="pdj-carousel">
       <div class="pdj-track">
@@ -520,14 +475,12 @@ function renderPlatDuJour(pdj) {
       </div>
     </div>`;
 }
-
 function renderPDJCarousel(slides, lang) {
   const types = {
     entree:  { label: lang === 'en' ? 'Starter'     : 'Entrée',          cls: 'pdj-type-entree'  },
     plat:    { label: lang === 'en' ? 'Main course'  : 'Plat de résistance', cls: 'pdj-type-plat'    },
     dessert: { label: lang === 'en' ? 'Dessert'      : 'Dessert',          cls: 'pdj-type-dessert' },
   };
-
   const slidesHtml = slides.map((s, i) => {
     const name  = lang === 'en' ? (s.name_en || s.name_fr) : s.name_fr;
     const desc  = s.description_fr || '';
@@ -556,25 +509,21 @@ function renderPDJCarousel(slides, lang) {
         </div>
       </div>`;
   }).join('');
-
   const dotsHtml = slides.map((_, i) =>
     `<div class="pdj-dot ${i === 0 ? 'active' : ''}" onclick="window.App.pdjGoTo(${i})"></div>`
   ).join('');
-
   const navHtml = slides.length > 1 ? `
     <div class="pdj-nav-overlay">
       <button class="pdj-nav prev" onclick="window.App.pdjPrev()">‹</button>
       <button class="pdj-nav next" onclick="window.App.pdjNext()">›</button>
       <div class="pdj-dots" id="pdj-dots">${dotsHtml}</div>
     </div>` : '';
-
   return `
     <div class="pdj-carousel" id="pdj-carousel">
       <div class="pdj-track" id="pdj-track">${slidesHtml}</div>
       ${navHtml}
     </div>`;
 }
-
 
 // ─── Rendu Menu ───────────────────────────────────────────
 function buildContactBlock() {
@@ -608,18 +557,15 @@ function buildContactBlock() {
     + '<div style="padding:0 20px">' + items.join('') + '</div>'
     + '</div>';
 }
-
 function renderMenu(container) {
   if (!State.menu.length) {
     container.innerHTML = `<div class="loading"><div class="spinner"></div><p>${t('loading')}</p></div>`;
     return;
   }
-
   // Banner
   const bannerText = State.mode === 'salle'
     ? `<span class="mode-badge salle">${t('mode_salle')}</span> ${t('banner_salle')} <strong>${t('banner_table')} ${State.tableId}</strong>`
     : `<span class="mode-badge livraison">${t('mode_livraison')}</span> ${t('banner_livraison')}`;
-
   // Catégories uniques
   const cats = ['all', ...new Set(State.menu.map(m => m.category))];
   const getCatLabel = c => {
@@ -634,20 +580,17 @@ function renderMenu(container) {
             onclick="window.App.setCategory('${c}')">
       ${getCatLabel(c)}
     </button>`).join('');
-
   // Items filtrés — les articles indisponibles sont masqués côté client
   const availableMenu = State.menu.filter(m => m.available !== false);
   const items = State.activeCategory === 'all'
     ? availableMenu
     : availableMenu.filter(m => m.category === State.activeCategory);
-
   const cardsHtml = items.map(item => `
     <div class="menu-card" onclick="window.App.openItem('${item.id}')">
       <div class="card-img">
         ${item.imageUrl
           ? `<img src="${item.imageUrl}" alt="${itemName(item)}" loading="lazy">`
           : `<div class="no-img">🍽️</div>`}
-
       </div>
       <div class="card-body">
         <div class="card-name">${itemName(item)}</div>
@@ -655,7 +598,6 @@ function renderMenu(container) {
         <div class="card-price">${item.prixVariable ? '<span style="font-size:12px;color:var(--brown-md)">📞 Sur devis</span>' : formatFCFA(item.price)}</div>
       </div>
     </div>`).join('');
-
   const pdjHtml = renderPlatDuJour(State.platDuJour);
   container.innerHTML = `
     <div style="display:flex;border-bottom:1px solid var(--border)">
@@ -675,7 +617,6 @@ function renderMenu(container) {
     <div class="menu-grid">${cardsHtml}</div>
     ${buildContactBlock()}
   `;
-
   // Initialiser le carrousel si présent
   const pdj = State.platDuJour;
   if (pdj?.isCarousel && pdj.slides?.length > 1) {
@@ -684,16 +625,13 @@ function renderMenu(container) {
   // Afficher l'assistant après chargement du menu
   if (window._ai) window._ai.show();
 }
-
 // ─── Modal Item ───────────────────────────────────────────
 function openItem(itemId) {
   const item = State.menu.find(m => m.id === itemId);
   if (!item) return;
-
   const upsells  = getUpsells(item);
   const boisson  = isBoisson(item);
   const formats  = hasFormats(item);
-
   // Options glaçons (boissons)
   const glaceHtml = boisson ? `
     <div class="option-group">
@@ -703,7 +641,6 @@ function openItem(itemId) {
         <button class="chip"        id="glace-non" onclick="window.App.setOption('glace','non')">${t('opt_non')}</button>
       </div>
     </div>` : '';
-
   // Options format (Entier/Demi pour plats, Petit/Grand pour boissons)
   const fmtLabels = getFormatLabels(item);
   const formatHtml = formats && fmtLabels ? `
@@ -718,7 +655,6 @@ function openItem(itemId) {
         </button>
       </div>
     </div>` : '';
-
   // Accompagnements upsell
   const accompHtml = upsells.accompagnements.length ? `
     <div class="upsell-section">
@@ -731,7 +667,6 @@ function openItem(itemId) {
           </div>`).join('')}
       </div>
     </div>` : '';
-
   // Boissons upsell
   const boissonUpsellHtml = upsells.boissons.length ? `
     <div class="upsell-section">
@@ -744,7 +679,6 @@ function openItem(itemId) {
           </div>`).join('')}
       </div>
     </div>` : '';
-
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
   overlay.id = 'item-modal';
@@ -761,10 +695,8 @@ function openItem(itemId) {
         <div class="modal-name">${itemName(item)}</div>
         <div class="modal-desc">${itemDesc(item)}</div>
         <div class="modal-price">${formatFCFA(item.price)}</div>
-
         ${glaceHtml}
         ${formatHtml}
-
         <div class="option-group">
           <div class="qty-control">
             <button class="qty-btn" onclick="window.App.changeQty(-1)">−</button>
@@ -772,7 +704,6 @@ function openItem(itemId) {
             <button class="qty-btn" onclick="window.App.changeQty(1)">+</button>
           </div>
         </div>
-
         <div class="comment-wrap">
           <label>${t('opt_comment')}</label>
           <textarea id="item-comment" maxlength="100" rows="2"
@@ -780,27 +711,21 @@ function openItem(itemId) {
                     oninput="document.getElementById('char-count').textContent=this.value.length"></textarea>
           <div class="char-count"><span id="char-count">0</span>/100</div>
         </div>
-
         <button class="btn btn-primary mt-16" onclick="window.App.addToCart('${item.id}')">
           ${t('add_to_cart')}
         </button>
       </div>
-
       ${accompHtml}
       ${boissonUpsellHtml}
     </div>`;
-
   document.body.appendChild(overlay);
-
   // État local de la modal
   window._itemModal = { itemId, qty: 1, glace: 'oui', format: 'base', selectedUpsells: [] };
 }
-
 // ─── Actions modal ────────────────────────────────────────
 function setOption(type, value) {
   if (!window._itemModal) return;
   window._itemModal[type] = value;
-
   if (type === 'glace') {
     document.getElementById('glace-oui')?.classList.toggle('active', value === 'oui');
     document.getElementById('glace-non')?.classList.toggle('active', value === 'non');
@@ -810,14 +735,12 @@ function setOption(type, value) {
     document.getElementById('fmt-alt')?.classList.toggle('active', value !== 'base');
   }
 }
-
 function changeQty(delta) {
   if (!window._itemModal) return;
   window._itemModal.qty = Math.max(1, (window._itemModal.qty || 1) + delta);
   const el = document.getElementById('item-qty');
   if (el) el.textContent = window._itemModal.qty;
 }
-
 function toggleUpsell(upsellId) {
   if (!window._itemModal) return;
   const arr = window._itemModal.selectedUpsells;
@@ -826,16 +749,13 @@ function toggleUpsell(upsellId) {
   else arr.splice(idx, 1);
   document.getElementById(`upsell-${upsellId}`)?.classList.toggle('selected', idx === -1);
 }
-
 function addToCart(itemId) {
   const item = State.menu.find(m => m.id === itemId);
   if (!item || !window._itemModal) return;
-
   const m = window._itemModal;
   const upsellItems = (m.selectedUpsells || [])
     .map(id => State.menu.find(mi => mi.id === id))
     .filter(Boolean);
-
   const fmt = hasFormats(item) ? m.format : null;
   const fmtPrice = fmt ? getPrixForFormat(item, fmt) : item.price;
   addItem(item, {
@@ -846,26 +766,21 @@ function addToCart(itemId) {
     comment:    document.getElementById('item-comment')?.value || '',
     upsells:    upsellItems,
   });
-
   closeModal();
   updateCartBadge();
   showToast(t('added_toast'));
 }
-
 function closeModal() {
   document.getElementById('item-modal')?.remove();
   window._itemModal = null;
 }
-
 function setCategory(cat) {
   State.activeCategory = cat;
   renderView('menu');
 }
-
 // ─── Rendu Panier ─────────────────────────────────────────
 function renderCart(container) {
   const items = getItems();
-
   if (!items.length) {
     container.innerHTML = `
       <div class="cart-empty">
@@ -877,7 +792,6 @@ function renderCart(container) {
       </div>`;
     return;
   }
-
   const itemsHtml = items.map(item => {
     const opts = [
       item.glace != null ? (item.glace ? '🧊 ' + t('opt_oui') : t('opt_non')) : '',
@@ -885,7 +799,6 @@ function renderCart(container) {
       ...( item.upsells?.map(u => '+ ' + (getLang() === 'en' ? (u.name_en || u.name_fr) : u.name_fr)) || []),
       item.comment ? `"${item.comment}"` : '',
     ].filter(Boolean).join(' · ');
-
     return `
       <div class="cart-item">
         <div class="cart-item-img">
@@ -908,9 +821,7 @@ function renderCart(container) {
         </div>
       </div>`;
   }).join('');
-
   const sous_total = getTotal();
-
   container.innerHTML = `
     <div style="padding:16px 16px 8px">
       <h2 style="font-size:20px;font-weight:800;color:var(--brown)">${t('cart_title')}</h2>
@@ -936,13 +847,10 @@ function renderCart(container) {
       </button>
     </div>`;
 }
-
 function doUpdateQty(uid, delta) { updateQty(uid, delta); updateCartBadge(); renderView('cart'); }
 function doRemoveItem(uid) { removeItem(uid); updateCartBadge(); renderView('cart'); }
 function goCheckout() { navigate('checkout'); }
-
 // ─── Rendu Checkout ───────────────────────────────────────
-
 // ─── Modes de paiement dynamiques ────────────────────────
 function buildPaymentOptions(mode) {
   const pm  = State.payments || { especes: true, wave: true, orange: false, mtn: false };
@@ -951,19 +859,16 @@ function buildPaymentOptions(mode) {
               : (State.contacts?.tel2 || '');
   const descEspeces = mode === 'salle' ? t('pay_cash_table') || 'Paiement en liquide à la table'
                                        : t('pay_cash_delivery') || 'Paiement à la livraison';
-
   // Déterminer le mode sélectionné par défaut
   const defaultMode = pm.wave !== false ? 'especes'
                     : pm.orange ? 'orange'
                     : pm.mtn ? 'mtn' : 'especes';
-
   let html = '<div class="payment-options">';
   html += `<label class="payment-option selected" id="pay-especes" onclick="window.App.selectPayment('especes')">
     <input type="radio" name="payment" value="especes" checked>
     <span class="payment-logo">💵</span>
     <div><div class="payment-name">Espèces</div><div class="payment-desc">${descEspeces}</div></div>
   </label>`;
-
   if (pm.wave !== false) {
     html += `<label class="payment-option" id="pay-wave" onclick="window.App.selectPayment('wave')">
       <input type="radio" name="payment" value="wave">
@@ -991,24 +896,19 @@ function buildPaymentOptions(mode) {
   html += '</div>';
   return html;
 }
-
 function renderCheckout(container) {
   if (isEmpty()) { navigate('menu'); return; }
-
   const sous_total = getTotal();
-
   if (State.mode === 'salle') {
     const itemsHtml = getItems().map(i => `
       <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">
         <span style="font-size:13px;color:var(--brown)">${itemName(i)} ×${i.qty}</span>
         <span style="font-size:13px;font-weight:700;color:var(--orange)">${formatFCFA(i.price * i.qty)}</span>
       </div>`).join('');
-
     container.innerHTML = `
       <div style="padding:16px">
         <h2 style="font-size:20px;font-weight:800;color:var(--brown);margin-bottom:16px">${t('checkout_title')}</h2>
       </div>
-
       <div class="checkout-section">
         <div class="checkout-section-title">${t('your_order')}</div>
         ${itemsHtml}
@@ -1017,12 +917,10 @@ function renderCheckout(container) {
           <span style="color:var(--orange)">${formatFCFA(sous_total)}</span>
         </div>
       </div>
-
       <div class="checkout-section" style="margin-top:12px">
         <div class="checkout-section-title">${t('payment_title')}</div>
         ${buildPaymentOptions('salle')}
       </div>
-
       <div style="padding:16px">
         <div style="display:flex;justify-content:space-between;font-size:18px;font-weight:800;margin-bottom:16px">
           <span>${t('total')}</span>
@@ -1032,22 +930,18 @@ function renderCheckout(container) {
           ${t('confirm_salle')} →
         </button>
       </div>`;
-
     window._selectedPayment = 'especes';
     return;
   }
-
 
   // Mode livraison
   const zonesOptions = State.zones.map(z =>
     `<option value="${z.id}" data-frais="${z.frais}">${z.name} — ${formatFCFA(z.frais)}</option>`
   ).join('');
-
   container.innerHTML = `
     <div style="padding:16px">
       <h2 style="font-size:20px;font-weight:800;color:var(--brown);margin-bottom:4px">${t('checkout_title')}</h2>
     </div>
-
     <div class="checkout-section">
       <div class="checkout-section-title">${t('delivery_info')}</div>
       <div class="form-group">
@@ -1071,12 +965,10 @@ function renderCheckout(container) {
       </div>
       <div id="frais-display" style="display:none;padding:10px 14px;background:var(--orange-light);border-radius:var(--r);font-size:13px;color:var(--orange-dark);font-weight:700;margin-top:4px"></div>
     </div>
-
     <div class="checkout-section" style="margin-top:12px">
       <div class="checkout-section-title">${t('payment_title')}</div>
       ${buildPaymentOptions('livraison')}
     </div>
-
     <div style="padding:16px">
       <div style="display:flex;justify-content:space-between;font-size:15px;margin-bottom:4px">
         <span style="color:var(--text-muted)">${t('subtotal')}</span>
@@ -1094,27 +986,22 @@ function renderCheckout(container) {
         ${t('confirm_liv')} 💳
       </button>
     </div>`;
-
   window._selectedPayment = 'wave';
   window._selectedZone    = null;
 }
-
 function onZoneChange(sel) {
   const option  = sel.options[sel.selectedIndex];
   const frais   = parseInt(option.dataset.frais || '0');
   const zoneId  = sel.value;
   const zoneName = option.text;
-
   window._selectedZone = { id: zoneId, name: zoneName, frais };
   const sous_total = getTotal();
   const total = sous_total + frais;
-
   document.getElementById('frais-display').style.display = 'block';
   document.getElementById('frais-display').textContent = `Frais de livraison : ${formatFCFA(frais)}`;
   document.getElementById('total-frais').textContent = formatFCFA(frais);
   document.getElementById('total-final').textContent  = formatFCFA(total);
 }
-
 function selectPayment(op) {
   window._selectedPayment = op;
   ['wave','orange','mtn'].forEach(o => {
@@ -1122,11 +1009,9 @@ function selectPayment(op) {
   });
 }
 
-
 // ─── Liens de paiement Mobile Money ──────────────────────
 const WAVE_MERCHANT_ID  = 'M_REMPLACER'; // ← Remplacer par votre ID Wave Business
 const OM_MERCHANT_ID    = '';             // ← Orange Money (si disponible)
-
 function getMobileMoneyUrl(operateur, amount, orderId) {
   const num = '0759731911'; // numéro marchand restaurant
   const ref = 'DE-' + orderId.slice(-6).toUpperCase();
@@ -1145,23 +1030,18 @@ function getMobileMoneyUrl(operateur, amount, orderId) {
   }
   return null;
 }
-
 function showPaymentInstructions(operateur, amount, orderId) {
   const num   = '0759731911';
   const amt   = Math.round(amount).toLocaleString('fr-FR');
   const ref   = 'DE-' + orderId.slice(-6).toUpperCase();
   const payUrl = getMobileMoneyUrl(operateur, amount, orderId);
-
   const icons = { wave:'🌊', orange:'🟠', mtn:'💛' };
   const names = { wave:'Wave CI', orange:'Orange Money', mtn:'MTN MoMo' };
-
   const overlay = document.createElement('div');
   overlay.id = 'payment-instructions';
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(43,29,22,.8);z-index:9999;display:flex;align-items:flex-end;justify-content:center';
-
   const sheet = document.createElement('div');
   sheet.style.cssText = 'background:#fff;border-radius:24px 24px 0 0;width:100%;max-width:480px;padding:28px 24px 40px';
-
   sheet.innerHTML = '<div style="text-align:center;margin-bottom:24px">'
     + '<div style="font-size:48px;margin-bottom:8px">' + (icons[operateur]||'📱') + '</div>'
     + '<div style="font-size:20px;font-weight:800;color:#2B1D16">Paiement ' + (names[operateur]||operateur) + '</div>'
@@ -1172,7 +1052,6 @@ function showPaymentInstructions(operateur, amount, orderId) {
     +   '<div style="font-size:22px;font-weight:800;color:#2B1D16;letter-spacing:2px">' + num + '</div>'
     +   '<div style="font-size:12px;color:#7A6356;margin-top:4px">Référence : <strong>' + ref + '</strong></div>'
     + '</div>';
-
   // Button to open app directly
   const openBtn = document.createElement('a');
   openBtn.href = payUrl;
@@ -1181,18 +1060,15 @@ function showPaymentInstructions(operateur, amount, orderId) {
   openBtn.addEventListener('click', function() {
     setTimeout(function() { overlay.remove(); }, 1500);
   });
-
   const doneBtn = document.createElement('button');
   doneBtn.textContent = "J'ai effectué le paiement";
   doneBtn.style.cssText = 'width:100%;padding:14px;background:#2B1D16;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer';
   doneBtn.addEventListener('click', function() { overlay.remove(); });
-
   sheet.appendChild(openBtn);
   sheet.appendChild(doneBtn);
   overlay.appendChild(sheet);
   document.body.appendChild(overlay);
 }
-
 async function confirmSalle() {
   const btn = document.getElementById('confirm-btn');
   if (btn) { btn.disabled = true; btn.textContent = 'Envoi…'; }
@@ -1207,14 +1083,12 @@ async function confirmSalle() {
       State.uid = _currentUser.uid;
     }
     if (!State.uid) throw new Error('Authentification impossible. Vérifiez votre connexion.');
-
     const operateur  = window._selectedPayment || 'especes';
     const cartItems  = getItems();
     const orderId    = await submitSalleOrder(State.tableId, State.uid, operateur, State.sessionId, cartItems);
     clearCart();
     updateCartBadge();
     localStorage.setItem('de_last_order', JSON.stringify({ orderId, operateur, ts: Date.now() }));
-
     renderView('confirm', { orderId, operateur });
     // Afficher les instructions de paiement Mobile Money
     if (operateur !== 'especes') {
@@ -1227,20 +1101,16 @@ async function confirmSalle() {
     if (btn) { btn.disabled = false; btn.textContent = t('confirm_salle'); }
   }
 }
-
 async function confirmLivraison() {
   const nom     = document.getElementById('liv-nom')?.value.trim();
   const tel     = document.getElementById('liv-tel')?.value.trim();
   const adresse = document.getElementById('liv-adresse')?.value.trim();
   const zone    = window._selectedZone;
-
   if (!nom || !tel || !adresse || !zone?.id) {
     showToast(t('err_required')); return;
   }
-
   const btn = document.getElementById('confirm-btn');
   if (btn) { btn.disabled = true; btn.textContent = 'Traitement…'; }
-
   try {
     // Garantir l'authentification + forcer refresh du token
     const { getAuth } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
@@ -1252,7 +1122,6 @@ async function confirmLivraison() {
       State.uid = currentUser.uid;
     }
     if (!State.uid) throw new Error('Authentification impossible. Vérifiez votre connexion.');
-
     const cartItems = getItems();
     const orderId = await submitLivraisonOrder({
       nom, telephone: tel, adresse,
@@ -1262,14 +1131,12 @@ async function confirmLivraison() {
       operateur:       window._selectedPayment || 'wave',
       comment:         document.getElementById('liv-comment')?.value || '',
     }, State.uid, cartItems);
-
     clearCart();
     updateCartBadge();
     const operateur  = window._selectedPayment || 'wave';
     const sousTotal  = getItems().reduce(function(s,i){return s+i.price*i.qty;},0);
     const totalOrder = sousTotal + (zone.frais || 0);
     localStorage.setItem('de_last_order', JSON.stringify({ orderId, operateur, ts: Date.now() }));
-
     renderView('confirm', { orderId, operateur });
     // Afficher les instructions de paiement Mobile Money
     if (operateur !== 'especes') {
@@ -1281,24 +1148,20 @@ async function confirmLivraison() {
     if (btn) { btn.disabled = false; btn.textContent = t('confirm_liv'); }
   }
 }
-
 // ─── Confirmation ─────────────────────────────────────────
 function renderConfirm(container, orderId, operateur) {
   const isSalle  = State.mode === 'salle';
   const isCash   = operateur === 'especes' || (!operateur && isSalle);
   const isMobile = isSalle && operateur && operateur !== 'especes';
-
   let icon  = isSalle ? '🍽️' : '🚴';
   let title = isSalle ? 'Commande envoyée !' : t('confirm_title_liv');
   let sub   = isCash ? t('sub_especes') : isMobile ? t('sub_mobile_salle') : t(isSalle ? 'confirm_sub_salle' : 'confirm_sub_liv');
   if (isMobile) icon = operateur === 'wave' ? '🌊' : operateur === 'orange' ? '🟠' : '💛';
-
   const payBadge = isCash
     ? `<div style="background:#E1F5EE;padding:10px 18px;border-radius:20px;font-size:14px;font-weight:700;color:#0F6E56;margin-top:4px">✓ Paiement en espèces à la table</div>`
     : isMobile
     ? `<div style="background:var(--orange-light);padding:10px 18px;border-radius:20px;font-size:14px;font-weight:700;color:var(--orange-dark);margin-top:4px">📱 ${(operateur||'').toUpperCase()}</div>`
     : '';
-
   container.innerHTML = `
     <div class="confirm-screen">
       <div class="confirm-icon">${icon}</div>
@@ -1315,24 +1178,18 @@ function renderConfirm(container, orderId, operateur) {
     </div>`;
 }
 
-
 // ─── Suivi commande ───────────────────────────────────────
 let _trackingUnsub = null;
-
 function renderTracking(container, orderId) {
   if (!orderId) { navigate('menu'); return; }
-
   // Désabonner le listener précédent si existant
   if (_trackingUnsub) { _trackingUnsub(); _trackingUnsub = null; }
-
   // Écouter les messages FCM au premier plan (commande prête)
   listenForegroundMessages(payload => {
     const { title, body } = payload.notification || {};
     showToast(title || body || '🍽️ Votre commande est prête !');
   });
-
   const notifSupported = 'Notification' in window && 'serviceWorker' in navigator;
-
   container.innerHTML = `
     <div class="tracking-wrap">
       <div class="tracking-header">
@@ -1340,7 +1197,6 @@ function renderTracking(container, orderId) {
         <div class="tracking-title" id="tracking-title-dyn">Suivi de commande</div>
         <div class="tracking-sub" id="tracking-sub-dyn">Chargement…</div>
       </div>
-
       ${notifSupported ? `
       <div id="notif-banner" style="
         background:var(--orange-light);border:1px solid var(--brown-light);
@@ -1356,26 +1212,21 @@ function renderTracking(container, orderId) {
           Activer
         </button>
       </div>` : ''}
-
       <div id="tracking-content">
         <div class="loading"><div class="spinner"></div></div>
       </div>
       <button class="btn btn-secondary" style="margin-top:16px"
               onclick="window.App.navigate('menu')">${t('back_menu')}</button>
     </div>`;
-
   _trackingUnsub = listenOrder(orderId, order => {
     updateTrackingView(order);
   });
 }
-
 function updateTrackingView(order) {
   const el = document.getElementById('tracking-content');
   if (!el) return;
-
   const isLiv     = order.type === 'livraison';
   const status    = order.status;
-
   // Mettre à jour le titre selon statut
   const titleEl = document.getElementById('tracking-title-dyn');
   const subEl   = document.getElementById('tracking-sub-dyn');
@@ -1393,7 +1244,6 @@ function updateTrackingView(order) {
   if (titleEl) { titleEl.textContent = msg.title; titleEl.style.color = msg.color; }
   if (subEl)   { subEl.textContent   = msg.sub; }
   const payStatus = order.paymentStatus;
-
   // Définir les étapes selon le type
   const steps = isLiv ? [
     { key: 'pending',   icon: '📋', label: 'Commande reçue',    sub: 'Votre commande a bien été enregistrée' },
@@ -1406,14 +1256,11 @@ function updateTrackingView(order) {
     { key: 'ready',     icon: '🍽️', label: 'Prête à servir',     sub: 'Votre commande est prête' },
     { key: 'done',      icon: '✅', label: 'Servie',             sub: 'Bon appétit !' },
   ];
-
   const ORDER_IDX = { pending: 0, preparing: 1, ready: 2, done: 3 };
   const currentIdx = ORDER_IDX[status] ?? 0;
-
   // Temps estimé restant
   const etaMap = { pending: isLiv ? '25–35 min' : '20–30 min', preparing: isLiv ? '15–20 min' : '10–15 min', ready: isLiv ? '5–10 min' : 'Quelques instants', done: null };
   const eta = etaMap[status];
-
   const stepsHtml = steps.map((step, i) => {
     const isDone    = i < currentIdx;
     const isActive  = i === currentIdx;
@@ -1422,7 +1269,6 @@ function updateTrackingView(order) {
     const iconHtml  = isDone
       ? '<span style="font-size:18px;color:#fff">✓</span>'
       : `<span style="font-size:18px">${step.icon}</span>`;
-
     return `
       <li class="step ${cls}">
         <div class="step-circle">${iconHtml}</div>
@@ -1432,7 +1278,6 @@ function updateTrackingView(order) {
         </div>
       </li>`;
   }).join('');
-
   // Badge paiement
   const payBadge = payStatus === 'paid'
     ? `<div style="background:#E1F5EE;border-radius:var(--r);padding:10px 14px;font-size:13px;font-weight:700;color:#065F46;margin-bottom:12px">✅ Paiement confirmé — ${order.operateur || 'espèces'}</div>`
@@ -1441,7 +1286,6 @@ function updateTrackingView(order) {
     : payStatus === 'awaiting_payment'
     ? `<div style="background:#FAEEDA;border-radius:var(--r);padding:10px 14px;font-size:13px;color:#854F0B;margin-bottom:12px">⏳ En attente de confirmation du paiement ${order.operateur || 'Mobile Money'}</div>`
     : '';
-
   // Récap articles
   const itemsHtml = (order.items || []).filter(i => !i.isUpsell).map(i =>
     `<div class="tracking-item">
@@ -1449,7 +1293,6 @@ function updateTrackingView(order) {
       <span style="font-weight:700;color:var(--orange)">${formatFCFA(i.subtotal || i.price * i.qty)}</span>
     </div>`
   ).join('');
-
   el.innerHTML = `
     ${eta ? `<div class="eta-badge">
       <div class="eta-icon">⏱</div>
@@ -1462,11 +1305,8 @@ function updateTrackingView(order) {
       <div><div class="eta-label">Statut final</div>
       <div class="eta-value" style="color:#065F46">${isLiv ? 'Livrée !' : 'Bon appétit !'}</div></div>
     </div>` : ''}
-
     ${payBadge}
-
     <ul class="stepper">${stepsHtml}</ul>
-
     <div class="tracking-items">
       <div class="tracking-items-title">Votre commande</div>
       ${itemsHtml}
@@ -1476,7 +1316,6 @@ function updateTrackingView(order) {
       </div>
     </div>`;
 }
-
 // ─── Toast ────────────────────────────────────────────────
 function showToast(msg) {
   const el = document.getElementById('toast');
@@ -1485,7 +1324,6 @@ function showToast(msg) {
   el.classList.add('show');
   setTimeout(() => el.classList.remove('show'), 2500);
 }
-
 // ─── Toggle langue ────────────────────────────────────────
 function toggleLang() {
   setLang(getLang() === 'fr' ? 'en' : 'fr');
@@ -1493,9 +1331,7 @@ function toggleLang() {
   updateHeader();
   renderView(location.hash.replace('#', '') || 'menu');
 }
-
 // ─── Exposer l'API globale pour les onclick HTML ──────────
-
 // ─── Traiteur ─────────────────────────────────────────────
 function renderTraiteur(container) {
   const eventTypes = [
@@ -1506,7 +1342,6 @@ function renderTraiteur(container) {
     { id:'seminaire',   label:'📊 Séminaire' },
     { id:"autre",       label:"✨ Autre événement" },
   ];
-
   container.innerHTML = `
     <div style="display:flex;border-bottom:1px solid var(--border)">
       <div style="flex:1;padding:10px;text-align:center;font-size:13px;font-weight:600;
@@ -1518,7 +1353,6 @@ function renderTraiteur(container) {
         👨‍🍳 Traiteur
       </div>
     </div>
-
     <div style="padding:20px 16px;max-width:560px;margin:0 auto">
       <div style="text-align:center;margin-bottom:24px">
         <div style="font-size:32px;margin-bottom:8px">🎉</div>
@@ -1530,7 +1364,6 @@ function renderTraiteur(container) {
           Nous préparons votre événement sur mesure.
         </div>
       </div>
-
       <!-- Type d'événement -->
       <div style="margin-bottom:20px">
         <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;
@@ -1538,7 +1371,7 @@ function renderTraiteur(container) {
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px" id="event-type-grid">
           ${eventTypes.map(e => `
             <div data-type="${e.id}"
-                 onclick="window.App.selectEventType('${e.id}')"
+                 onclick="selectEventType('${e.id}')"
                  style="padding:12px;border:1.5px solid var(--border);border-radius:12px;
                         text-align:center;font-size:13px;cursor:pointer;transition:all .15s;
                         color:var(--brown)">
@@ -1547,7 +1380,6 @@ function renderTraiteur(container) {
         </div>
         <input type="hidden" id="tr-type" value="">
       </div>
-
       <!-- Infos événement -->
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
         <div>
@@ -1566,7 +1398,6 @@ function renderTraiteur(container) {
                         border-radius:10px;font-size:14px;outline:none">
         </div>
       </div>
-
       <div style="margin-bottom:16px">
         <label style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;
                       letter-spacing:.05em;display:block;margin-bottom:5px">Lieu *</label>
@@ -1574,7 +1405,6 @@ function renderTraiteur(container) {
                style="width:100%;padding:10px 12px;border:1.5px solid var(--border);
                       border-radius:10px;font-size:14px;outline:none">
       </div>
-
       <div style="margin-bottom:16px">
         <label style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;
                       letter-spacing:.05em;display:block;margin-bottom:5px">Vos besoins</label>
@@ -1583,7 +1413,6 @@ function renderTraiteur(container) {
                          border-radius:10px;font-size:14px;outline:none;resize:vertical;
                          font-family:inherit"></textarea>
       </div>
-
       <!-- Contact -->
       <div style="background:#FFF8F5;border-radius:12px;padding:16px;margin-bottom:16px">
         <div style="font-size:13px;font-weight:700;color:var(--brown);margin-bottom:12px">
@@ -1603,35 +1432,89 @@ function renderTraiteur(container) {
                         border-radius:10px;font-size:14px;outline:none">
         </div>
       </div>
-
       <div id="tr-err" style="color:#EF4444;font-size:13px;margin-bottom:10px;display:none"></div>
-
       <button onclick="window.App.submitDevis()"
               style="width:100%;padding:14px;background:#F26522;color:#fff;border:none;
                      border-radius:12px;font-size:15px;font-weight:800;cursor:pointer">
         📨 Envoyer ma demande de devis
       </button>
-
       <div style="text-align:center;margin-top:12px;font-size:12px;color:var(--muted)">
         Nous vous recontactons sous 24h pour préparer votre devis personnalisé.
       </div>
     </div>
   `;
 }
-
-window.App.selectEventType = function(type) {
-  document.getElementById('tr-type').value = type;
-  document.querySelectorAll('#event-type-grid [data-type]').forEach(el => {
-    if (el.dataset.type === type) {
-      el.style.borderColor = '#F26522';
-      el.style.background  = '#FFF0E8';
-      el.style.color       = '#F26522';
-    } else {
-      el.style.borderColor = 'var(--border)';
-      el.style.background  = '';
-      el.style.color       = 'var(--brown)';
+window.App = {
+  async enableNotifications(orderId) {
+    const btn = document.getElementById('notif-btn');
+    if (btn) { btn.disabled = true; btn.textContent = '…'; }
+    try {
+      const token = await requestNotificationPermission(orderId);
+      const banner = document.getElementById('notif-banner');
+      if (token) {
+        State.notifEnabled = true;
+        if (banner) banner.innerHTML = '<span style="font-size:18px">✅</span> <span style="font-size:13px;color:var(--brown);font-weight:600">Notifications activées — vous serez notifié quand votre commande est prête.</span>';
+      } else {
+        if (banner) banner.innerHTML = '<span style="font-size:18px">❌</span> <span style="font-size:13px;color:var(--text-muted)">Notifications refusées ou non supportées sur cet appareil.</span>';
+      }
+    } catch(e) {
+      if (btn) { btn.disabled = false; btn.textContent = 'Activer'; }
     }
-  });
+  },
+  async joinSession(sessionId) {
+    State.sessionId = sessionId;
+    navigate('menu');
+  },
+  async newSession() {
+    State.sessionId = await createSession(State.tableId, State.uid);
+    navigate('menu');
+  },
+  navigate: (view, data={}) => navigate(view, data),
+  // ── Carrousel PDJ ─────────────────────────────────────
+  _pdjIdx: 0,
+  _pdjTimer: null,
+  _pdjTotal: 0,
+  pdjInit(total) {
+    this._pdjIdx   = 0;
+    this._pdjTotal = total;
+    if (this._pdjTimer) clearInterval(this._pdjTimer);
+    if (total > 1) {
+      this._pdjTimer = setInterval(() => this.pdjNext(), 4000);
+    }
+    // Swipe tactile
+    const el = document.getElementById('pdj-carousel');
+    if (!el) return;
+    let sx = 0;
+    el.addEventListener('touchstart', e => { sx = e.touches[0].clientX; }, { passive: true });
+    el.addEventListener('touchend',   e => {
+      const dx = e.changedTouches[0].clientX - sx;
+      if (Math.abs(dx) > 40) { dx < 0 ? this.pdjNext() : this.pdjPrev(); }
+    }, { passive: true });
+  },
+  pdjGoTo(idx) {
+    const track = document.getElementById('pdj-track');
+    if (!track) return;
+    this._pdjIdx = ((idx % this._pdjTotal) + this._pdjTotal) % this._pdjTotal;
+    track.style.transform = `translateX(-${this._pdjIdx * 100}%)`;
+    document.querySelectorAll('.pdj-dot').forEach((d, i) =>
+      d.classList.toggle('active', i === this._pdjIdx)
+    );
+    if (this._pdjTimer) { clearInterval(this._pdjTimer); this._pdjTimer = setInterval(() => this.pdjNext(), 4000); }
+  },
+  pdjNext() { this.pdjGoTo(this._pdjIdx + 1); },
+  pdjPrev() { this.pdjGoTo(this._pdjIdx - 1); },
+  addPdjToCart(itemId) {
+    const item = State.menu.find(m => m.id === itemId);
+    if (!item) return;
+    addItem(item);
+    updateCartBadge();
+    showToast('✓ Ajouté au panier');
+  },
+  openItem, setOption, changeQty, toggleUpsell,
+  addToCart, closeModal, setCategory,
+  updateQty: doUpdateQty, removeItem: doRemoveItem, goCheckout,
+  confirmSalle, confirmLivraison, onZoneChange, selectPayment,
+  toggleLang,
 };
 
 window.App.submitDevis = async function() {
@@ -1645,18 +1528,15 @@ window.App.submitDevis = async function() {
   const email   = document.getElementById('tr-email')?.value.trim();
   const err     = document.getElementById('tr-err');
   const btn     = document.querySelector('[onclick*="submitDevis"]');
-
   if (!type)  { err.textContent = "Choisissez un type d'événement"; err.style.display='block'; return; }
   if (!date)  { err.textContent = "Indiquez la date de l'événement"; err.style.display='block'; return; }
   if (!nb)    { err.textContent = 'Indiquez le nombre de personnes'; err.style.display='block'; return; }
   if (!lieu)  { err.textContent = 'Indiquez le lieu'; err.style.display='block'; return; }
   if (!nom)   { err.textContent = 'Indiquez votre nom'; err.style.display='block'; return; }
   if (!tel)   { err.textContent = 'Indiquez votre téléphone'; err.style.display='block'; return; }
-
   err.style.display = 'none';
   btn.disabled = true;
   btn.textContent = 'Envoi en cours…';
-
   try {
     const { addDoc, collection, serverTimestamp } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
     await addDoc(collection(db, 'devis'), {
@@ -1691,87 +1571,27 @@ window.App.submitDevis = async function() {
   }
 };
 
-window.App = {
-  async enableNotifications(orderId) {
-    const btn = document.getElementById('notif-btn');
-    if (btn) { btn.disabled = true; btn.textContent = '…'; }
-    try {
-      const token = await requestNotificationPermission(orderId);
-      const banner = document.getElementById('notif-banner');
-      if (token) {
-        State.notifEnabled = true;
-        if (banner) banner.innerHTML = '<span style="font-size:18px">✅</span> <span style="font-size:13px;color:var(--brown);font-weight:600">Notifications activées — vous serez notifié quand votre commande est prête.</span>';
-      } else {
-        if (banner) banner.innerHTML = '<span style="font-size:18px">❌</span> <span style="font-size:13px;color:var(--text-muted)">Notifications refusées ou non supportées sur cet appareil.</span>';
-      }
-    } catch(e) {
-      if (btn) { btn.disabled = false; btn.textContent = 'Activer'; }
+function selectEventType(type) {
+  document.getElementById('tr-type').value = type;
+  document.querySelectorAll('#event-type-grid [data-type]').forEach(el => {
+    if (el.dataset.type === type) {
+      el.style.borderColor = '#F26522';
+      el.style.background  = '#FFF0E8';
+      el.style.color       = '#F26522';
+    } else {
+      el.style.borderColor = 'var(--border)';
+      el.style.background  = '';
+      el.style.color       = 'var(--brown)';
     }
-  },
-  async joinSession(sessionId) {
-    State.sessionId = sessionId;
-    navigate('menu');
-  },
-  async newSession() {
-    State.sessionId = await createSession(State.tableId, State.uid);
-    navigate('menu');
-  },
-  navigate: (view, data={}) => navigate(view, data),
-  // ── Carrousel PDJ ─────────────────────────────────────
-  _pdjIdx: 0,
-  _pdjTimer: null,
-  _pdjTotal: 0,
+  });
+}
 
-  pdjInit(total) {
-    this._pdjIdx   = 0;
-    this._pdjTotal = total;
-    if (this._pdjTimer) clearInterval(this._pdjTimer);
-    if (total > 1) {
-      this._pdjTimer = setInterval(() => this.pdjNext(), 4000);
-    }
-    // Swipe tactile
-    const el = document.getElementById('pdj-carousel');
-    if (!el) return;
-    let sx = 0;
-    el.addEventListener('touchstart', e => { sx = e.touches[0].clientX; }, { passive: true });
-    el.addEventListener('touchend',   e => {
-      const dx = e.changedTouches[0].clientX - sx;
-      if (Math.abs(dx) > 40) { dx < 0 ? this.pdjNext() : this.pdjPrev(); }
-    }, { passive: true });
-  },
 
-  pdjGoTo(idx) {
-    const track = document.getElementById('pdj-track');
-    if (!track) return;
-    this._pdjIdx = ((idx % this._pdjTotal) + this._pdjTotal) % this._pdjTotal;
-    track.style.transform = `translateX(-${this._pdjIdx * 100}%)`;
-    document.querySelectorAll('.pdj-dot').forEach((d, i) =>
-      d.classList.toggle('active', i === this._pdjIdx)
-    );
-    if (this._pdjTimer) { clearInterval(this._pdjTimer); this._pdjTimer = setInterval(() => this.pdjNext(), 4000); }
-  },
-
-  pdjNext() { this.pdjGoTo(this._pdjIdx + 1); },
-  pdjPrev() { this.pdjGoTo(this._pdjIdx - 1); },
-  addPdjToCart(itemId) {
-    const item = State.menu.find(m => m.id === itemId);
-    if (!item) return;
-    addItem(item);
-    updateCartBadge();
-    showToast('✓ Ajouté au panier');
-  },
-  openItem, setOption, changeQty, toggleUpsell,
-  addToCart, closeModal, setCategory,
-  updateQty: doUpdateQty, removeItem: doRemoveItem, goCheckout,
-  confirmSalle, confirmLivraison, onZoneChange, selectPayment,
-  toggleLang,
-};
 
 // ─── Modale suivi commande ────────────────────────────────
 window.App.openTrackingModal = function(orderId) {
   document.getElementById('tracking-modal')?.remove();
   if (window._trackingModalUnsub) { window._trackingModalUnsub(); window._trackingModalUnsub = null; }
-
   const STEPS_SALLE = [
     { key:'pending',   icon:'📋', label:'Commande reçue',    color:'#F59E0B' },
     { key:'preparing', icon:'👨‍🍳', label:'En préparation',    color:'#3B82F6' },
@@ -1785,20 +1605,16 @@ window.App.openTrackingModal = function(orderId) {
     { key:'delivering', icon:'🚴', label:'En route vers vous !',   color:'#3B82F6' },
     { key:'done',       icon:'🎉', label:'Livré et payé !',        color:'#065F46' },
   ];
-
   // Build modal DOM
   const overlay = document.createElement('div');
   overlay.id = 'tracking-modal';
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(43,29,22,.75);z-index:9000;display:flex;align-items:center;justify-content:center;padding:20px';
-
   const sheet = document.createElement('div');
   sheet.style.cssText = 'background:#fff;border-radius:20px;width:100%;max-width:480px;max-height:88vh;overflow-y:auto;padding-bottom:24px';
-
   // Handle bar
   const handle = document.createElement('div');
   handle.style.cssText = 'display:flex;justify-content:center;padding:12px';
   handle.innerHTML = '<div style="width:40px;height:4px;background:#E0D4C8;border-radius:2px"></div>';
-
   // Header
   const header = document.createElement('div');
   header.style.cssText = 'padding:0 20px 16px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #F0E8E0';
@@ -1810,7 +1626,6 @@ window.App.openTrackingModal = function(orderId) {
     + '</div>'
     + '<div style="font-size:13px;color:#7A6356;margin-top:2px">N° ' + orderId.slice(-6).toUpperCase()
     + ' · <span style="color:#10B981;font-size:11px">● En direct</span></div></div>';
-
   const closeBtn = document.createElement('button');
   closeBtn.textContent = '×';
   closeBtn.style.cssText = 'background:#F0E8E0;border:none;border-radius:50%;width:32px;height:32px;font-size:18px;cursor:pointer';
@@ -1819,19 +1634,16 @@ window.App.openTrackingModal = function(orderId) {
     if (window._trackingModalUnsub) { window._trackingModalUnsub(); window._trackingModalUnsub = null; }
   });
   header.appendChild(closeBtn);
-
   // Body
   const body = document.createElement('div');
   body.id = 'tracking-modal-body';
   body.style.cssText = 'padding:20px';
   body.innerHTML = '<div style="text-align:center;padding:32px"><p>Chargement…</p></div>';
-
   sheet.appendChild(handle);
   sheet.appendChild(header);
   sheet.appendChild(body);
   overlay.appendChild(sheet);
   document.body.appendChild(overlay);
-
   // Close on backdrop click
   overlay.addEventListener('click', function(e) {
     if (e.target === overlay) {
@@ -1839,14 +1651,12 @@ window.App.openTrackingModal = function(orderId) {
       if (window._trackingModalUnsub) { window._trackingModalUnsub(); window._trackingModalUnsub = null; }
     }
   });
-
   // Listen to order in real time
   window._trackingModalUnsub = listenOrder(orderId, function(order) {
     const status = order.status || 'pending';
     const isLiv  = order.type === 'livraison';
     const steps  = isLiv ? STEPS_LIV : STEPS_SALLE;
     const curIdx = steps.findIndex(function(s) { return s.key === status; });
-
     const msgs = {
       pending:    'Votre commande a bien été reçue. Elle sera bientôt prise en charge.',
       preparing:  '🔥 La cuisine prépare votre commande avec soin !',
@@ -1854,9 +1664,7 @@ window.App.openTrackingModal = function(orderId) {
       delivering: '🚴 Votre livreur est en route. Préparez le paiement à la réception !',
       done:       isLiv ? '🎉 Livré ! Merci et bonne dégustation !' : '✅ Bon appétit ! Merci de votre visite.',
     };
-
     if (status === 'done') localStorage.removeItem('de_last_order');
-
     // Build steps HTML
     var stepsHtml = '';
     steps.forEach(function(step, i) {
@@ -1878,12 +1686,10 @@ window.App.openTrackingModal = function(orderId) {
         + (isActive ? '<div style="font-size:12px;color:' + step.color + ';margin-top:2px">En cours…</div>' : '')
         + '</div></div>';
     });
-
     body.innerHTML = '<div style="background:#FFF8F5;border-radius:12px;border-left:4px solid #F26522;padding:14px 16px;margin-bottom:20px">'
       + '<div style="font-size:14px;color:#4A3020">' + (msgs[status] || msgs.pending) + '</div>'
       + '</div>'
       + stepsHtml;
-
     if (status === 'done') {
       var backBtn = document.createElement('button');
       backBtn.textContent = '← Retour au menu';
@@ -1897,8 +1703,6 @@ window.App.openTrackingModal = function(orderId) {
     }
   });
 };
-
-
 
 // ─── Démarrer ────────────────────────────────────────────
 init();
