@@ -1641,21 +1641,23 @@ window.App.submitDevis = async function() {
     let fichierNom = null;
     if (window._traiteurFile) {
       try {
-        // Debug auth state
-        const { getAuth } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
-        const currentUser = getAuth().currentUser;
+        // Utiliser l'instance auth déjà initialisée dans config.js
+        const currentUser = auth.currentUser;
         console.log('[Upload] Auth user:', currentUser?.uid, 'isAnon:', currentUser?.isAnonymous);
-        if (currentUser) {
-          const token = await currentUser.getIdToken();
-          console.log('[Upload] Token (first 50):', token.substring(0, 50));
-        }
+
+        // Forcer un refresh du token si besoin
+        if (currentUser) await currentUser.getIdToken(true);
+
         const { getStorage, ref, uploadBytes, getDownloadURL } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js');
-        const storageRef = ref(getStorage(), 'devis/' + Date.now() + '_' + window._traiteurFile.name);
+        const { getApp } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
+        const storage = getStorage(getApp());
+        const storageRef = ref(storage, 'devis/' + Date.now() + '_' + window._traiteurFile.name);
         const snap = await uploadBytes(storageRef, window._traiteurFile);
         fichierUrl = await getDownloadURL(snap.ref);
         fichierNom = window._traiteurFile.name;
+        console.log('[Upload] Success:', fichierUrl);
       } catch(uploadErr) {
-        console.warn('Upload fichier ignoré:', uploadErr.message);
+        console.warn('[Upload] Ignoré:', uploadErr.message);
         // On continue sans le fichier
       }
     }
