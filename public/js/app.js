@@ -411,6 +411,7 @@ function renderView(view, data = {}) {
     case 'checkout': renderCheckout(main); break;
     case 'confirm':  renderConfirm(main, data.orderId, data.operateur); break;
     case 'tracking': renderTracking(main, data.orderId); break;
+    case 'traiteur': renderTraiteur(main); break;
     default:         renderMenu(main);
   }
   window.scrollTo(0, 0);
