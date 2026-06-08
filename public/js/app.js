@@ -1504,7 +1504,7 @@ function renderTraiteur(container) {
     { id:'anniversaire',label:'🎂 Anniversaire' },
     { id:'entreprise',  label:'🏢 Repas entreprise' },
     { id:'seminaire',   label:'📊 Séminaire' },
-    { id:'autre',       label:'✨ Autre événement' },
+    { id:"autre",       label:"✨ Autre événement" },
   ];
 
   container.innerHTML = `
@@ -1646,8 +1646,8 @@ window.App.submitDevis = async function() {
   const err     = document.getElementById('tr-err');
   const btn     = document.querySelector('[onclick*="submitDevis"]');
 
-  if (!type)  { err.textContent = 'Choisissez un type d'événement'; err.style.display='block'; return; }
-  if (!date)  { err.textContent = 'Indiquez la date de l'événement'; err.style.display='block'; return; }
+  if (!type)  { err.textContent = "Choisissez un type d'événement"; err.style.display='block'; return; }
+  if (!date)  { err.textContent = "Indiquez la date de l'événement"; err.style.display='block'; return; }
   if (!nb)    { err.textContent = 'Indiquez le nombre de personnes'; err.style.display='block'; return; }
   if (!lieu)  { err.textContent = 'Indiquez le lieu'; err.style.display='block'; return; }
   if (!nom)   { err.textContent = 'Indiquez votre nom'; err.style.display='block'; return; }
