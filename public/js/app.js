@@ -1502,7 +1502,7 @@ function renderTraiteur(container) {
     { id:'mariage',     label:'💍 Mariage' },
     { id:'bapteme',     label:'👶 Baptême' },
     { id:'anniversaire',label:'🎂 Anniversaire' },
-    { id:'entreprise',  label:'🏢 Repas d'entreprise' },
+    { id:'entreprise',  label:'🏢 Repas entreprise' },
     { id:'seminaire',   label:'📊 Séminaire' },
     { id:'autre',       label:'✨ Autre événement' },
   ];
