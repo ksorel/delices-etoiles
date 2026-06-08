@@ -1419,18 +1419,31 @@ function renderTraiteur(container) {
                          border-radius:10px;font-size:14px;outline:none;resize:vertical;
                          font-family:inherit;margin-bottom:8px"></textarea>
 
-        <!-- Upload document via WhatsApp -->
-        <div style="background:#F0FDF4;border:1px solid #BBF7D0;border-radius:10px;
-                    padding:12px 14px;display:flex;align-items:flex-start;gap:10px">
-          <div style="font-size:20px;flex-shrink:0">📎</div>
-          <div>
-            <div style="font-size:13px;font-weight:600;color:#166534;margin-bottom:3px">
-              ${t('tr_upload_hint')}
-            </div>
-            <div style="font-size:12px;color:#4D7C60;line-height:1.5">
-              ${t('tr_upload_whatsapp')}
-            </div>
+        <!-- Upload document -->
+        <div id="tr-upload-zone"
+             onclick="document.getElementById('tr-file').click()"
+             ondragover="event.preventDefault();this.style.borderColor='#F26522'"
+             ondragleave="this.style.borderColor='var(--border)'"
+             ondrop="window.handleTraiteurDrop(event)"
+             style="border:2px dashed var(--border);border-radius:10px;padding:14px;
+                    text-align:center;cursor:pointer;transition:border-color .2s;
+                    background:#FAFAF9">
+          <div style="font-size:22px;margin-bottom:4px">📎</div>
+          <div style="font-size:13px;color:var(--muted)">${t('tr_upload_hint')}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px">${t('tr_upload_types')}</div>
+        </div>
+        <input type="file" id="tr-file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+               style="display:none" onchange="window.handleTraiteurFile(this.files[0])">
+        <div id="tr-file-info" style="display:none;margin-top:8px;padding:10px 12px;
+             background:#F0FDF4;border-radius:8px;align-items:center;gap:10px">
+          <span style="font-size:18px">📄</span>
+          <div style="flex:1;min-width:0">
+            <div id="tr-file-name" style="font-size:13px;font-weight:600;color:#166534;
+                 overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>
+            <div id="tr-file-size" style="font-size:11px;color:#4D7C60"></div>
           </div>
+          <button onclick="window.removeTraiteurFile()"
+                  style="background:none;border:none;cursor:pointer;font-size:18px;color:#999">✕</button>
         </div>
       </div>
       <!-- Contact -->
@@ -1623,8 +1636,25 @@ window.App.submitDevis = async function() {
   try {
     const { addDoc, collection, serverTimestamp } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
 
+    // Upload fichier si présent
+    let fichierUrl = null;
+    let fichierNom = null;
+    if (window._traiteurFile) {
+      try {
+        const { getStorage, ref, uploadBytes, getDownloadURL } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js');
+        const storageRef = ref(getStorage(), 'devis/' + Date.now() + '_' + window._traiteurFile.name);
+        const snap = await uploadBytes(storageRef, window._traiteurFile);
+        fichierUrl = await getDownloadURL(snap.ref);
+        fichierNom = window._traiteurFile.name;
+      } catch(uploadErr) {
+        console.warn('Upload fichier ignoré:', uploadErr.message);
+        // On continue sans le fichier
+      }
+    }
+
     await addDoc(collection(db, 'devis'), {
       type, date, nbPersonnes: parseInt(nb), lieu, besoins,
+      fichier: fichierUrl ? { url: fichierUrl, nom: fichierNom } : null,
       client: { nom, tel, email },
       statut: 'nouveau',
       createdAt: serverTimestamp(),
