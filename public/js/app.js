@@ -1641,6 +1641,14 @@ window.App.submitDevis = async function() {
     let fichierNom = null;
     if (window._traiteurFile) {
       try {
+        // Debug auth state
+        const { getAuth } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
+        const currentUser = getAuth().currentUser;
+        console.log('[Upload] Auth user:', currentUser?.uid, 'isAnon:', currentUser?.isAnonymous);
+        if (currentUser) {
+          const token = await currentUser.getIdToken();
+          console.log('[Upload] Token (first 50):', token.substring(0, 50));
+        }
         const { getStorage, ref, uploadBytes, getDownloadURL } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js');
         const storageRef = ref(getStorage(), 'devis/' + Date.now() + '_' + window._traiteurFile.name);
         const snap = await uploadBytes(storageRef, window._traiteurFile);
