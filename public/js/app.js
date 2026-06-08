@@ -1411,7 +1411,34 @@ function renderTraiteur(container) {
         <textarea id="tr-besoins" rows="3" placeholder="${t('tr_besoins_ph')}"
                   style="width:100%;padding:10px 12px;border:1.5px solid var(--border);
                          border-radius:10px;font-size:14px;outline:none;resize:vertical;
-                         font-family:inherit"></textarea>
+                         font-family:inherit;margin-bottom:8px"></textarea>
+
+        <!-- Upload document -->
+        <div id="tr-upload-zone"
+             onclick="document.getElementById('tr-file').click()"
+             ondragover="event.preventDefault();this.style.borderColor='#F26522'"
+             ondragleave="this.style.borderColor='var(--border)'"
+             ondrop="window.handleTraiteurDrop(event)"
+             style="border:2px dashed var(--border);border-radius:10px;padding:14px;
+                    text-align:center;cursor:pointer;transition:border-color .2s;
+                    background:#FAFAF9">
+          <div style="font-size:22px;margin-bottom:4px">📎</div>
+          <div style="font-size:13px;color:var(--muted)">${t('tr_upload_hint')}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px">${t('tr_upload_types')}</div>
+        </div>
+        <input type="file" id="tr-file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+               style="display:none" onchange="window.handleTraiteurFile(this.files[0])">
+        <div id="tr-file-info" style="display:none;margin-top:8px;padding:10px 12px;
+             background:#F0FDF4;border-radius:8px;align-items:center;gap:10px">
+          <span style="font-size:18px">📄</span>
+          <div style="flex:1;min-width:0">
+            <div id="tr-file-name" style="font-size:13px;font-weight:600;color:#166534;
+                 overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>
+            <div id="tr-file-size" style="font-size:11px;color:#4D7C60"></div>
+          </div>
+          <button onclick="window.removeTraiteurFile()"
+                  style="background:none;border:none;cursor:pointer;font-size:18px;color:#999">✕</button>
+        </div>
       </div>
       <!-- Contact -->
       <div style="background:#FFF8F5;border-radius:12px;padding:16px;margin-bottom:16px">
