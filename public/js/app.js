@@ -604,12 +604,12 @@ function renderMenu(container) {
     <div style="display:flex;border-bottom:1px solid var(--border)">
       <div style="flex:1;padding:10px;text-align:center;font-size:13px;font-weight:700;
                   color:#F26522;border-bottom:2px solid #F26522;cursor:pointer">
-        🍽️ Restaurant
+        🍽️ ${t('tab_restaurant')}
       </div>
       <div style="flex:1;padding:10px;text-align:center;font-size:13px;font-weight:600;
                   color:var(--muted);cursor:pointer"
            onclick="window.App.navigate('traiteur')">
-        👨‍🍳 Traiteur
+        👨‍🍳 ${t('tab_traiteur')}
       </div>
     </div>
     <div class="mode-banner">${bannerText}</div>
@@ -1336,33 +1336,32 @@ function toggleLang() {
 // ─── Traiteur ─────────────────────────────────────────────
 function renderTraiteur(container) {
   const eventTypes = [
-    { id:'mariage',     label:'💍 Mariage' },
-    { id:'bapteme',     label:'👶 Baptême' },
-    { id:'anniversaire',label:'🎂 Anniversaire' },
-    { id:'entreprise',  label:'🏢 Repas entreprise' },
-    { id:'seminaire',   label:'📊 Séminaire' },
-    { id:"autre",       label:"✨ Autre événement" },
+    { id:'mariage',      label:t('tr_ev_mariage') },
+    { id:'bapteme',      label:t('tr_ev_bapteme') },
+    { id:'anniversaire', label:t('tr_ev_anniversaire') },
+    { id:'entreprise',   label:t('tr_ev_entreprise') },
+    { id:'seminaire',    label:t('tr_ev_seminaire') },
+    { id:'autre',        label:t('tr_ev_autre') },
   ];
   container.innerHTML = `
     <div style="display:flex;border-bottom:1px solid var(--border)">
       <div style="flex:1;padding:10px;text-align:center;font-size:13px;font-weight:600;
                   color:var(--muted);cursor:pointer" onclick="window.App.navigate('menu')">
-        🍽️ Restaurant
+        🍽️ ${t('tab_restaurant')}
       </div>
       <div style="flex:1;padding:10px;text-align:center;font-size:13px;font-weight:700;
                   color:#F26522;border-bottom:2px solid #F26522;cursor:pointer">
-        👨‍🍳 Traiteur
+        👨‍🍳 ${t('tab_traiteur')}
       </div>
     </div>
     <div style="padding:20px 16px;max-width:560px;margin:0 auto">
       <div style="text-align:center;margin-bottom:24px">
         <div style="font-size:32px;margin-bottom:8px">🎉</div>
         <div style="font-size:20px;font-weight:800;color:var(--brown);margin-bottom:6px">
-          Service Traiteur
+          ${t('traiteur_title')}
         </div>
         <div style="font-size:14px;color:var(--muted);line-height:1.6">
-          Mariages, baptêmes, séminaires, repas d'entreprise…<br>
-          Nous préparons votre événement sur mesure.
+          ${t('traiteur_subtitle')}
         </div>
       </div>
       <!-- Type d'événement -->
@@ -1409,7 +1408,7 @@ function renderTraiteur(container) {
       <div style="margin-bottom:16px">
         <label style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;
                       letter-spacing:.05em;display:block;margin-bottom:5px">Vos besoins</label>
-        <textarea id="tr-besoins" rows="3" placeholder="Décrivez vos besoins : menu souhaité, service, décoration, allergies…"
+        <textarea id="tr-besoins" rows="3" placeholder="${t('tr_besoins_ph')}"
                   style="width:100%;padding:10px 12px;border:1.5px solid var(--border);
                          border-radius:10px;font-size:14px;outline:none;resize:vertical;
                          font-family:inherit"></textarea>
@@ -1420,7 +1419,7 @@ function renderTraiteur(container) {
           📞 Vos coordonnées
         </div>
         <div style="margin-bottom:10px">
-          <input type="text" id="tr-nom" class="form-input" placeholder="Nom complet *"
+          <input type="text" id="tr-nom" class="form-input" placeholder="${t('tr_nom_ph')}"
                  style="width:100%;padding:10px 12px;border:1.5px solid var(--border);
                         border-radius:10px;font-size:14px;outline:none">
         </div>
@@ -1428,7 +1427,7 @@ function renderTraiteur(container) {
           <input type="tel" id="tr-tel" class="form-input" placeholder="Téléphone *"
                  style="width:100%;padding:10px 12px;border:1.5px solid var(--border);
                         border-radius:10px;font-size:14px;outline:none">
-          <input type="email" id="tr-email" class="form-input" placeholder="Email (optionnel)"
+          <input type="email" id="tr-email" class="form-input" placeholder="${t('tr_email_ph')}"
                  style="width:100%;padding:10px 12px;border:1.5px solid var(--border);
                         border-radius:10px;font-size:14px;outline:none">
         </div>
@@ -1440,7 +1439,7 @@ function renderTraiteur(container) {
         📨 Envoyer ma demande de devis
       </button>
       <div style="text-align:center;margin-top:12px;font-size:12px;color:var(--muted)">
-        Nous vous recontactons sous 24h pour préparer votre devis personnalisé.
+        ${t('tr_footer_note')}
       </div>
     </div>
   `;
@@ -1552,11 +1551,11 @@ window.App.submitDevis = async function() {
       <div style="padding:40px 20px;text-align:center;max-width:400px;margin:0 auto">
         <div style="font-size:56px;margin-bottom:16px">🎉</div>
         <div style="font-size:22px;font-weight:800;color:var(--brown);margin-bottom:10px">
-          Demande envoyée !
+          ${t('tr_confirm_title')}
         </div>
         <div style="font-size:14px;color:var(--muted);line-height:1.7;margin-bottom:24px">
           Merci ${nom} ! Nous avons bien reçu votre demande de devis pour votre événement du <strong>${new Date(date).toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'})}</strong>.<br><br>
-          Nous vous recontactons sous 24h au <strong>${tel}</strong>.
+          ${t('tr_confirm_msg1')} <strong>${tel}</strong>.
         </div>
         <button onclick="window.App.navigate('menu')"
                 style="padding:12px 32px;background:#F26522;color:#fff;border:none;
