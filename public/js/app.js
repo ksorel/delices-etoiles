@@ -1517,6 +1517,42 @@ window.App = {
   toggleLang,
 };
 
+window.handleTraiteurFile = function(file) {
+  if (!file) return;
+  const maxSize = 5 * 1024 * 1024; // 5MB
+  if (file.size > maxSize) {
+    alert('Fichier trop volumineux (max 5 MB)');
+    return;
+  }
+  window._traiteurFile = file;
+  const info = document.getElementById('tr-file-info');
+  if (info) {
+    document.getElementById('tr-file-name').textContent = file.name;
+    document.getElementById('tr-file-size').textContent = (file.size / 1024).toFixed(0) + ' KB';
+    info.style.display = 'flex';
+    // Update upload zone
+    const zone = document.getElementById('tr-upload-zone');
+    if (zone) zone.style.borderColor = '#22C55E';
+  }
+};
+
+window.handleTraiteurDrop = function(event) {
+  event.preventDefault();
+  const zone = document.getElementById('tr-upload-zone');
+  if (zone) zone.style.borderColor = 'var(--border)';
+  const file = event.dataTransfer?.files?.[0];
+  if (file) window.handleTraiteurFile(file);
+};
+
+window.removeTraiteurFile = function() {
+  window._traiteurFile = null;
+  document.getElementById('tr-file').value = '';
+  const info = document.getElementById('tr-file-info');
+  if (info) info.style.display = 'none';
+  const zone = document.getElementById('tr-upload-zone');
+  if (zone) zone.style.borderColor = 'var(--border)';
+};
+
 window.App.submitDevis = async function() {
   const type    = document.getElementById('tr-type')?.value;
   const date    = document.getElementById('tr-date')?.value;
@@ -1539,8 +1575,26 @@ window.App.submitDevis = async function() {
   btn.textContent = 'Envoi en cours…';
   try {
     const { addDoc, collection, serverTimestamp } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+
+    // Upload fichier si présent
+    let fichierUrl = null;
+    let fichierNom = null;
+    if (window._traiteurFile) {
+      try {
+        const { getStorage, ref, uploadBytes, getDownloadURL } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js');
+        const storageRef = ref(getStorage(), 'devis/' + Date.now() + '_' + window._traiteurFile.name);
+        const snap = await uploadBytes(storageRef, window._traiteurFile);
+        fichierUrl = await getDownloadURL(snap.ref);
+        fichierNom = window._traiteurFile.name;
+      } catch(uploadErr) {
+        console.warn('Upload file error:', uploadErr);
+        // Continue sans le fichier si upload échoue
+      }
+    }
+
     await addDoc(collection(db, 'devis'), {
       type, date, nbPersonnes: parseInt(nb), lieu, besoins,
+      fichier: fichierUrl ? { url: fichierUrl, nom: fichierNom } : null,
       client: { nom, tel, email },
       statut: 'nouveau',
       createdAt: serverTimestamp(),

@@ -121,6 +121,8 @@ const translations = {
     tr_ev_entreprise:   '🏢 Repas entreprise',
     tr_ev_seminaire:    '📊 Séminaire',
     tr_ev_autre:        '✨ Autre événement',
+    tr_upload_hint:     'Joindre un document (optionnel)',
+    tr_upload_types:    'PDF, Word, image · max 5 MB',
   },
 
   en: {
@@ -232,6 +234,8 @@ const translations = {
     tr_ev_entreprise:   '🏢 Corporate meal',
     tr_ev_seminaire:    '📊 Seminar',
     tr_ev_autre:        '✨ Other event',
+    tr_upload_hint:     'Attach a document (optional)',
+    tr_upload_types:    'PDF, Word, image · max 5 MB',
   },
 };
 
