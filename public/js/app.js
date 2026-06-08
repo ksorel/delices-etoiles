@@ -1648,14 +1648,18 @@ window.App.submitDevis = async function() {
         // Forcer un refresh du token si besoin
         if (currentUser) await currentUser.getIdToken(true);
 
-        const { getStorage, ref, uploadBytes, getDownloadURL } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js');
+        const { getStorage, ref, uploadBytes } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js');
         const { getApp } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
-        const storage = getStorage(getApp());
-        const storageRef = ref(storage, 'devis/' + Date.now() + '_' + window._traiteurFile.name);
-        const snap = await uploadBytes(storageRef, window._traiteurFile);
-        fichierUrl = await getDownloadURL(snap.ref);
+        const storage  = getStorage(getApp());
+        const fileName = Date.now() + '_' + window._traiteurFile.name;
+        const storageRef = ref(storage, 'devis/' + fileName);
+        await uploadBytes(storageRef, window._traiteurFile);
+        // Construire l'URL sans getDownloadURL (évite un GET supplémentaire)
+        const bucket = 'delices-etoiles.firebasestorage.app';
+        fichierUrl = 'https://firebasestorage.googleapis.com/v0/b/' + bucket
+                   + '/o/devis%2F' + encodeURIComponent(fileName) + '?alt=media';
         fichierNom = window._traiteurFile.name;
-        console.log('[Upload] Success:', fichierUrl);
+        console.log('[Upload] Success:', fichierNom);
       } catch(uploadErr) {
         console.warn('[Upload] Ignoré:', uploadErr.message);
         // On continue sans le fichier
