@@ -112,5 +112,20 @@ service cloud.firestore {
       allow read:  if isAuth(); // Clients anonymes lisent le numéro du gérant
       allow write: if isAdmin();
     }
+
+    // ─── Devis traiteur ──────────────────────────────────────
+    match /devis/{devisId} {
+      allow create: if isAuth();        // Client soumet une demande
+      allow read, update: if isAdmin(); // Admin gère les devis
+
+      match /paiements/{pId} {
+        allow read, write: if isAdmin();
+      }
+    }
+
+    // ─── Prestations traiteur ────────────────────────────────
+    match /prestations/{prestId} {
+      allow read, write: if isAdmin();
+    }
   }
 }

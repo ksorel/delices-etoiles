@@ -658,6 +658,17 @@ function renderMenu(container) {
 
   const pdjHtml = renderPlatDuJour(State.platDuJour);
   container.innerHTML = `
+    <div style="display:flex;border-bottom:1px solid var(--border)">
+      <div style="flex:1;padding:10px;text-align:center;font-size:13px;font-weight:700;
+                  color:#F26522;border-bottom:2px solid #F26522;cursor:pointer">
+        🍽️ Restaurant
+      </div>
+      <div style="flex:1;padding:10px;text-align:center;font-size:13px;font-weight:600;
+                  color:var(--muted);cursor:pointer"
+           onclick="window.App.navigate('traiteur')">
+        👨‍🍳 Traiteur
+      </div>
+    </div>
     <div class="mode-banner">${bannerText}</div>
     ${pdjHtml}
     <div class="cat-tabs">${catTabsHtml}</div>
@@ -1484,6 +1495,202 @@ function toggleLang() {
 }
 
 // ─── Exposer l'API globale pour les onclick HTML ──────────
+
+// ─── Traiteur ─────────────────────────────────────────────
+function renderTraiteur(container) {
+  const eventTypes = [
+    { id:'mariage',     label:'💍 Mariage' },
+    { id:'bapteme',     label:'👶 Baptême' },
+    { id:'anniversaire',label:'🎂 Anniversaire' },
+    { id:'entreprise',  label:'🏢 Repas d'entreprise' },
+    { id:'seminaire',   label:'📊 Séminaire' },
+    { id:'autre',       label:'✨ Autre événement' },
+  ];
+
+  container.innerHTML = `
+    <div style="display:flex;border-bottom:1px solid var(--border)">
+      <div style="flex:1;padding:10px;text-align:center;font-size:13px;font-weight:600;
+                  color:var(--muted);cursor:pointer" onclick="window.App.navigate('menu')">
+        🍽️ Restaurant
+      </div>
+      <div style="flex:1;padding:10px;text-align:center;font-size:13px;font-weight:700;
+                  color:#F26522;border-bottom:2px solid #F26522;cursor:pointer">
+        👨‍🍳 Traiteur
+      </div>
+    </div>
+
+    <div style="padding:20px 16px;max-width:560px;margin:0 auto">
+      <div style="text-align:center;margin-bottom:24px">
+        <div style="font-size:32px;margin-bottom:8px">🎉</div>
+        <div style="font-size:20px;font-weight:800;color:var(--brown);margin-bottom:6px">
+          Service Traiteur
+        </div>
+        <div style="font-size:14px;color:var(--muted);line-height:1.6">
+          Mariages, baptêmes, séminaires, repas d'entreprise…<br>
+          Nous préparons votre événement sur mesure.
+        </div>
+      </div>
+
+      <!-- Type d'événement -->
+      <div style="margin-bottom:20px">
+        <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;
+                    letter-spacing:.05em;margin-bottom:10px">Type d'événement *</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px" id="event-type-grid">
+          ${eventTypes.map(e => `
+            <div data-type="${e.id}"
+                 onclick="window.App.selectEventType('${e.id}')"
+                 style="padding:12px;border:1.5px solid var(--border);border-radius:12px;
+                        text-align:center;font-size:13px;cursor:pointer;transition:all .15s;
+                        color:var(--brown)">
+              ${e.label}
+            </div>`).join('')}
+        </div>
+        <input type="hidden" id="tr-type" value="">
+      </div>
+
+      <!-- Infos événement -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+        <div>
+          <label style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;
+                        letter-spacing:.05em;display:block;margin-bottom:5px">Date *</label>
+          <input type="date" id="tr-date" class="form-input"
+                 style="width:100%;padding:10px 12px;border:1.5px solid var(--border);
+                        border-radius:10px;font-size:14px;outline:none"
+                 min="${new Date().toISOString().split('T')[0]}">
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;
+                        letter-spacing:.05em;display:block;margin-bottom:5px">Nb personnes *</label>
+          <input type="number" id="tr-nb" class="form-input" placeholder="Ex: 150" min="10"
+                 style="width:100%;padding:10px 12px;border:1.5px solid var(--border);
+                        border-radius:10px;font-size:14px;outline:none">
+        </div>
+      </div>
+
+      <div style="margin-bottom:16px">
+        <label style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;
+                      letter-spacing:.05em;display:block;margin-bottom:5px">Lieu *</label>
+        <input type="text" id="tr-lieu" class="form-input" placeholder="Ville / lieu de l'événement"
+               style="width:100%;padding:10px 12px;border:1.5px solid var(--border);
+                      border-radius:10px;font-size:14px;outline:none">
+      </div>
+
+      <div style="margin-bottom:16px">
+        <label style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;
+                      letter-spacing:.05em;display:block;margin-bottom:5px">Vos besoins</label>
+        <textarea id="tr-besoins" rows="3" placeholder="Décrivez vos besoins : menu souhaité, service, décoration, allergies…"
+                  style="width:100%;padding:10px 12px;border:1.5px solid var(--border);
+                         border-radius:10px;font-size:14px;outline:none;resize:vertical;
+                         font-family:inherit"></textarea>
+      </div>
+
+      <!-- Contact -->
+      <div style="background:#FFF8F5;border-radius:12px;padding:16px;margin-bottom:16px">
+        <div style="font-size:13px;font-weight:700;color:var(--brown);margin-bottom:12px">
+          📞 Vos coordonnées
+        </div>
+        <div style="margin-bottom:10px">
+          <input type="text" id="tr-nom" class="form-input" placeholder="Nom complet *"
+                 style="width:100%;padding:10px 12px;border:1.5px solid var(--border);
+                        border-radius:10px;font-size:14px;outline:none">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <input type="tel" id="tr-tel" class="form-input" placeholder="Téléphone *"
+                 style="width:100%;padding:10px 12px;border:1.5px solid var(--border);
+                        border-radius:10px;font-size:14px;outline:none">
+          <input type="email" id="tr-email" class="form-input" placeholder="Email (optionnel)"
+                 style="width:100%;padding:10px 12px;border:1.5px solid var(--border);
+                        border-radius:10px;font-size:14px;outline:none">
+        </div>
+      </div>
+
+      <div id="tr-err" style="color:#EF4444;font-size:13px;margin-bottom:10px;display:none"></div>
+
+      <button onclick="window.App.submitDevis()"
+              style="width:100%;padding:14px;background:#F26522;color:#fff;border:none;
+                     border-radius:12px;font-size:15px;font-weight:800;cursor:pointer">
+        📨 Envoyer ma demande de devis
+      </button>
+
+      <div style="text-align:center;margin-top:12px;font-size:12px;color:var(--muted)">
+        Nous vous recontactons sous 24h pour préparer votre devis personnalisé.
+      </div>
+    </div>
+  `;
+}
+
+window.App.selectEventType = function(type) {
+  document.getElementById('tr-type').value = type;
+  document.querySelectorAll('#event-type-grid [data-type]').forEach(el => {
+    if (el.dataset.type === type) {
+      el.style.borderColor = '#F26522';
+      el.style.background  = '#FFF0E8';
+      el.style.color       = '#F26522';
+    } else {
+      el.style.borderColor = 'var(--border)';
+      el.style.background  = '';
+      el.style.color       = 'var(--brown)';
+    }
+  });
+};
+
+window.App.submitDevis = async function() {
+  const type    = document.getElementById('tr-type')?.value;
+  const date    = document.getElementById('tr-date')?.value;
+  const nb      = document.getElementById('tr-nb')?.value;
+  const lieu    = document.getElementById('tr-lieu')?.value.trim();
+  const besoins = document.getElementById('tr-besoins')?.value.trim();
+  const nom     = document.getElementById('tr-nom')?.value.trim();
+  const tel     = document.getElementById('tr-tel')?.value.trim();
+  const email   = document.getElementById('tr-email')?.value.trim();
+  const err     = document.getElementById('tr-err');
+  const btn     = document.querySelector('[onclick*="submitDevis"]');
+
+  if (!type)  { err.textContent = 'Choisissez un type d'événement'; err.style.display='block'; return; }
+  if (!date)  { err.textContent = 'Indiquez la date de l'événement'; err.style.display='block'; return; }
+  if (!nb)    { err.textContent = 'Indiquez le nombre de personnes'; err.style.display='block'; return; }
+  if (!lieu)  { err.textContent = 'Indiquez le lieu'; err.style.display='block'; return; }
+  if (!nom)   { err.textContent = 'Indiquez votre nom'; err.style.display='block'; return; }
+  if (!tel)   { err.textContent = 'Indiquez votre téléphone'; err.style.display='block'; return; }
+
+  err.style.display = 'none';
+  btn.disabled = true;
+  btn.textContent = 'Envoi en cours…';
+
+  try {
+    const { addDoc, collection, serverTimestamp } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+    await addDoc(collection(db, 'devis'), {
+      type, date, nbPersonnes: parseInt(nb), lieu, besoins,
+      client: { nom, tel, email },
+      statut: 'nouveau',
+      createdAt: serverTimestamp(),
+    });
+    // Confirmation
+    const view = document.getElementById('view');
+    if (view) view.innerHTML = `
+      <div style="padding:40px 20px;text-align:center;max-width:400px;margin:0 auto">
+        <div style="font-size:56px;margin-bottom:16px">🎉</div>
+        <div style="font-size:22px;font-weight:800;color:var(--brown);margin-bottom:10px">
+          Demande envoyée !
+        </div>
+        <div style="font-size:14px;color:var(--muted);line-height:1.7;margin-bottom:24px">
+          Merci ${nom} ! Nous avons bien reçu votre demande de devis pour votre événement du <strong>${new Date(date).toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'})}</strong>.<br><br>
+          Nous vous recontactons sous 24h au <strong>${tel}</strong>.
+        </div>
+        <button onclick="window.App.navigate('menu')"
+                style="padding:12px 32px;background:#F26522;color:#fff;border:none;
+                       border-radius:10px;font-size:15px;font-weight:700;cursor:pointer">
+          ← Retour au menu
+        </button>
+      </div>`;
+  } catch(e) {
+    err.textContent = 'Erreur : ' + e.message;
+    err.style.display = 'block';
+    btn.disabled = false;
+    btn.textContent = '📨 Envoyer ma demande de devis';
+  }
+};
+
 window.App = {
   async enableNotifications(orderId) {
     const btn = document.getElementById('notif-btn');

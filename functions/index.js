@@ -358,3 +358,101 @@ exports.setUserRole = region.https.onCall(async (data, context) => {
   await admin.auth().setCustomUserClaims(uid, { role });
   return { success: true };
 });
+
+// ─────────────────────────────────────────────────────────
+//  7. ASSISTANT IA — Proxy Anthropic (évite CORS)
+// ─────────────────────────────────────────────────────────
+exports.askAssistant = region.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Non authentifié');
+  }
+
+  const { messages, system } = data;
+  const apiKey = functions.config().anthropic?.key;
+
+  if (!apiKey) {
+    throw new functions.https.HttpsError('failed-precondition',
+      'Clé API Anthropic non configurée. Exécutez : firebase functions:config:set anthropic.key=sk-...');
+  }
+
+  try {
+    const https = require('https');
+    const body  = JSON.stringify({
+      model:      'claude-haiku-4-5-20251001',
+      max_tokens: 800,
+      system:     system || 'Tu es un assistant utile pour le restaurant Délices Étoiles.',
+      messages:   (messages || []).slice(-10),
+    });
+
+    const reply = await new Promise((resolve, reject) => {
+      const req = https.request({
+        hostname: 'api.anthropic.com',
+        path:     '/v1/messages',
+        method:   'POST',
+        headers:  {
+          'Content-Type':      'application/json',
+          'x-api-key':         apiKey,
+          'anthropic-version': '2023-06-01',
+          'Content-Length':    Buffer.byteLength(body),
+        },
+      }, (res) => {
+        let raw = '';
+        res.on('data', chunk => raw += chunk);
+        res.on('end', () => {
+          try {
+            const parsed = JSON.parse(raw);
+            resolve(parsed.content?.[0]?.text || "Je n'ai pas pu traiter votre demande.");
+          } catch(e) { reject(e); }
+        });
+      });
+      req.on('error', reject);
+      req.write(body);
+      req.end();
+    });
+
+    return { reply };
+  } catch(e) {
+    console.error('askAssistant error:', e);
+    throw new functions.https.HttpsError('internal', 'Erreur lors de la génération de la réponse.');
+  }
+});
+
+// ─────────────────────────────────────────────────────────
+//  8. TRIGGER : Nouvelle demande devis traiteur
+// ─────────────────────────────────────────────────────────
+exports.onNewDevis = region.firestore
+  .document('devis/{devisId}')
+  .onCreate(async (snap, context) => {
+    const devis = snap.data();
+    const config = functions.config();
+    if (!config.whatsapp?.token) return null;
+
+    const staffNumbers = (config.whatsapp.staff_numbers || '').split(',').filter(Boolean);
+    if (!staffNumbers.length) return null;
+
+    const eventLabels = {
+      mariage:'Mariage', bapteme:'Baptême', anniversaire:'Anniversaire',
+      entreprise:'Repas entreprise', seminaire:'Séminaire', autre:'Événement',
+    };
+    const label = eventLabels[devis.type] || devis.type;
+    const date  = new Date(devis.date).toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'});
+
+    const msg = '🎉 *Nouvelle demande traiteur !*\n'
+      + `Type : ${label}\n`
+      + `Date : ${date}\n`
+      + `Personnes : ${devis.nbPersonnes}\n`
+      + `Lieu : ${devis.lieu}\n`
+      + `Client : ${devis.client.nom} — ${devis.client.tel}\n`
+      + (devis.besoins ? `Besoins : ${devis.besoins}` : '');
+
+    for (const number of staffNumbers) {
+      try {
+        await axios.post(
+          'https://graph.facebook.com/v18.0/' + config.whatsapp.phone_id + '/messages',
+          { messaging_product:'whatsapp', to:number.trim(), type:'text', text:{body:msg} },
+          { headers:{ Authorization:'Bearer '+config.whatsapp.token,'Content-Type':'application/json' } }
+        );
+      } catch(e) { console.error('WhatsApp devis error:', e.message); }
+    }
+    return null;
+  });
