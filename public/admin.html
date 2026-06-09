@@ -632,7 +632,10 @@ async function renderPage(page) {
     case 'stats':      renderStats(c); break;
     case 'config':     await renderConfig(c); break;
     case 'cache':      renderCache(c); break;
-    case 'commandes':  renderCommandes(c); break;
+    case 'commandes':       renderCommandes(c);     break;
+  case 'devis-demandes':  renderDevisDemandes(c); break;
+  case 'devis-gestion':   renderDevisGestion(c);  break;
+  case 'prestations':     renderPrestations(c);   break;
   }
 }
 
@@ -1546,6 +1549,255 @@ function renderCommandes(c) {
 }
 
 // ── Admin actions (exposés globalement) ───────────────────
+// ════════════════════════════════════════════════════════════
+//  TRAITEUR — Demandes / Devis / Prestations
+// ════════════════════════════════════════════════════════════
+
+const EVENT_LABELS  = {
+  mariage:'Mariage', bapteme:'Baptême', anniversaire:'Anniversaire',
+  entreprise:'Repas entreprise', seminaire:'Séminaire', autre:'Autre événement',
+};
+
+const STATUT_CONFIG = {
+  nouveau:       { label:'Nouveau',       color:'#854F0B', bg:'#FEF3C7' },
+  en_cours:      { label:'En cours',      color:'#1D4ED8', bg:'#EFF6FF' },
+  devis_envoye:  { label:'Devis envoyé',  color:'#6D28D9', bg:'#F5F3FF' },
+  confirme:      { label:'Confirmé',      color:'#065F46', bg:'#ECFDF5' },
+  annule:        { label:'Annulé',        color:'#991B1B', bg:'#FEF2F2' },
+};
+
+function statutBadge(statut) {
+  const s = STATUT_CONFIG[statut] || { label: statut, color: '#7A6356', bg: '#F5F0EB' };
+  return '<span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;'
+    + 'font-weight:700;color:' + s.color + ';background:' + s.bg + '">' + s.label + '</span>';
+}
+
+// ─── 1. DEMANDES ─────────────────────────────────────────────
+async function renderDevisDemandes(c) {
+  c.innerHTML = '<div class="loading"><div class="spinner"></div><p>Chargement…</p></div>';
+  try {
+    const { collection, query, orderBy, onSnapshot, doc, updateDoc, serverTimestamp }
+      = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+
+    const q = query(collection(db, 'devis'), orderBy('createdAt', 'desc'));
+
+    onSnapshot(q, snap => {
+      const demandes = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+      const rows = demandes.map(d => {
+        const dateEv  = d.date ? new Date(d.date + 'T12:00:00').toLocaleDateString('fr-FR', { day:'numeric', month:'short', year:'numeric' }) : '—';
+        const dateRec = d.createdAt?.toDate ? d.createdAt.toDate().toLocaleDateString('fr-FR', { day:'numeric', month:'short' }) : '—';
+        const fichier = d.fichier?.url
+          ? '<a href="' + d.fichier.url + '" target="_blank" style="color:#F26522;font-size:12px;text-decoration:none">📎 ' + (d.fichier.nom || 'Document') + '</a>'
+          : '<span style="color:#CCC;font-size:12px">—</span>';
+
+        return '<tr>'
+          + '<td style="padding:10px 12px"><div style="font-weight:700;color:var(--brown)">' + (d.client?.nom || '—') + '</div>'
+          +   '<div style="font-size:12px;color:var(--muted)">' + (d.client?.tel || '') + '</div>'
+          +   '<div style="font-size:11px;color:var(--muted)">' + dateRec + '</div></td>'
+          + '<td style="padding:10px 12px;font-size:13px">' + (EVENT_LABELS[d.type] || d.type || '—') + '</td>'
+          + '<td style="padding:10px 12px;font-size:13px">' + dateEv + '</td>'
+          + '<td style="padding:10px 12px;font-size:13px">' + (d.nbPersonnes || '—') + ' pers.</td>'
+          + '<td style="padding:10px 12px;font-size:13px">' + (d.lieu || '—') + '</td>'
+          + '<td style="padding:10px 12px">' + fichier + '</td>'
+          + '<td style="padding:10px 12px">' + statutBadge(d.statut || 'nouveau') + '</td>'
+          + '<td style="padding:10px 12px">'
+          +   '<select onchange="window.Admin.updateDevisStatut(\x27' + d.id + '\x27,this.value)" '
+          +     'style="font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:6px;cursor:pointer">'
+          +     Object.entries(STATUT_CONFIG).map(([k,v]) =>
+                  '<option value="' + k + '"' + (d.statut === k ? ' selected' : '') + '>' + v.label + '</option>'
+                ).join('')
+          +   '</select>'
+          +   '<button onclick="window.Admin.openDevisBuilder(\x27' + d.id + '\x27)" '
+          +     'style="margin-left:6px;padding:5px 10px;background:#F26522;color:#fff;border:none;'
+          +     'border-radius:6px;font-size:12px;cursor:pointer">📄 Devis</button>'
+          + '</td>'
+          + '</tr>';
+      }).join('');
+
+      const empty = demandes.length === 0
+        ? '<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--muted)">Aucune demande reçue</td></tr>'
+        : '';
+
+      c.innerHTML = '<div class="card">'
+        + '<div class="card-title">📬 Demandes Traiteur'
+        +   '<span style="font-size:13px;font-weight:400;color:var(--muted);margin-left:8px">'
+        +     demandes.length + ' demande' + (demandes.length > 1 ? 's' : '') + '</span></div>'
+        + '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">'
+        + '<thead><tr style="border-bottom:2px solid var(--border);text-align:left">'
+        + '<th style="padding:10px 12px;font-weight:700;color:var(--muted)">Client</th>'
+        + '<th style="padding:10px 12px;font-weight:700;color:var(--muted)">Événement</th>'
+        + '<th style="padding:10px 12px;font-weight:700;color:var(--muted)">Date</th>'
+        + '<th style="padding:10px 12px;font-weight:700;color:var(--muted)">Personnes</th>'
+        + '<th style="padding:10px 12px;font-weight:700;color:var(--muted)">Lieu</th>'
+        + '<th style="padding:10px 12px;font-weight:700;color:var(--muted)">Document</th>'
+        + '<th style="padding:10px 12px;font-weight:700;color:var(--muted)">Statut</th>'
+        + '<th style="padding:10px 12px;font-weight:700;color:var(--muted)">Actions</th>'
+        + '</tr></thead>'
+        + '<tbody>' + (rows || empty) + '</tbody>'
+        + '</table></div></div>';
+    }, err => { if (err.code !== 'permission-denied') console.error(err); });
+  } catch(e) {
+    c.innerHTML = '<div class="error-box">Erreur : ' + e.message + '</div>';
+  }
+}
+
+// ─── 2. CRÉATEUR DE DEVIS ────────────────────────────────────
+async function renderDevisGestion(c) {
+  c.innerHTML = '<div class="loading"><div class="spinner"></div><p>Chargement…</p></div>';
+  try {
+    const { collection, query, orderBy, getDocs }
+      = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+
+    const snap = await getDocs(query(collection(db, 'devis'), orderBy('createdAt', 'desc')));
+    const demandes = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      .filter(d => !['annule','confirme'].includes(d.statut));
+
+    const options = demandes.map(d =>
+      '<option value="' + d.id + '">'
+      + (d.client?.nom || '?') + ' — '
+      + (EVENT_LABELS[d.type] || d.type) + ' — '
+      + (d.date || '?') + ' (' + (d.nbPersonnes || '?') + ' pers.)'
+      + '</option>'
+    ).join('');
+
+    c.innerHTML = '<div class="card" style="max-width:720px">'
+      + '<div class="card-title">📄 Créer un devis</div>'
+
+      + '<div class="form-group">'
+      +   '<label class="form-label">Demande concernée</label>'
+      +   '<select class="form-input" id="dv-demande-id" onchange="window.Admin.loadDemandeInfo(this.value)">'
+      +     '<option value="">— Sélectionner une demande —</option>'
+      +     options
+      +   '</select>'
+      + '</div>'
+
+      + '<div id="dv-demande-info" style="display:none;background:var(--bg);border-radius:10px;'
+      +   'padding:14px;margin-bottom:16px;font-size:13px;line-height:1.7"></div>'
+
+      + '<div class="form-label" style="margin-bottom:8px">Lignes du devis</div>'
+      + '<div id="dv-lines"></div>'
+      + '<button onclick="window.Admin.addDevisLine()" '
+      +   'style="margin-bottom:16px;padding:8px 14px;background:transparent;border:1.5px dashed var(--border);'
+      +   'border-radius:8px;cursor:pointer;font-size:13px;color:var(--muted)">+ Ajouter une ligne</button>'
+
+      + '<div style="display:flex;justify-content:flex-end;margin-bottom:16px">'
+      +   '<div style="min-width:280px">'
+      +     '<div style="display:flex;justify-content:space-between;padding:8px 0;'
+      +       'border-bottom:1px solid var(--border);font-size:13px">'
+      +       '<span style="color:var(--muted)">Sous-total</span>'
+      +       '<span id="dv-subtotal" style="font-weight:700">0 FCFA</span></div>'
+      +     '<div style="display:flex;justify-content:space-between;padding:8px 0;font-size:13px">'
+      +       '<span style="color:var(--muted)">Acompte 50%</span>'
+      +       '<span id="dv-acompte" style="font-weight:700;color:#F26522">0 FCFA</span></div>'
+      +   '</div>'
+      + '</div>'
+
+      + '<div class="form-group">'
+      +   '<label class="form-label">Note / conditions</label>'
+      +   '<textarea id="dv-note" class="form-input" rows="2" '
+      +     'placeholder="Conditions de paiement, inclusions, exclusions…"></textarea>'
+      + '</div>'
+
+      + '<div style="display:flex;gap:10px">'
+      +   '<button onclick="window.Admin.saveDevis()" class="btn btn-primary">'
+      +     '💾 Enregistrer le devis</button>'
+      +   '<button onclick="window.Admin.sendDevisWhatsApp()" '
+      +     'style="flex:1;padding:10px;background:#25D366;color:#fff;border:none;'
+      +     'border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">'
+      +     '📱 Envoyer par WhatsApp</button>'
+      + '</div>'
+      + '</div>';
+
+    // Init with first line
+    window.Admin.devisLines = [];
+    window.Admin.addDevisLine();
+  } catch(e) {
+    c.innerHTML = '<div class="error-box">Erreur : ' + e.message + '</div>';
+  }
+}
+
+// ─── 3. PRESTATIONS ──────────────────────────────────────────
+async function renderPrestations(c) {
+  c.innerHTML = '<div class="loading"><div class="spinner"></div><p>Chargement…</p></div>';
+  try {
+    const { collection, query, orderBy, onSnapshot }
+      = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+
+    const q = query(collection(db, 'devis'), orderBy('createdAt', 'desc'));
+
+    onSnapshot(q, snap => {
+      const confirmed = snap.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .filter(d => d.statut === 'confirme');
+
+      const cards = confirmed.map(d => {
+        const dateEv = d.date
+          ? new Date(d.date + 'T12:00:00').toLocaleDateString('fr-FR', { day:'numeric', month:'long', year:'numeric' })
+          : '—';
+        const total   = d.devis?.total   || 0;
+        const acompte = d.devis?.acompte || 0;
+        const solde   = total - acompte;
+
+        const steps = ['Devis envoyé','Acompte reçu','Préparation','Livraison','Soldé'];
+        const stepKey = ['devis_envoye','acompte_recu','preparation','livraison','solde'];
+        const current = d.prestationStep || 0;
+
+        const timeline = steps.map((s, i) =>
+          '<div style="text-align:center;flex:1">'
+          + '<div style="width:22px;height:22px;border-radius:50%;margin:0 auto 4px;display:flex;align-items:center;justify-content:center;'
+          +   (i < current ? 'background:#10B981' : i === current ? 'background:#F26522' : 'background:var(--bg);border:2px solid var(--border)') + '">'
+          + (i < current ? '<span style="font-size:11px;color:#fff">✓</span>' : '') + '</div>'
+          + '<div style="font-size:10px;color:var(--muted)">' + s + '</div></div>'
+          + (i < steps.length - 1 ? '<div style="flex:1;height:2px;background:' + (i < current ? '#10B981' : 'var(--border)') + ';align-self:center;margin-bottom:14px"></div>' : '')
+        ).join('');
+
+        return '<div class="card" style="margin-bottom:12px">'
+          + '<div style="display:flex;align-items:center;gap:16px;padding:14px 16px;flex-wrap:wrap">'
+          +   '<div style="text-align:center;min-width:44px">'
+          +     '<div style="font-size:22px;font-weight:800;color:#F26522;line-height:1">'
+          +       (d.date ? new Date(d.date + 'T12:00:00').getDate() : '—') + '</div>'
+          +     '<div style="font-size:11px;color:var(--muted);text-transform:uppercase">'
+          +       (d.date ? new Date(d.date + 'T12:00:00').toLocaleDateString('fr-FR', { month:'short' }) : '') + '</div>'
+          +   '</div>'
+          +   '<div style="width:3px;height:48px;background:#F26522;border-radius:2px;flex-shrink:0"></div>'
+          +   '<div style="flex:1;min-width:0">'
+          +     '<div style="font-size:15px;font-weight:800;color:var(--brown)">' + (d.client?.nom || '—') + '</div>'
+          +     '<div style="font-size:13px;color:var(--muted)">'
+          +       (EVENT_LABELS[d.type] || d.type) + ' · ' + (d.nbPersonnes || '?') + ' pers. · ' + (d.lieu || '—')
+          +     '</div>'
+          +   '</div>'
+          +   (total > 0 ? '<div style="text-align:right;flex-shrink:0">'
+          +     '<div style="font-size:12px;color:var(--muted)">Total</div>'
+          +     '<div style="font-size:16px;font-weight:800;color:#F26522">' + total.toLocaleString('fr-FR') + ' F</div>'
+          +     (solde > 0 ? '<div style="font-size:12px;color:#EF4444;font-weight:600">Solde : ' + solde.toLocaleString('fr-FR') + ' F</div>' : '')
+          +   '</div>' : '')
+          + '</div>'
+          + '<div style="padding:12px 16px;border-top:1px solid var(--border);display:flex;align-items:center;gap:0">'
+          +   timeline
+          + '</div>'
+          + '<div style="padding:8px 16px;border-top:1px solid var(--border);display:flex;gap:8px">'
+          +   '<button onclick="window.Admin.advancePrestation(\x27' + d.id + '\x27,' + current + ')" '
+          +     'style="flex:1;padding:8px;background:#F26522;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer"'
+          +     (current >= steps.length - 1 ? ' disabled style="flex:1;padding:8px;background:#CCC;color:#fff;border:none;border-radius:8px;font-size:13px;cursor:not-allowed"' : '') + '>'
+          +     (current >= steps.length - 1 ? '✅ Terminée' : '→ ' + (steps[current + 1] || 'Suivant')) + '</button>'
+          + '</div>'
+          + '</div>';
+      }).join('');
+
+      c.innerHTML = '<div class="card-title">🎉 Prestations confirmées'
+        + '<span style="font-size:13px;font-weight:400;color:var(--muted);margin-left:8px">'
+        + confirmed.length + ' prestation' + (confirmed.length > 1 ? 's' : '') + '</span></div>'
+        + (confirmed.length ? cards
+           : '<div class="card"><p style="text-align:center;padding:32px;color:var(--muted)">'
+           + 'Aucune prestation confirmée pour le moment.</p></div>');
+    });
+  } catch(e) {
+    c.innerHTML = '<div class="error-box">Erreur : ' + e.message + '</div>';
+  }
+}
+
+
 window.Admin = {
   async toggleItem(id, val) {
     await updateDoc(doc(db,'menus',id), {available:val});
@@ -2020,6 +2272,187 @@ window.Admin = {
   openAddZone()  { showZoneModal(); },
   openAddRule()  { showRuleModal(); },
 };
+window.Admin.updateDevisStatut = async function(devisId, newStatut) {
+  try {
+    const { doc, updateDoc, serverTimestamp }
+      = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+    await updateDoc(doc(db, 'devis', devisId), { statut: newStatut, updatedAt: serverTimestamp() });
+    toast('Statut mis à jour : ' + (STATUT_CONFIG[newStatut]?.label || newStatut));
+  } catch(e) { toast('Erreur : ' + e.message); }
+};
+
+window.Admin.openDevisBuilder = function(devisId) {
+  showPage('devis-gestion', document.querySelector('[onclick*="devis-gestion"]'));
+  setTimeout(() => {
+    const sel = document.getElementById('dv-demande-id');
+    if (sel) { sel.value = devisId; window.Admin.loadDemandeInfo(devisId); }
+  }, 500);
+};
+
+window.Admin.loadDemandeInfo = async function(devisId) {
+  if (!devisId) return;
+  try {
+    const { doc, getDoc }
+      = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+    const snap = await getDoc(doc(db, 'devis', devisId));
+    if (!snap.exists()) return;
+    const d = snap.data();
+    const info = document.getElementById('dv-demande-info');
+    if (!info) return;
+    const dateEv = d.date
+      ? new Date(d.date + 'T12:00:00').toLocaleDateString('fr-FR', { day:'numeric', month:'long', year:'numeric' })
+      : '—';
+    info.style.display = 'block';
+    info.innerHTML = '<strong>' + (d.client?.nom || '—') + '</strong>'
+      + ' · ' + (EVENT_LABELS[d.type] || d.type)
+      + ' · ' + dateEv
+      + ' · ' + (d.nbPersonnes || '?') + ' pers.'
+      + ' · ' + (d.lieu || '—')
+      + (d.besoins ? '<br><em style="color:var(--muted)">' + d.besoins + '</em>' : '')
+      + (d.client?.tel ? '<br>📞 ' + d.client.tel : '')
+      + (d.client?.email ? ' · ✉️ ' + d.client.email : '');
+    window.Admin._currentDevisId = devisId;
+    window.Admin._currentDevisData = d;
+  } catch(e) { console.error(e); }
+};
+
+window.Admin.devisLines = [];
+
+window.Admin.addDevisLine = function() {
+  const id = Date.now();
+  window.Admin.devisLines.push(id);
+  const container = document.getElementById('dv-lines');
+  if (!container) return;
+  const row = document.createElement('div');
+  row.id = 'dv-line-' + id;
+  row.style.cssText = 'display:grid;grid-template-columns:2fr 80px 120px auto;gap:8px;margin-bottom:8px;align-items:center';
+  const desc = document.createElement('input');
+  desc.className = 'form-input';
+  desc.placeholder = 'Description (ex: Menu mariage, Service...)';
+  desc.style.fontSize = '13px';
+  const qty = document.createElement('input');
+  qty.className = 'form-input';
+  qty.type = 'number';
+  qty.placeholder = 'Qté';
+  qty.value = '1';
+  qty.min = '1';
+  qty.style.cssText = 'font-size:13px;text-align:center';
+  qty.addEventListener('input', window.Admin.calcDevisTotal);
+  const prix = document.createElement('input');
+  prix.className = 'form-input';
+  prix.type = 'number';
+  prix.placeholder = 'Prix unit.';
+  prix.min = '0';
+  prix.style.cssText = 'font-size:13px;text-align:right';
+  prix.addEventListener('input', window.Admin.calcDevisTotal);
+  const del = document.createElement('button');
+  del.textContent = '🗑';
+  del.style.cssText = 'padding:8px;background:#FEE2E2;color:#EF4444;border:none;border-radius:6px;cursor:pointer';
+  del.addEventListener('click', function() { row.remove(); window.Admin.calcDevisTotal(); });
+  row.appendChild(desc); row.appendChild(qty); row.appendChild(prix); row.appendChild(del);
+  container.appendChild(row);
+};
+
+window.Admin.calcDevisTotal = function() {
+  let total = 0;
+  document.querySelectorAll('#dv-lines > div').forEach(row => {
+    const inputs = row.querySelectorAll('input');
+    const qty   = parseFloat(inputs[1]?.value) || 0;
+    const price = parseFloat(inputs[2]?.value) || 0;
+    total += qty * price;
+  });
+  const sub = document.getElementById('dv-subtotal');
+  const acc = document.getElementById('dv-acompte');
+  if (sub) sub.textContent = total.toLocaleString('fr-FR') + ' FCFA';
+  if (acc) acc.textContent = Math.round(total / 2).toLocaleString('fr-FR') + ' FCFA';
+  window.Admin._devisTotal = total;
+};
+
+window.Admin.saveDevis = async function() {
+  const devisId = window.Admin._currentDevisId;
+  if (!devisId) { toast('Sélectionnez une demande'); return; }
+
+  const lines = [];
+  document.querySelectorAll('#dv-lines > div').forEach(row => {
+    const inputs = row.querySelectorAll('input');
+    const desc  = inputs[0]?.value.trim();
+    const qty   = parseFloat(inputs[1]?.value) || 0;
+    const price = parseFloat(inputs[2]?.value) || 0;
+    if (desc && price > 0) lines.push({ desc, qty, prix: price, total: qty * price });
+  });
+
+  if (!lines.length) { toast('Ajoutez au moins une ligne'); return; }
+
+  const total   = lines.reduce((s, l) => s + l.total, 0);
+  const acompte = Math.round(total / 2);
+  const note    = document.getElementById('dv-note')?.value.trim();
+
+  try {
+    const { doc, updateDoc, serverTimestamp }
+      = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+    await updateDoc(doc(db, 'devis', devisId), {
+      devis: { lignes: lines, total, acompte, note: note || '' },
+      statut: 'devis_envoye',
+      updatedAt: serverTimestamp(),
+    });
+    toast('✅ Devis enregistré');
+  } catch(e) { toast('Erreur : ' + e.message); }
+};
+
+window.Admin.sendDevisWhatsApp = async function() {
+  const d = window.Admin._currentDevisData;
+  if (!d) { toast('Sélectionnez une demande'); return; }
+
+  const total   = window.Admin._devisTotal || 0;
+  const acompte = Math.round(total / 2);
+  const tel     = (d.client?.tel || '').replace(/[^0-9]/g, '');
+  if (!tel) { toast('Numéro de téléphone manquant'); return; }
+
+  const dateEv = d.date
+    ? new Date(d.date + 'T12:00:00').toLocaleDateString('fr-FR', { day:'numeric', month:'long', year:'numeric' })
+    : '—';
+
+  const lines = [];
+  document.querySelectorAll('#dv-lines > div').forEach(row => {
+    const inputs = row.querySelectorAll('input');
+    const desc  = inputs[0]?.value.trim();
+    const qty   = parseFloat(inputs[1]?.value) || 0;
+    const price = parseFloat(inputs[2]?.value) || 0;
+    if (desc && price > 0) lines.push(desc + ' x' + qty + ' = ' + (qty*price).toLocaleString('fr-FR') + ' F');
+  });
+
+  const noteVal = document.getElementById('dv-note')?.value.trim() || '';
+  const msg = "Bonjour " + (d.client?.nom || '') + ",\n\n"
+    + "Voici votre devis Délices Étoiles pour votre " + (EVENT_LABELS[d.type] || d.type) + " du " + dateEv + " :\n\n"
+    + lines.join("\n") + "\n\n"
+    + "TOTAL : *" + total.toLocaleString('fr-FR') + " FCFA*\n"
+    + "Acompte (50%) : *" + acompte.toLocaleString('fr-FR') + " FCFA*\n\n"
+    + (noteVal ? noteVal + "\n\n" : "")
+    + "Pour confirmer, versez l'acompte et répondez à ce message.\n\nMerci de votre confiance ! \uD83C\uDF1F";
+
+  const intlTel = tel.startsWith('225') ? tel : '225' + tel;
+  window.open('https://wa.me/' + intlTel + '?text=' + encodeURIComponent(msg), '_blank');
+
+  // Sauvegarder aussi
+  window.Admin.saveDevis();
+};
+
+window.Admin.advancePrestation = async function(devisId, currentStep) {
+  const maxStep = 4;
+  if (currentStep >= maxStep) return;
+  try {
+    const { doc, updateDoc, serverTimestamp }
+      = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+    await updateDoc(doc(db, 'devis', devisId), {
+      prestationStep: currentStep + 1,
+      updatedAt: serverTimestamp(),
+    });
+    const stepNames = ['Devis envoyé', 'Acompte reçu', 'Préparation', 'Livraison', 'Soldé'];
+    toast('✅ Étape : ' + stepNames[currentStep + 1]);
+  } catch(e) { toast('Erreur : ' + e.message); }
+};
+
+
 
 window.Admin.togglePayment = async function(mode, enabled) {
   try {
