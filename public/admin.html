@@ -1636,27 +1636,39 @@ async function renderDevisDemandes(c) {
             + '<td style="padding:10px 12px;font-size:13px">' + (d.lieu || '—') + '</td>'
             + '<td style="padding:10px 12px">' + fichier + '</td>'
             + '<td style="padding:10px 12px">' + statutBadge(d.statut || 'nouveau') + '</td>'
-            + '<td style="padding:10px 12px;white-space:nowrap">'
+            + '<td style="padding:8px 12px;min-width:140px">'
+            +   '<div style="display:flex;flex-direction:column;gap:5px">'
+
+            // Bouton Dévis (créer/modifier/voir)
+            +   (function(){
+                  const hd   = !!d.devis;
+                  const done = d.statut === 'confirme' || d.statut === 'annule';
+                  const lbl  = !hd ? '📄 Créer devis' : done ? '👁 Voir devis' : '✏️ Modifier devis';
+                  const bg   = !hd ? '#F26522' : done ? '#6B7280' : '#3B82F6';
+                  return '<button onclick="window.Admin.openDevisBuilder(\x27' + d.id + '\x27)" '
+                    + 'style="padding:6px 10px;background:' + bg + ';color:#fff;border:none;'
+                    + 'border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;text-align:left">'
+                    + lbl + '</button>';
+                })()
+
+            // Bouton Confirmer (si devis envoyé)
             +   (d.statut === 'devis_envoye'
                 ? '<button onclick="window.Admin.confirmerDevis(\x27' + d.id + '\x27)" '
-                  + 'style="margin-bottom:5px;padding:5px 10px;background:#10B981;color:#fff;border:none;'
-                  + 'border-radius:6px;font-size:12px;cursor:pointer;display:block;width:100%">✅ Confirmer</button>'
+                  + 'style="padding:6px 10px;background:#10B981;color:#fff;border:none;'
+                  + 'border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;text-align:left">'
+                  + '✅ Confirmer</button>'
                 : '')
+
+            // Sélecteur de statut
             +   '<select onchange="window.Admin.updateDevisStatut(\x27' + d.id + '\x27,this.value)" '
-            +     'style="font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:6px;cursor:pointer;margin-bottom:4px;width:100%">'
+            +     'style="font-size:12px;padding:5px 6px;border:1px solid var(--border);'
+            +     'border-radius:7px;cursor:pointer;background:#fff;color:var(--brown)">'
             +     Object.entries(STATUT_CONFIG).map(([k,v]) =>
                     '<option value="' + k + '"' + (d.statut === k ? ' selected' : '') + '>' + v.label + '</option>'
                   ).join('')
             +   '</select>'
-            +   (function(){
-                  const hd   = !!d.devis;
-                  const done = d.statut === 'confirme' || d.statut === 'annule';
-                  const lbl  = !hd ? '📄 Créer' : done ? '👁 Voir' : '✏️ Modifier';
-                  const bg   = !hd ? '#F26522' : done ? '#6B7280' : '#3B82F6';
-                  return '<button onclick="window.Admin.openDevisBuilder(\x27' + d.id + '\x27)" '
-                    + 'style="padding:5px 10px;background:' + bg + ';color:#fff;border:none;'
-                    + 'border-radius:6px;font-size:12px;cursor:pointer;width:100%">' + lbl + '</button>';
-                })()
+
+            +   '</div>'
             + '</td>'
             + '</tr>';
         }).join('');
@@ -1688,8 +1700,10 @@ async function renderDevisDemandes(c) {
         }
 
         document.getElementById('dd-table-body').innerHTML = rows || empty;
-        const paginEl = document.getElementById('dd-pagination');
-        if (paginEl) paginEl.innerHTML = paginationHtml;
+        const paginEl  = document.getElementById('dd-pagination');
+        const paginEl2 = document.getElementById('dd-pagination-bottom');
+        if (paginEl)  paginEl.innerHTML  = paginationHtml;
+        if (paginEl2) paginEl2.innerHTML = paginationHtml;
       }
 
       c.innerHTML = '<div class="card">'
