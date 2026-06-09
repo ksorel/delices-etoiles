@@ -1615,9 +1615,15 @@ async function renderDevisDemandes(c) {
                   '<option value="' + k + '"' + (d.statut === k ? ' selected' : '') + '>' + v.label + '</option>'
                 ).join('')
           +   '</select>'
-          +   '<button onclick="window.Admin.openDevisBuilder(\x27' + d.id + '\x27)" '
-          +     'style="margin-left:6px;padding:5px 10px;background:#F26522;color:#fff;border:none;'
-          +     'border-radius:6px;font-size:12px;cursor:pointer">📄 Devis</button>'
+          +   (function(){
+                const hd    = !!d.devis;
+                const done  = d.statut === 'confirme' || d.statut === 'annule';
+                const lbl   = !hd ? '📄 Créer' : done ? '👁 Voir' : '✏️ Modifier';
+                const bg    = !hd ? '#F26522' : done ? '#6B7280' : '#3B82F6';
+                return '<button onclick="window.Admin.openDevisBuilder(\x27' + d.id + '\x27)" '
+                  + 'style="margin-left:6px;padding:5px 10px;background:' + bg + ';color:#fff;border:none;'
+                  + 'border-radius:6px;font-size:12px;cursor:pointer">' + lbl + '</button>';
+              })()
           + '</td>'
           + '</tr>';
       }).join('');
@@ -1707,16 +1713,34 @@ async function renderDevisGestion(c) {
       + '</div>'
 
       + '<div style="display:flex;gap:10px">'
-      +   '<button onclick="window.Admin.saveDevis()" class="btn btn-primary">'
-      +     '💾 Enregistrer le devis</button>'
-      +   '<button onclick="window.Admin.sendDevisWhatsApp()" '
-      +     'style="flex:1;padding:10px;background:#25D366;color:#fff;border:none;'
-      +     'border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">'
-      +     '📱 Envoyer par WhatsApp</button>'
-      + '<button onclick="window.Admin.sendDevisEmail()" '
-      +   'style="width:100%;padding:12px;background:#3B82F6;color:#fff;border:none;'
-      +   'border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;margin-top:8px">'
-      +   '✉️ Envoyer par Email</button>'
+      +   '<div style="display:flex;flex-direction:column;gap:10px">'
+
+      + '<div style="background:#FFF8F5;border:1.5px solid #FDDCCC;border-radius:12px;padding:14px;'
+      +   'display:flex;align-items:center;justify-content:space-between;gap:12px">'
+      +   '<div>'
+      +     '<div style="font-size:13px;font-weight:700;color:#C94E10">💾 Brouillon</div>'
+      +     '<div style="font-size:11px;color:var(--muted);margin-top:2px">Sauvegarde sans envoi au client</div>'
+      +   '</div>'
+      +   '<button onclick="window.Admin.saveDevis()" '
+      +     'style="padding:10px 20px;background:#F26522;color:#fff;border:none;border-radius:8px;'
+      +     'font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0">Enregistrer</button>'
+      + '</div>'
+
+      + '<div style="background:#F0FDF4;border:1.5px solid #BBF7D0;border-radius:12px;padding:14px">'
+      +   '<div style="font-size:13px;font-weight:700;color:#065F46;margin-bottom:10px">📤 Envoyer au client</div>'
+      +   '<div style="font-size:11px;color:var(--muted);margin-bottom:12px">Passe automatiquement le statut en "Devis envoyé"</div>'
+      +   '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'
+      +     '<button onclick="window.Admin.sendDevisWhatsApp()" '
+      +       'style="padding:10px;background:#25D366;color:#fff;border:none;border-radius:8px;'
+      +       'font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">'
+      +       '📱 WhatsApp</button>'
+      +     '<button onclick="window.Admin.sendDevisEmail()" '
+      +       'style="padding:10px;background:#3B82F6;color:#fff;border:none;border-radius:8px;'
+      +       'font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">'
+      +       '✉️ Email</button>'
+      +   '</div>'
+      + '</div>'
+
       + '</div>'
       + '</div>';
 
