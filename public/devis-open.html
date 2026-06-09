@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Votre devis — Délices Étoiles</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #FFF8F5;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .card {
+      background: #fff;
+      border-radius: 20px;
+      padding: 32px 24px;
+      max-width: 400px;
+      width: 100%;
+      box-shadow: 0 4px 24px rgba(43,29,22,.12);
+      text-align: center;
+    }
+    .logo {
+      font-size: 48px;
+      margin-bottom: 16px;
+    }
+    h1 {
+      font-size: 22px;
+      font-weight: 800;
+      color: #2B1D16;
+      margin-bottom: 8px;
+    }
+    .sub {
+      font-size: 14px;
+      color: #7A6356;
+      margin-bottom: 28px;
+      line-height: 1.6;
+    }
+    .url-box {
+      background: #F5F0EB;
+      border-radius: 10px;
+      padding: 12px;
+      font-size: 11px;
+      color: #7A6356;
+      word-break: break-all;
+      margin-bottom: 16px;
+      border: 1px solid #E0D4C8;
+      text-align: left;
+    }
+    .btn {
+      display: block;
+      width: 100%;
+      padding: 14px;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 800;
+      cursor: pointer;
+      border: none;
+      margin-bottom: 10px;
+      text-decoration: none;
+      transition: opacity .15s;
+    }
+    .btn:active { opacity: .85; }
+    .btn-primary { background: #F26522; color: #fff; }
+    .btn-copy { background: #2B1D16; color: #fff; }
+    .btn-back { background: transparent; border: 1.5px solid #E0D4C8; color: #7A6356; font-size: 13px; }
+    .note {
+      font-size: 12px;
+      color: #7A6356;
+      margin-top: 16px;
+      line-height: 1.5;
+    }
+    .copied { display: none; color: #10B981; font-size: 13px; font-weight: 700; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">⭐</div>
+    <h1>Votre espace devis</h1>
+    <p class="sub">Délices Étoiles vous a préparé un devis.<br>Ouvrez-le dans votre navigateur pour le consulter et le confirmer.</p>
+
+    <div class="url-box" id="url-display">Chargement du lien…</div>
+
+    <a class="btn btn-primary" id="btn-open" href="#">🌐 Ouvrir dans le navigateur</a>
+    <button class="btn btn-copy" onclick="copyLink()">📋 Copier le lien</button>
+
+    <div class="copied" id="copied-msg">✅ Lien copié !</div>
+
+    <p class="note">
+      Collez le lien dans Chrome ou Safari si le bouton ne fonctionne pas.
+    </p>
+  </div>
+
+  <script>
+    const params  = new URLSearchParams(window.location.search);
+    const id      = params.get('id');
+    const token   = params.get('token');
+    const devisUrl = 'https://delices-etoiles.web.app/devis?id=' + id + '&token=' + token;
+
+    document.getElementById('url-display').textContent = devisUrl;
+    document.getElementById('btn-open').href = devisUrl;
+
+    // Try to auto-open in external browser after 500ms
+    window.addEventListener('load', function() {
+      setTimeout(function() {
+        // Intent URL for Android Chrome (bypasses WebView)
+        var ua = navigator.userAgent;
+        if (/Android/i.test(ua)) {
+          var intent = 'intent://' + devisUrl.replace('https://', '')
+            + '#Intent;scheme=https;package=com.android.chrome;end';
+          window.location.href = intent;
+        }
+      }, 600);
+    });
+
+    function copyLink() {
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(devisUrl).then(function() {
+          document.getElementById('copied-msg').style.display = 'block';
+          setTimeout(function() {
+            document.getElementById('copied-msg').style.display = 'none';
+          }, 2500);
+        });
+      } else {
+        prompt('Copiez ce lien :', devisUrl);
+      }
+    }
+  </script>
+</body>
+</html>
