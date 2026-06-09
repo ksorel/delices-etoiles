@@ -1568,10 +1568,10 @@ async function renderDevisClient(container) {
     let actionHtml = '';
     if (d.statut === 'devis_envoye' && d.devis) {
       actionHtml = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">'
-        + '<button onclick="window.App.confirmerDevisClient('' + devisId + '','' + token + '')" '
+        + '<button onclick="window.App.confirmerDevisClient(\x27' + devisId + '\x27,\x27' + token + '\x27)" '
         + 'style="padding:14px;background:#10B981;color:#fff;border:none;border-radius:12px;'
         + 'font-size:15px;font-weight:800;cursor:pointer">✅ Confirmer</button>'
-        + '<button onclick="window.App.annulerDevisClient('' + devisId + '','' + token + '')" '
+        + '<button onclick="window.App.annulerDevisClient(\x27' + devisId + '\x27,\x27' + token + '\x27)" '
         + 'style="padding:14px;background:#EF4444;color:#fff;border:none;border-radius:12px;'
         + 'font-size:15px;font-weight:800;cursor:pointer">❌ Annuler</button>'
         + '</div>';
@@ -1620,7 +1620,7 @@ async function renderDevisClient(container) {
       + actionHtml
 
       // Bouton PDF
-      + (d.devis ? '<button onclick="window.App.downloadDevisPDF('' + devisId + '')" '
+      + (d.devis ? '<button onclick="window.App.downloadDevisPDF(\x27' + devisId + '\x27)" '
         + 'style="width:100%;padding:12px;background:#7C3AED;color:#fff;border:none;'
         + 'border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:16px">'
         + '⬇️ Télécharger le devis PDF</button>' : '')
@@ -1635,7 +1635,7 @@ async function renderDevisClient(container) {
       + '<textarea id="devis-msg-input" rows="2" placeholder="Votre message…" '
       + 'style="flex:1;padding:10px;border:1.5px solid var(--border);border-radius:10px;'
       + 'font-size:13px;resize:none;font-family:inherit;outline:none"></textarea>'
-      + '<button onclick="window.App.sendDevisMessage('' + devisId + '','' + token + '')" '
+      + '<button onclick="window.App.sendDevisMessage(\x27' + devisId + '\x27,\x27' + token + '\x27)" '
       + 'style="padding:10px 14px;background:#F26522;color:#fff;border:none;border-radius:10px;'
       + 'font-size:20px;cursor:pointer;align-self:flex-end">➤</button>'
       + '</div>'
@@ -1748,7 +1748,7 @@ window.App.downloadDevisPDF = async function(devisId) {
   pdf.setFontSize(20); pdf.setFont('helvetica', 'bold');
   pdf.text('Délices Étoiles', 20, 16);
   pdf.setFontSize(10); pdf.setFont('helvetica', 'normal');
-  pdf.text('Resto & Traiteur — Grand-Bassam, Côte d'Ivoire', 20, 24);
+  pdf.text('Resto & Traiteur — Grand-Bassam, Côte d\'Ivoire', 20, 24);
   pdf.text('DEVIS', W - 20, 16, { align: 'right' });
 
   y = 50;
@@ -1823,7 +1823,7 @@ window.App.downloadDevisPDF = async function(devisId) {
   pdf.setFillColor(43, 29, 22);
   pdf.rect(0, 285, W, 12, 'F');
   pdf.setTextColor(255, 255, 255); pdf.setFontSize(9);
-  pdf.text('Délices Étoiles · Grand-Bassam, Côte d'Ivoire · delices-etoiles.web.app', W / 2, 292, { align: 'center' });
+  pdf.text('Délices Étoiles · Grand-Bassam, Côte d\'Ivoire · delices-etoiles.web.app', W / 2, 292, { align: 'center' });
 
   pdf.save('Devis_Delices_Etoiles.pdf');
 };
