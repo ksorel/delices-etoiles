@@ -268,6 +268,17 @@ async function init() {
     } catch { return null; }
   })();
   // 9. Rendu initial
+  // Détecter la route /devis?id=...&token=...
+  if (window.location.pathname.startsWith('/devis') || 
+      (window.location.search.includes('id=') && window.location.search.includes('token='))) {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('id') && params.get('token')) {
+      navigate('devis-client');
+      if (window._ai) window._ai.hide();
+      return;
+    }
+  }
+
   if (State.mode === 'salle' && State.tableId) {
     await initSalleSession();
   } else if (lastOrder && !State.tableId) {

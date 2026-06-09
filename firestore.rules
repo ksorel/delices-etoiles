@@ -115,8 +115,13 @@ service cloud.firestore {
 
     // ─── Devis traiteur ──────────────────────────────────────
     match /devis/{devisId} {
-      allow create: if isAuth();        // Client soumet une demande
-      allow read, update: if isAdmin(); // Admin gère les devis
+      allow create: if isAuth();
+      allow read:   if isAdmin()
+                    || (isAuth() && resource.data.token != null); // Client avec lien sécurisé
+      allow update: if isAdmin()
+                    || (isAuth()  // Client peut confirmer/annuler/envoyer un message
+                        && resource.data.token != null
+                        && request.resource.data.token == resource.data.token); // token inchangé
 
       match /paiements/{pId} {
         allow read, write: if isAdmin();
