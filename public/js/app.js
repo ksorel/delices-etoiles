@@ -1598,7 +1598,25 @@ async function renderDevisClient(container) {
         + '</div>';
     }
 
-    container.innerHTML = '<div style="max-width:560px;margin:0 auto;padding:20px 16px">'
+    // Detect WebView (WhatsApp, Facebook, etc.)
+    const isWebView = /FBAN|FBAV|Instagram|WhatsApp|wv|WebView/i.test(navigator.userAgent)
+      || (navigator.userAgent.includes('Android') && /Version\/\d/.test(navigator.userAgent) && !navigator.userAgent.includes('Chrome'));
+
+    const openInBrowserBanner = isWebView
+      ? '<div style="background:#FEF3C7;border-bottom:2px solid #F59E0B;padding:12px 16px;'
+        + 'display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">'
+        + '<div>'
+        +   '<div style="font-size:13px;font-weight:700;color:#854F0B">Ouvrir dans votre navigateur</div>'
+        +   '<div style="font-size:11px;color:#92400E;margin-top:2px">Pour une meilleure expérience</div>'
+        + '</div>'
+        + '<a href="' + window.location.href + '" target="_system" '
+        +   'onclick="window.open(\x27' + window.location.href + '\x27,\x27_blank\x27);return false;" '
+        +   'style="padding:8px 14px;background:#F59E0B;color:#fff;border-radius:8px;font-size:13px;'
+        +   'font-weight:700;text-decoration:none;white-space:nowrap">🌐 Ouvrir</a>'
+        + '</div>'
+      : '';
+
+    container.innerHTML = openInBrowserBanner + '<div style="max-width:560px;margin:0 auto;padding:20px 16px">'
 
       // Header
       + '<div style="margin-bottom:20px;padding-bottom:16px;border-bottom:2px solid var(--border)">'

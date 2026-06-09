@@ -2617,7 +2617,8 @@ window.Admin.sendDevisWhatsApp = async function() {
     + "\n   Acompte (50%) : *" + acompte.toLocaleString('fr-FR') + " FCFA*"
     + "\n\nConsultez votre devis et confirmez-le ici :"
     + "\n" + devisUrl
-    + "\n\nNous restons disponibles. Merci ! Délices Étoiles";
+    + "\n\nNous restons disponibles. Merci ! Délices Étoiles"
+    + "\n\n_Si le lien ne s'ouvre pas dans WhatsApp, copiez-le et collez-le dans Chrome ou Safari._";
 
   const intlTel = tel.startsWith('225') ? tel : '225' + tel;
   window.open('https://wa.me/' + intlTel + '?text=' + encodeURIComponent(msg), '_blank');
