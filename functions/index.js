@@ -502,3 +502,57 @@ exports.uploadDevisFile = region.https.onRequest(async (req, res) => {
     res.status(500).json({ error: { message: e.message } });
   }
 });
+
+// ─────────────────────────────────────────────────────────
+//  TRAITEUR — Notifications J-7 et J-1
+// ─────────────────────────────────────────────────────────
+exports.traiteurReminders = functions.pubsub
+  .schedule('every day 08:00')
+  .timeZone('Africa/Abidjan')
+  .onRun(async () => {
+    const now = new Date();
+    const j1  = new Date(now); j1.setDate(j1.getDate() + 1);
+    const j7  = new Date(now); j7.setDate(j7.getDate() + 7);
+
+    const fmt = d => d.toISOString().split('T')[0];
+    const targets = [fmt(j1), fmt(j7)];
+
+    const snap = await admin.firestore()
+      .collection('devis')
+      .where('statut', '==', 'confirme')
+      .get();
+
+    const batch = admin.firestore().batch();
+    let count = 0;
+
+    const EVENT_LABELS = {
+      mariage:'Mariage', bapteme:'Baptême', anniversaire:'Anniversaire',
+      entreprise:'Repas entreprise', seminaire:'Séminaire', autre:'Événement',
+    };
+
+    snap.docs.forEach(docSnap => {
+      const d = docSnap.data();
+      if (!targets.includes(d.date)) return;
+      const daysLeft = d.date === fmt(j1) ? 1 : 7;
+      const label    = daysLeft === 1 ? 'demain' : 'dans 7 jours';
+      const ref = admin.firestore().collection('notifications').doc();
+      batch.set(ref, {
+        type:        'traiteur_reminder',
+        devisId:     docSnap.id,
+        clientNom:   d.client && d.client.nom ? d.client.nom : '',
+        typeEv:      EVENT_LABELS[d.type] || d.type || '',
+        dateEv:      d.date,
+        daysLeft,
+        label,
+        nbPersonnes: d.nbPersonnes || 0,
+        lieu:        d.lieu || '',
+        read:        false,
+        createdAt:   admin.firestore.FieldValue.serverTimestamp(),
+      });
+      count++;
+    });
+
+    if (count > 0) await batch.commit();
+    console.log('traiteurReminders: ' + count + ' notification(s)');
+    return null;
+  });

@@ -286,6 +286,7 @@
 
 <!-- ── DASHBOARD ─────────────────────────────────────────── -->
 <div id="dash-app" style="display:none">
+  <div id="traiteur-alert-bar" style="display:none;background:linear-gradient(135deg,#C94E10,#F26522);color:#fff;font-family:-apple-system,sans-serif"></div>
 
   <header class="dash-header">
     <div class="dash-header-left">
@@ -423,6 +424,49 @@ onAuthStateChanged(auth, async user => {
     // Init assistant IA (après login seulement)
     if (!window._ai) initAssistant('dashboard');
     else window._ai.show();
+
+    // ── Alertes Traiteur J-1 / J-7 ───────────────────────
+    (async () => {
+      const { collection, query, where, orderBy, onSnapshot, doc, updateDoc }
+        = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+
+      const qAlert = query(
+        collection(db, 'notifications'),
+        where('type', '==', 'traiteur_reminder'),
+        where('read', '==', false)
+      );
+
+      if (window._traiteurAlertUnsub) window._traiteurAlertUnsub();
+      window._traiteurAlertUnsub = onSnapshot(qAlert, snap => {
+        const alerts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const bar = document.getElementById('traiteur-alert-bar');
+        if (!bar) return;
+        if (!alerts.length) { bar.style.display = 'none'; return; }
+        bar.style.display = 'block';
+        bar.innerHTML = alerts.map(a =>
+          '<div style="display:flex;align-items:center;justify-content:space-between;'
+          + 'padding:10px 16px;border-bottom:1px solid rgba(255,255,255,.15)">'
+          + '<div style="display:flex;align-items:center;gap:10px">'
+          + '<span style="font-size:20px">' + (a.daysLeft === 1 ? '🚨' : '⚠️') + '</span>'
+          + '<div>'
+          + '<div style="font-size:13px;font-weight:700">'
+          + a.typeEv + ' — ' + a.clientNom
+          + ' <span style="font-weight:400;opacity:.8">(' + a.nbPersonnes + ' pers.)</span></div>'
+          + '<div style="font-size:12px;opacity:.85">Prestation ' + a.label + ' · ' + a.lieu + '</div>'
+          + '</div></div>'
+          + '<button onclick="window._dismissAlert(\x27' + a.id + '\x27)" '
+          + 'style="background:rgba(255,255,255,.2);border:none;color:#fff;padding:5px 12px;'
+          + 'border-radius:6px;cursor:pointer;font-size:12px;font-weight:600">✓ Vu</button>'
+          + '</div>'
+        ).join('');
+      }, err => { if (err.code !== 'permission-denied') console.error(err); });
+
+      window._dismissAlert = async function(notifId) {
+        try {
+          await updateDoc(doc(db, 'notifications', notifId), { read: true });
+        } catch(e) { console.error(e); }
+      };
+    })();
 
     // Afficher le bouton "Commande" uniquement pour admin, serveur, bar
     // ── Matrice des permissions par rôle ──────────────────
@@ -1061,6 +1105,38 @@ window.updateStatus = async function(orderId, newStatus) {
 };
 
 
+</script>
+<script>
+let _soundEnabled = true;
+
+window.toggleSound = function() {
+  _soundEnabled = !_soundEnabled;
+  const btn = document.getElementById('sound-btn');
+  if (btn) btn.textContent = _soundEnabled ? '🔔' : '🔕';
+};
+
+window.openStaffOrder = function() {
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(43,29,22,.75);z-index:9000;'
+    + 'display:flex;align-items:center;justify-content:center;padding:20px';
+  const card = document.createElement('div');
+  card.style.cssText = 'background:#fff;border-radius:20px;padding:24px;max-width:360px;width:100%;text-align:center';
+  card.innerHTML = '<div style="font-size:32px;margin-bottom:10px">&#x1FA91;</div>'
+    + '<div style="font-size:17px;font-weight:800;color:#2B1D16;margin-bottom:8px">Passer une commande</div>'
+    + '<p style="font-size:13px;color:#7A6356;margin-bottom:20px;line-height:1.6">'
+    + "Ouvrez le portail client pour passer une commande au nom d'un client.</p>"
+    + '<div style="display:flex;gap:10px">'
+    + '<button onclick="this.closest('[style*=fixed]').remove()" '
+    + 'style="flex:1;padding:11px;border:1.5px solid #E0D4C8;border-radius:9px;background:#fff;'
+    + 'color:#7A6356;font-weight:600;cursor:pointer;font-size:13px">Fermer</button>'
+    + '<a href="/" target="_blank" '
+    + 'style="flex:1;padding:11px;background:#F26522;color:#fff;border-radius:9px;'
+    + 'font-weight:700;text-decoration:none;font-size:13px;display:block">Ouvrir le portail</a>'
+    + '</div>';
+  overlay.appendChild(card);
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+};
 </script>
 </body>
 </html>
