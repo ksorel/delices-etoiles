@@ -1421,30 +1421,44 @@ function renderTraiteur(container) {
                          font-family:inherit;margin-bottom:8px"></textarea>
 
         <!-- Upload document -->
-        <div id="tr-upload-zone"
-             onclick="document.getElementById('tr-file').click()"
-             ondragover="event.preventDefault();this.style.borderColor='#F26522'"
-             ondragleave="this.style.borderColor='var(--border)'"
-             ondrop="window.handleTraiteurDrop(event)"
-             style="border:2px dashed var(--border);border-radius:10px;padding:14px;
-                    text-align:center;cursor:pointer;transition:border-color .2s;
-                    background:#FAFAF9">
-          <div style="font-size:22px;margin-bottom:4px">📎</div>
-          <div style="font-size:13px;color:var(--muted)">${t('tr_upload_hint')}</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:2px">${t('tr_upload_types')}</div>
+        <div style="background:linear-gradient(135deg,#FFF8F0,#FFF0E8);border:1.5px solid #FDDCCC;
+                    border-radius:12px;padding:14px 16px;margin-bottom:4px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+            <span style="font-size:16px">💡</span>
+            <div style="font-size:13px;font-weight:700;color:#C94E10">${t('tr_upload_tip_title')}</div>
+            <span style="font-size:11px;color:#F26522;font-weight:600;margin-left:auto;
+                         background:#fff;padding:2px 8px;border-radius:10px;border:1px solid #FDDCCC">
+              ${t('tr_optional')}
+            </span>
+          </div>
+          <div style="font-size:12px;color:#7A6356;line-height:1.65;margin-bottom:12px">
+            ${t('tr_upload_tip_body')}
+          </div>
+          <div id="tr-upload-zone"
+               onclick="document.getElementById('tr-file').click()"
+               ondragover="event.preventDefault();this.style.background='#FFF0E8';this.style.borderColor='#F26522'"
+               ondragleave="this.style.background='#fff';this.style.borderColor='#E0D4C8'"
+               ondrop="window.handleTraiteurDrop(event)"
+               style="border:2px dashed #E0D4C8;border-radius:10px;padding:14px;
+                      text-align:center;cursor:pointer;transition:all .2s;background:#fff">
+            <div style="font-size:24px;margin-bottom:5px">📎</div>
+            <div style="font-size:13px;font-weight:600;color:var(--brown)">${t('tr_upload_cta')}</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:3px">${t('tr_upload_types')}</div>
+          </div>
+          <input type="file" id="tr-file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                 style="display:none" onchange="window.handleTraiteurFile(this.files[0])">
         </div>
-        <input type="file" id="tr-file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-               style="display:none" onchange="window.handleTraiteurFile(this.files[0])">
-        <div id="tr-file-info" style="display:none;margin-top:8px;padding:10px 12px;
-             background:#F0FDF4;border-radius:8px;align-items:center;gap:10px">
-          <span style="font-size:18px">📄</span>
+        <div id="tr-file-info" style="display:none;margin-top:8px;padding:12px 14px;
+             background:#F0FDF4;border-radius:10px;border:1px solid #BBF7D0;align-items:center;gap:10px">
+          <span style="font-size:22px">📄</span>
           <div style="flex:1;min-width:0">
-            <div id="tr-file-name" style="font-size:13px;font-weight:600;color:#166534;
+            <div id="tr-file-name" style="font-size:13px;font-weight:700;color:#166534;
                  overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>
-            <div id="tr-file-size" style="font-size:11px;color:#4D7C60"></div>
+            <div id="tr-file-size" style="font-size:11px;color:#4D7C60;margin-top:2px"></div>
           </div>
           <button onclick="window.removeTraiteurFile()"
-                  style="background:none;border:none;cursor:pointer;font-size:18px;color:#999">✕</button>
+                  style="background:none;border:none;cursor:pointer;font-size:20px;color:#9CA3AF;
+                         line-height:1">✕</button>
         </div>
       </div>
       <!-- Contact -->
