@@ -2602,6 +2602,12 @@ window.Admin.sendDevisWhatsApp = async function() {
   const tel = (d.client?.tel || '').replace(/[^0-9]/g, '');
   if (!tel) { toast('Numéro de téléphone manquant'); return; }
 
+  // Feedback visuel pendant le raccourcissement
+  const waBtn = document.querySelector('[onclick*="sendDevisWhatsApp"]');
+  const waBtnOrig = waBtn?.textContent;
+  if (waBtn) { waBtn.textContent = '⏳ Génération du lien…'; waBtn.disabled = true; }
+  const restoreWaBtn = () => { if (waBtn) { waBtn.textContent = waBtnOrig; waBtn.disabled = false; } };
+
   const total    = window.Admin._devisTotal || 0;
   const acompte  = Math.round(total / 2);
   const typeEv   = EVENT_LABELS[d.type] || d.type;
@@ -2621,7 +2627,20 @@ window.Admin.sendDevisWhatsApp = async function() {
     + "\n\n_Si le lien ne s'ouvre pas dans WhatsApp, copiez-le et collez-le dans Chrome ou Safari._";
 
   const intlTel = tel.startsWith('225') ? tel : '225' + tel;
-  window.open('https://wa.me/' + intlTel + '?text=' + encodeURIComponent(msg), '_blank');
+
+  // Raccourcir le lien via TinyURL pour WhatsApp
+  let shortUrl = devisUrl;
+  try {
+    const tinyResp = await fetch('https://tinyurl.com/api-create.php?url=' + encodeURIComponent(devisUrl));
+    if (tinyResp.ok) {
+      const tiny = await tinyResp.text();
+      if (tiny.startsWith('https://tinyurl.com/')) shortUrl = tiny.trim();
+    }
+  } catch(e) { console.warn('TinyURL indisponible, lien original utilisé'); }
+
+  const msgFinal = msg.replace(devisUrl, shortUrl);
+  restoreWaBtn();
+  window.open('https://wa.me/' + intlTel + '?text=' + encodeURIComponent(msgFinal), '_blank');
   window.Admin.saveDevis();
 };
 
