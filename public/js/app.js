@@ -1672,6 +1672,79 @@ async function renderDevisClient(container) {
 }
 
 // ─── Actions espace devis client ─────────────────────────
+window.App = {
+  async enableNotifications(orderId) {
+    const btn = document.getElementById('notif-btn');
+    if (btn) { btn.disabled = true; btn.textContent = '…'; }
+    try {
+      const token = await requestNotificationPermission(orderId);
+      const banner = document.getElementById('notif-banner');
+      if (token) {
+        State.notifEnabled = true;
+        if (banner) banner.innerHTML = '<span style="font-size:18px">✅</span> <span style="font-size:13px;color:var(--brown);font-weight:600">Notifications activées — vous serez notifié quand votre commande est prête.</span>';
+      } else {
+        if (banner) banner.innerHTML = '<span style="font-size:18px">❌</span> <span style="font-size:13px;color:var(--text-muted)">Notifications refusées ou non supportées sur cet appareil.</span>';
+      }
+    } catch(e) {
+      if (btn) { btn.disabled = false; btn.textContent = 'Activer'; }
+    }
+  },
+  async joinSession(sessionId) {
+    State.sessionId = sessionId;
+    navigate('menu');
+  },
+  async newSession() {
+    State.sessionId = await createSession(State.tableId, State.uid);
+    navigate('menu');
+  },
+  navigate: (view, data={}) => navigate(view, data),
+  // ── Carrousel PDJ ─────────────────────────────────────
+  _pdjIdx: 0,
+  _pdjTimer: null,
+  _pdjTotal: 0,
+  pdjInit(total) {
+    this._pdjIdx   = 0;
+    this._pdjTotal = total;
+    if (this._pdjTimer) clearInterval(this._pdjTimer);
+    if (total > 1) {
+      this._pdjTimer = setInterval(() => this.pdjNext(), 4000);
+    }
+    // Swipe tactile
+    const el = document.getElementById('pdj-carousel');
+    if (!el) return;
+    let sx = 0;
+    el.addEventListener('touchstart', e => { sx = e.touches[0].clientX; }, { passive: true });
+    el.addEventListener('touchend',   e => {
+      const dx = e.changedTouches[0].clientX - sx;
+      if (Math.abs(dx) > 40) { dx < 0 ? this.pdjNext() : this.pdjPrev(); }
+    }, { passive: true });
+  },
+  pdjGoTo(idx) {
+    const track = document.getElementById('pdj-track');
+    if (!track) return;
+    this._pdjIdx = ((idx % this._pdjTotal) + this._pdjTotal) % this._pdjTotal;
+    track.style.transform = `translateX(-${this._pdjIdx * 100}%)`;
+    document.querySelectorAll('.pdj-dot').forEach((d, i) =>
+      d.classList.toggle('active', i === this._pdjIdx)
+    );
+    if (this._pdjTimer) { clearInterval(this._pdjTimer); this._pdjTimer = setInterval(() => this.pdjNext(), 4000); }
+  },
+  pdjNext() { this.pdjGoTo(this._pdjIdx + 1); },
+  pdjPrev() { this.pdjGoTo(this._pdjIdx - 1); },
+  addPdjToCart(itemId) {
+    const item = State.menu.find(m => m.id === itemId);
+    if (!item) return;
+    addItem(item);
+    updateCartBadge();
+    showToast('✓ Ajouté au panier');
+  },
+  openItem, setOption, changeQty, toggleUpsell,
+  addToCart, closeModal, setCategory,
+  updateQty: doUpdateQty, removeItem: doRemoveItem, goCheckout,
+  confirmSalle, confirmLivraison, onZoneChange, selectPayment,
+  toggleLang,
+};
+
 window.App.confirmerDevisClient = async function(devisId, token) {
   if (!confirm('Confirmer votre devis ? Un acompte de 50% sera demandé.')) return;
   try {
@@ -1686,6 +1759,7 @@ window.App.confirmerDevisClient = async function(devisId, token) {
   } catch(e) { alert('Erreur : ' + e.message); }
 };
 
+
 window.App.annulerDevisClient = async function(devisId, token) {
   if (!confirm('Annuler votre devis ?')) return;
   try {
@@ -1699,6 +1773,7 @@ window.App.annulerDevisClient = async function(devisId, token) {
     renderView('devis-client');
   } catch(e) { alert('Erreur : ' + e.message); }
 };
+
 
 window.App.sendDevisMessage = async function(devisId, token) {
   const input = document.getElementById('devis-msg-input');
@@ -1716,6 +1791,7 @@ window.App.sendDevisMessage = async function(devisId, token) {
     if (input) input.value = '';
   } catch(e) { alert('Erreur : ' + e.message); }
 };
+
 
 window.App.downloadDevisPDF = async function(devisId) {
   const snap = await (await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'))
@@ -1828,78 +1904,7 @@ window.App.downloadDevisPDF = async function(devisId) {
   pdf.save('Devis_Delices_Etoiles.pdf');
 };
 
-window.App = {
-  async enableNotifications(orderId) {
-    const btn = document.getElementById('notif-btn');
-    if (btn) { btn.disabled = true; btn.textContent = '…'; }
-    try {
-      const token = await requestNotificationPermission(orderId);
-      const banner = document.getElementById('notif-banner');
-      if (token) {
-        State.notifEnabled = true;
-        if (banner) banner.innerHTML = '<span style="font-size:18px">✅</span> <span style="font-size:13px;color:var(--brown);font-weight:600">Notifications activées — vous serez notifié quand votre commande est prête.</span>';
-      } else {
-        if (banner) banner.innerHTML = '<span style="font-size:18px">❌</span> <span style="font-size:13px;color:var(--text-muted)">Notifications refusées ou non supportées sur cet appareil.</span>';
-      }
-    } catch(e) {
-      if (btn) { btn.disabled = false; btn.textContent = 'Activer'; }
-    }
-  },
-  async joinSession(sessionId) {
-    State.sessionId = sessionId;
-    navigate('menu');
-  },
-  async newSession() {
-    State.sessionId = await createSession(State.tableId, State.uid);
-    navigate('menu');
-  },
-  navigate: (view, data={}) => navigate(view, data),
-  // ── Carrousel PDJ ─────────────────────────────────────
-  _pdjIdx: 0,
-  _pdjTimer: null,
-  _pdjTotal: 0,
-  pdjInit(total) {
-    this._pdjIdx   = 0;
-    this._pdjTotal = total;
-    if (this._pdjTimer) clearInterval(this._pdjTimer);
-    if (total > 1) {
-      this._pdjTimer = setInterval(() => this.pdjNext(), 4000);
-    }
-    // Swipe tactile
-    const el = document.getElementById('pdj-carousel');
-    if (!el) return;
-    let sx = 0;
-    el.addEventListener('touchstart', e => { sx = e.touches[0].clientX; }, { passive: true });
-    el.addEventListener('touchend',   e => {
-      const dx = e.changedTouches[0].clientX - sx;
-      if (Math.abs(dx) > 40) { dx < 0 ? this.pdjNext() : this.pdjPrev(); }
-    }, { passive: true });
-  },
-  pdjGoTo(idx) {
-    const track = document.getElementById('pdj-track');
-    if (!track) return;
-    this._pdjIdx = ((idx % this._pdjTotal) + this._pdjTotal) % this._pdjTotal;
-    track.style.transform = `translateX(-${this._pdjIdx * 100}%)`;
-    document.querySelectorAll('.pdj-dot').forEach((d, i) =>
-      d.classList.toggle('active', i === this._pdjIdx)
-    );
-    if (this._pdjTimer) { clearInterval(this._pdjTimer); this._pdjTimer = setInterval(() => this.pdjNext(), 4000); }
-  },
-  pdjNext() { this.pdjGoTo(this._pdjIdx + 1); },
-  pdjPrev() { this.pdjGoTo(this._pdjIdx - 1); },
-  addPdjToCart(itemId) {
-    const item = State.menu.find(m => m.id === itemId);
-    if (!item) return;
-    addItem(item);
-    updateCartBadge();
-    showToast('✓ Ajouté au panier');
-  },
-  openItem, setOption, changeQty, toggleUpsell,
-  addToCart, closeModal, setCategory,
-  updateQty: doUpdateQty, removeItem: doRemoveItem, goCheckout,
-  confirmSalle, confirmLivraison, onZoneChange, selectPayment,
-  toggleLang,
-};
+
 
 
 window.formatDateInput = function(input, lang) {
