@@ -1713,6 +1713,10 @@ async function renderDevisGestion(c) {
       +     'style="flex:1;padding:10px;background:#25D366;color:#fff;border:none;'
       +     'border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">'
       +     '📱 Envoyer par WhatsApp</button>'
+      + '<button onclick="window.Admin.sendDevisEmail()" '
+      +   'style="width:100%;padding:12px;background:#3B82F6;color:#fff;border:none;'
+      +   'border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;margin-top:8px">'
+      +   '✉️ Envoyer par Email</button>'
       + '</div>'
       + '</div>';
 
@@ -2292,11 +2296,14 @@ window.Admin.openDevisBuilder = function(devisId) {
   showPage('devis-gestion', document.querySelector('[onclick*="devis-gestion"]'));
   setTimeout(() => {
     const sel = document.getElementById('dv-demande-id');
-    if (sel) { sel.value = devisId; window.Admin.loadDemandeInfo(devisId); }
-  }, 500);
+    if (sel) {
+      sel.value = devisId;
+      window.Admin.loadDemandeInfo(devisId, true); // true = charger les lignes existantes
+    }
+  }, 600);
 };
 
-window.Admin.loadDemandeInfo = async function(devisId) {
+window.Admin.loadDemandeInfo = async function(devisId, loadLines) {
   if (!devisId) return;
   try {
     const { doc, getDoc }
@@ -2309,8 +2316,17 @@ window.Admin.loadDemandeInfo = async function(devisId) {
     const dateEv = d.date
       ? new Date(d.date + 'T12:00:00').toLocaleDateString('fr-FR', { day:'numeric', month:'long', year:'numeric' })
       : '—';
+
+    // Badge statut
+    const sc = STATUT_CONFIG[d.statut] || {};
+    const badge = d.devis
+      ? '<span style="margin-left:8px;padding:2px 10px;border-radius:10px;font-size:11px;font-weight:700;'
+        + 'background:' + (sc.bg||'#F5F0EB') + ';color:' + (sc.color||'#7A6356') + '">'
+        + (sc.label || d.statut) + '</span>'
+      : '';
+
     info.style.display = 'block';
-    info.innerHTML = '<strong>' + (d.client?.nom || '—') + '</strong>'
+    info.innerHTML = '<strong>' + (d.client?.nom || '—') + '</strong>' + badge
       + ' · ' + (EVENT_LABELS[d.type] || d.type)
       + ' · ' + dateEv
       + ' · ' + (d.nbPersonnes || '?') + ' pers.'
@@ -2318,8 +2334,41 @@ window.Admin.loadDemandeInfo = async function(devisId) {
       + (d.besoins ? '<br><em style="color:var(--muted)">' + d.besoins + '</em>' : '')
       + (d.client?.tel ? '<br>📞 ' + d.client.tel : '')
       + (d.client?.email ? ' · ✉️ ' + d.client.email : '');
-    window.Admin._currentDevisId = devisId;
+
+    window.Admin._currentDevisId   = devisId;
     window.Admin._currentDevisData = d;
+
+    // Charger les lignes existantes si demandé
+    if (loadLines && d.devis?.lignes?.length) {
+      const container = document.getElementById('dv-lines');
+      if (container) {
+        container.innerHTML = '';
+        window.Admin.devisLines = [];
+      }
+      d.devis.lignes.forEach(line => {
+        window.Admin.addDevisLine();
+        const rows = document.querySelectorAll('#dv-lines > div');
+        const row  = rows[rows.length - 1];
+        if (row) {
+          const inputs = row.querySelectorAll('input');
+          if (inputs[0]) inputs[0].value = line.desc || '';
+          if (inputs[1]) inputs[1].value = line.qty  || 1;
+          if (inputs[2]) inputs[2].value = line.prix || 0;
+        }
+      });
+      window.Admin.calcDevisTotal();
+      // Charger la note
+      const noteEl = document.getElementById('dv-note');
+      if (noteEl && d.devis.note) noteEl.value = d.devis.note;
+
+      // Mode lecture seule si confirmé/annulé
+      if (d.statut === 'confirme' || d.statut === 'annule') {
+        document.querySelectorAll('#dv-lines input').forEach(i => i.disabled = true);
+        document.querySelectorAll('#dv-lines button').forEach(b => b.disabled = true);
+        if (noteEl) noteEl.disabled = true;
+        toast('👁 Consultation — devis ' + (d.statut === 'confirme' ? 'confirmé' : 'annulé'));
+      }
+    }
   } catch(e) { console.error(e); }
 };
 
@@ -2445,6 +2494,66 @@ window.Admin.sendDevisWhatsApp = async function() {
   // Sauvegarder aussi
   window.Admin.saveDevis();
 };
+
+window.Admin.sendDevisEmail = async function() {
+  const d = window.Admin._currentDevisData;
+  if (!d) { toast('Sélectionnez une demande'); return; }
+
+  const email = d.client?.email;
+  if (!email) { toast('Aucun email pour ce client'); return; }
+
+  const total   = window.Admin._devisTotal || 0;
+  const acompte = Math.round(total / 2);
+  const dateEv  = d.date
+    ? new Date(d.date + 'T12:00:00').toLocaleDateString('fr-FR', { day:'numeric', month:'long', year:'numeric' })
+    : '?';
+
+  const lines = [];
+  document.querySelectorAll('#dv-lines > div').forEach(row => {
+    const inputs = row.querySelectorAll('input');
+    const desc  = inputs[0]?.value.trim();
+    const qty   = parseFloat(inputs[1]?.value) || 0;
+    const price = parseFloat(inputs[2]?.value) || 0;
+    if (desc && price > 0) lines.push(desc + ' x' + qty + ' = ' + (qty*price).toLocaleString('fr-FR') + ' FCFA');
+  });
+
+  const note    = document.getElementById('dv-note')?.value.trim() || '';
+  const typeEv  = EVENT_LABELS[d.type] || d.type;
+  const nom     = d.client?.nom || '';
+  const nl      = '%0A';
+  const subject = encodeURIComponent('Devis Délices Étoiles — ' + typeEv + ' du ' + dateEv);
+
+  let bodyParts = ['Bonjour ' + nom + ',', '',
+    'Voici votre devis pour votre ' + typeEv + ' du ' + dateEv + ' :', '']
+    .concat(lines)
+    .concat(['',
+      'TOTAL : ' + total.toLocaleString('fr-FR') + ' FCFA',
+      'Acompte (50%) : ' + acompte.toLocaleString('fr-FR') + ' FCFA',
+      '']);
+  if (note) bodyParts = bodyParts.concat([note, '']);
+  bodyParts = bodyParts.concat(["Pour confirmer, versez l'acompte et contactez-nous.", '', 'Cordialement,', 'Délices Étoiles']);
+
+  const body = bodyParts.map(function(l) { return encodeURIComponent(l); }).join(nl);
+  window.open('mailto:' + email + '?subject=' + subject + '&body=' + body, '_blank');
+  window.Admin.saveDevis();
+};
+
+
+window.Admin.confirmerDevis = async function(devisId) {
+  if (!confirm('Confirmer la prestation ? Le devis sera accepté et passera dans Prestations.')) return;
+  try {
+    const { doc, updateDoc, serverTimestamp }
+      = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+    await updateDoc(doc(db, 'devis', devisId), {
+      statut:        'confirme',
+      prestationStep: 1, // Acompte reçu
+      confirmedAt:   serverTimestamp(),
+      updatedAt:     serverTimestamp(),
+    });
+    toast('✅ Prestation confirmée ! Visible dans Prestations.');
+  } catch(e) { toast('Erreur : ' + e.message); }
+};
+
 
 window.Admin.advancePrestation = async function(devisId, currentStep) {
   const maxStep = 4;
