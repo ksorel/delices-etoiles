@@ -612,7 +612,10 @@ window.showPage = (page, el) => {
     dashboard:'Tableau de bord', menu:'Gestion des articles',
     zones:'Zones de livraison', upselling:'Règles d\'upselling', platdujour:'Plat du jour', cache:'Gestion du cache',
     qrcodes:'QR Codes tables', floorplan:'Plan de salle', commandes:'Historique commandes',
-    users:'Utilisateurs', stats:'Statistiques', stocks:'Stocks', paiements:'Paiements', config:'Configuration'
+    users:'Utilisateurs', stats:'Statistiques', stocks:'Stocks', paiements:'Paiements', config:'Configuration',
+    'devis-demandes':'Traiteur : Demandes de devis',
+    'devis-gestion':'Traiteur : Création de devis',
+    prestations:'Traiteur : Prestations'
   };
   document.getElementById('page-title').textContent = titles[page]||page;
   renderPage(page);
@@ -1665,7 +1668,7 @@ async function renderDevisGestion(c) {
       + '</option>'
     ).join('');
 
-    c.innerHTML = '<div class="card" style="max-width:720px">'
+    c.innerHTML = '<div class="card">'
       + '<div class="card-title">📄 Créer un devis</div>'
 
       + '<div class="form-group">'
@@ -2367,8 +2370,10 @@ window.Admin.calcDevisTotal = function() {
   });
   const sub = document.getElementById('dv-subtotal');
   const acc = document.getElementById('dv-acompte');
+  const big = document.getElementById('dv-total-big');
   if (sub) sub.textContent = total.toLocaleString('fr-FR') + ' FCFA';
   if (acc) acc.textContent = Math.round(total / 2).toLocaleString('fr-FR') + ' FCFA';
+  if (big) big.textContent = total.toLocaleString('fr-FR') + ' FCFA';
   window.Admin._devisTotal = total;
 };
 
