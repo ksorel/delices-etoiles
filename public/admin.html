@@ -2597,87 +2597,66 @@ window.Admin.saveDevis = async function() {
 window.Admin.sendDevisWhatsApp = async function() {
   const d = window.Admin._currentDevisData;
   if (!d) { toast('Sélectionnez une demande'); return; }
+  if (!d.token) { toast("Enregistrez d'abord le devis"); return; }
 
-  const total   = window.Admin._devisTotal || 0;
-  const acompte = Math.round(total / 2);
-  const tel     = (d.client?.tel || '').replace(/[^0-9]/g, '');
+  const tel = (d.client?.tel || '').replace(/[^0-9]/g, '');
   if (!tel) { toast('Numéro de téléphone manquant'); return; }
 
-  const dateEv = d.date
+  const total    = window.Admin._devisTotal || 0;
+  const acompte  = Math.round(total / 2);
+  const typeEv   = EVENT_LABELS[d.type] || d.type;
+  const dateEv   = d.date
     ? new Date(d.date + 'T12:00:00').toLocaleDateString('fr-FR', { day:'numeric', month:'long', year:'numeric' })
-    : '—';
+    : '?';
+  const nom      = d.client?.nom || '';
+  const devisUrl = 'https://delices-etoiles.web.app/devis?id=' + window.Admin._currentDevisId + '&token=' + d.token;
 
-  const lines = [];
-  document.querySelectorAll('#dv-lines > div').forEach(row => {
-    const inputs = row.querySelectorAll('input');
-    const desc  = inputs[0]?.value.trim();
-    const qty   = parseFloat(inputs[1]?.value) || 0;
-    const price = parseFloat(inputs[2]?.value) || 0;
-    if (desc && price > 0) lines.push(desc + ' x' + qty + ' = ' + (qty*price).toLocaleString('fr-FR') + ' F');
-  });
-
-  const noteVal = document.getElementById('dv-note')?.value.trim() || '';
-  const msg = "Bonjour " + (d.client?.nom || '') + ",\n\n"
-    + "Voici votre devis Délices Étoiles pour votre " + (EVENT_LABELS[d.type] || d.type) + " du " + dateEv + " :\n\n"
-    + lines.join("\n") + "\n\n"
-    + "TOTAL : *" + total.toLocaleString('fr-FR') + " FCFA*\n"
-    + "Acompte (50%) : *" + acompte.toLocaleString('fr-FR') + " FCFA*\n\n"
-    + (noteVal ? noteVal + "\n\n" : "")
-    + "Pour confirmer, versez l'acompte et répondez à ce message.\n\nMerci de votre confiance ! \uD83C\uDF1F";
+  const msg = "Bonjour " + nom + ","
+    + "\n\nVotre devis *Délices Étoiles* pour votre " + typeEv + " du " + dateEv + " est prêt !"
+    + "\n\n Total : *" + total.toLocaleString('fr-FR') + " FCFA*"
+    + "\n   Acompte (50%) : *" + acompte.toLocaleString('fr-FR') + " FCFA*"
+    + "\n\nConsultez votre devis et confirmez-le ici :"
+    + "\n" + devisUrl
+    + "\n\nNous restons disponibles. Merci ! Délices Étoiles";
 
   const intlTel = tel.startsWith('225') ? tel : '225' + tel;
   window.open('https://wa.me/' + intlTel + '?text=' + encodeURIComponent(msg), '_blank');
-
-  // Sauvegarder aussi
   window.Admin.saveDevis();
 };
 
 window.Admin.sendDevisEmail = async function() {
   const d = window.Admin._currentDevisData;
   if (!d) { toast('Sélectionnez une demande'); return; }
+  if (!d.token) { toast("Enregistrez d'abord le devis"); return; }
 
   const email = d.client?.email;
   if (!email) { toast('Aucun email pour ce client'); return; }
 
-  const total   = window.Admin._devisTotal || 0;
-  const acompte = Math.round(total / 2);
-  const dateEv  = d.date
+  const total    = window.Admin._devisTotal || 0;
+  const acompte  = Math.round(total / 2);
+  const typeEv   = EVENT_LABELS[d.type] || d.type;
+  const dateEv   = d.date
     ? new Date(d.date + 'T12:00:00').toLocaleDateString('fr-FR', { day:'numeric', month:'long', year:'numeric' })
     : '?';
+  const nom      = d.client?.nom || '';
+  const devisUrl = 'https://delices-etoiles.web.app/devis?id=' + window.Admin._currentDevisId + '&token=' + d.token;
 
-  const lines = [];
-  document.querySelectorAll('#dv-lines > div').forEach(row => {
-    const inputs = row.querySelectorAll('input');
-    const desc  = inputs[0]?.value.trim();
-    const qty   = parseFloat(inputs[1]?.value) || 0;
-    const price = parseFloat(inputs[2]?.value) || 0;
-    if (desc && price > 0) lines.push(desc + ' x' + qty + ' = ' + (qty*price).toLocaleString('fr-FR') + ' FCFA');
-  });
-
-  const note    = document.getElementById('dv-note')?.value.trim() || '';
-  const typeEv  = EVENT_LABELS[d.type] || d.type;
-  const nom     = d.client?.nom || '';
-  const nl      = '%0A';
-  const devisUrl  = 'https://delices-etoiles.web.app/devis?id=' + window.Admin._currentDevisId + '&token=' + (d.token || '');
-  const subject = encodeURIComponent('Devis Délices Étoiles — ' + typeEv + ' du ' + dateEv);
-
-  let bodyParts = ['Bonjour ' + nom + ',', '',
-    'Voici votre devis pour votre ' + typeEv + ' du ' + dateEv + ' :', '']
-    .concat(lines)
-    .concat(['',
-      'TOTAL : ' + total.toLocaleString('fr-FR') + ' FCFA',
-      'Acompte (50%) : ' + acompte.toLocaleString('fr-FR') + ' FCFA',
-      '']);
-  if (note) bodyParts = bodyParts.concat([note, '']);
-  bodyParts = bodyParts.concat(["Pour confirmer, versez l'acompte et contactez-nous.", '', 'Cordialement,', 'Délices Étoiles']);
-
-  const body = bodyParts.map(function(l) { return encodeURIComponent(l); }).join(nl);
+  const subject = encodeURIComponent('Votre devis Délices Étoiles — ' + typeEv + ' du ' + dateEv);
+  const nl = '%0A';
+  const lines = [
+    'Bonjour ' + nom + ',', '',
+    'Votre devis Délices Étoiles pour votre ' + typeEv + ' du ' + dateEv + ' est prêt !', '',
+    'Total : ' + total.toLocaleString('fr-FR') + ' FCFA',
+    'Acompte (50%) : ' + acompte.toLocaleString('fr-FR') + ' FCFA', '',
+    'Consultez votre devis et confirmez-le en cliquant ici :',
+    devisUrl, '',
+    'Cordialement,', 'Délices Étoiles',
+  ];
+  const body = lines.map(l => encodeURIComponent(l)).join(nl);
   window.open('mailto:' + email + '?subject=' + subject + '&body=' + body, '_blank');
   window.Admin.saveDevis();
-  toast('✉️ Devis envoyé par Email !');
-  setTimeout(() => showPage('devis-demandes',
-    document.querySelector('[onclick*="devis-demandes"]')), 1500);
 };
+
 
 
 window.Admin.confirmerDevis = async function(devisId) {
