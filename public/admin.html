@@ -1675,7 +1675,13 @@ async function renderDevisGestion(c) {
     ).join('');
 
     c.innerHTML = '<div class="card">'
-      + '<div class="card-title">📄 Créer un devis</div>'
+      + '<div class="card-title" style="display:flex;align-items:center;justify-content:space-between">'
+      +   '<span>📄 Créer un devis</span>'
+      +   '<button onclick="showPage(\'devis-demandes\',document.querySelector(\'[onclick*=devis-demandes]\'))" '
+      +     'style="padding:8px 14px;background:transparent;border:1.5px solid var(--border);'
+      +     'border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;color:var(--muted);'
+      +     'display:flex;align-items:center;gap:6px">← Demandes</button>'
+      + '</div>'
 
       + '<div class="form-group">'
       +   '<label class="form-label">Demande concernée</label>'
@@ -2478,6 +2484,8 @@ window.Admin.saveDevis = async function() {
       updatedAt: serverTimestamp(),
     });
     toast('✅ Devis enregistré');
+    setTimeout(() => showPage('devis-demandes',
+      document.querySelector('[onclick*="devis-demandes"]')), 1500);
   } catch(e) { toast('Erreur : ' + e.message); }
 };
 
@@ -2560,6 +2568,9 @@ window.Admin.sendDevisEmail = async function() {
   const body = bodyParts.map(function(l) { return encodeURIComponent(l); }).join(nl);
   window.open('mailto:' + email + '?subject=' + subject + '&body=' + body, '_blank');
   window.Admin.saveDevis();
+  toast('✉️ Devis envoyé par Email !');
+  setTimeout(() => showPage('devis-demandes',
+    document.querySelector('[onclick*="devis-demandes"]')), 1500);
 };
 
 
