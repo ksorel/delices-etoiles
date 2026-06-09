@@ -2070,10 +2070,32 @@ window.App.submitDevis = async function() {
           Merci ${nom} ! Nous avons bien reçu votre demande de devis pour votre événement du <strong>${new Date(date + 'T12:00:00').toLocaleDateString(getLang() === 'en' ? 'en-GB' : 'fr-FR',{day:'numeric',month:'long',year:'numeric'})}</strong>.<br><br>
           ${t('tr_confirm_msg1')} <strong>${tel}</strong>.
         </div>
+        <!-- Lien espace devis -->
+        <div style="background:#FFF8F5;border:1.5px solid #FDDCCC;border-radius:12px;
+                    padding:16px;margin-bottom:20px;text-align:left">
+          <div style="font-size:13px;font-weight:700;color:#C94E10;margin-bottom:8px">
+            🔗 ${t('tr_devis_link_title') || 'Votre espace devis personnel'}
+          </div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5">
+            ${t('tr_devis_link_hint') || 'Conservez ce lien pour consulter votre devis, échanger avec nous et le confirmer.'}
+          </div>
+          <div id="devis-link-box"
+               style="background:#fff;border-radius:8px;padding:10px 12px;font-size:11px;
+                      color:#7A6356;word-break:break-all;margin-bottom:10px;
+                      border:1px solid var(--border)">
+            ⏳ Génération…
+          </div>
+          <button onclick="window.App.copyDevisLink()"
+                  style="width:100%;padding:10px;background:#2B1D16;color:#fff;border:none;
+                         border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">
+            📋 ${t('tr_copy_link') || 'Copier le lien'}
+          </button>
+        </div>
+
         <button onclick="window.App.navigate('menu')"
-                style="padding:12px 32px;background:#F26522;color:#fff;border:none;
+                style="width:100%;padding:12px;background:#F26522;color:#fff;border:none;
                        border-radius:10px;font-size:15px;font-weight:700;cursor:pointer">
-          ← Retour au menu
+          ← ${t('tr_back_menu') || 'Retour au menu'}
         </button>
       </div>`;
     // Afficher le lien de l'espace devis
