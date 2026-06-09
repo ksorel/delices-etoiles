@@ -1601,11 +1601,9 @@ async function renderDevisClient(container) {
     container.innerHTML = '<div style="max-width:560px;margin:0 auto;padding:20px 16px">'
 
       // Header
-      + '<div style="text-align:center;margin-bottom:24px">'
-      + '<div style="width:60px;height:60px;background:#2B1D16;border-radius:50%;margin:0 auto 12px;'
-      + 'display:flex;align-items:center;justify-content:center;font-size:28px">⭐</div>'
-      + '<div style="font-size:20px;font-weight:800;color:var(--brown)">Délices Étoiles</div>'
-      + '<div style="font-size:13px;color:var(--muted)">Votre espace devis</div>'
+      + '<div style="margin-bottom:20px;padding-bottom:16px;border-bottom:2px solid var(--border)">'
+      + '<div style="font-size:24px;font-weight:800;color:var(--brown)">Votre espace devis</div>'
+      + '<div style="font-size:13px;color:var(--muted);margin-top:4px">Délices Étoiles · Resto & Traiteur</div>'
       + '</div>'
 
       // Résumé demande
@@ -1637,18 +1635,27 @@ async function renderDevisClient(container) {
         + '⬇️ Télécharger le devis PDF</button>' : '')
 
       // Messagerie
-      + '<div style="background:#fff;border-radius:14px;padding:16px;'
+      + '<div style="background:#fff;border-radius:14px;overflow:hidden;'
       + 'box-shadow:0 2px 12px rgba(43,29,22,.08)">'
-      + '<div style="font-size:15px;font-weight:800;color:var(--brown);margin-bottom:14px">💬 Messages</div>'
+
+      // Messagerie header
+      + '<div style="background:linear-gradient(135deg,#2B1D16,#4A3020);padding:14px 16px">'
+      + '<div style="font-size:15px;font-weight:800;color:#fff;margin-bottom:3px">💬 Messagerie</div>'
+      + '<div style="font-size:12px;color:rgba(255,255,255,.65)">Échangez directement avec notre équipe — nous vous répondons sous 24h</div>'
+      + '</div>'
+
+      + '<div style="padding:16px">'
       + '<div id="devis-messages" style="min-height:80px;max-height:240px;overflow-y:auto;'
       + 'margin-bottom:12px;display:flex;flex-direction:column;gap:8px"></div>'
-      + '<div style="display:flex;gap:8px">'
-      + '<textarea id="devis-msg-input" rows="2" placeholder="Votre message…" '
-      + 'style="flex:1;padding:10px;border:1.5px solid var(--border);border-radius:10px;'
-      + 'font-size:13px;resize:none;font-family:inherit;outline:none"></textarea>'
+      + '<div style="display:flex;gap:8px;align-items:flex-end">'
+      + '<textarea id="devis-msg-input" rows="2" '
+      + 'placeholder="Posez vos questions, demandez des précisions sur votre devis…" '
+      + 'style="flex:1;padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;'
+      + 'font-size:13px;resize:none;font-family:inherit;outline:none;line-height:1.4"></textarea>'
       + '<button onclick="window.App.sendDevisMessage(\x27' + devisId + '\x27,\x27' + token + '\x27)" '
       + 'style="padding:10px 14px;background:#F26522;color:#fff;border:none;border-radius:10px;'
-      + 'font-size:20px;cursor:pointer;align-self:flex-end">➤</button>'
+      + 'font-size:18px;cursor:pointer;flex-shrink:0">➤</button>'
+      + '</div>'
       + '</div>'
       + '</div>'
 
