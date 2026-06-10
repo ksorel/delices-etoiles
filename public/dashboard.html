@@ -287,6 +287,13 @@
 <!-- ── DASHBOARD ─────────────────────────────────────────── -->
 <div id="dash-app" style="display:none">
   <div id="traiteur-alert-bar" style="display:none;background:linear-gradient(135deg,#C94E10,#F26522);color:#fff;font-family:-apple-system,sans-serif"></div>
+  <div id="traiteur-test-btn" style="display:none;padding:6px 12px;background:#FEF3C7;border-bottom:1px solid #F59E0B">
+    <button onclick="window._testTraiteurAlert()" 
+      style="font-size:12px;padding:4px 12px;background:#F59E0B;color:#fff;border:none;border-radius:6px;cursor:pointer">
+      🧪 Tester alerte traiteur
+    </button>
+    <span style="font-size:11px;color:#92400E;margin-left:8px">Visible en mode admin uniquement</span>
+  </div>
 
   <header class="dash-header">
     <div class="dash-header-left">
@@ -430,15 +437,17 @@ onAuthStateChanged(auth, async user => {
       const { collection, query, where, orderBy, onSnapshot, doc, updateDoc }
         = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
 
+      // Simple query - no compound index needed
       const qAlert = query(
         collection(db, 'notifications'),
-        where('type', '==', 'traiteur_reminder'),
-        where('read', '==', false)
+        where('type', '==', 'traiteur_reminder')
       );
 
       if (window._traiteurAlertUnsub) window._traiteurAlertUnsub();
       window._traiteurAlertUnsub = onSnapshot(qAlert, snap => {
-        const alerts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const alerts = snap.docs
+          .map(d => ({ id: d.id, ...d.data() }))
+          .filter(a => !a.read); // filtrer non-lus côté client
         const bar = document.getElementById('traiteur-alert-bar');
         if (!bar) return;
         if (!alerts.length) { bar.style.display = 'none'; return; }
@@ -465,6 +474,32 @@ onAuthStateChanged(auth, async user => {
         try {
           await updateDoc(doc(db, 'notifications', notifId), { read: true });
         } catch(e) { console.error(e); }
+      };
+
+      // Bouton test visible pour les admins
+      const testBtn = document.getElementById('traiteur-test-btn');
+      if (testBtn && currentUser) {
+        const tk = await currentUser.getIdTokenResult();
+        if (tk.claims.role === 'admin') testBtn.style.display = 'block';
+      }
+
+      window._testTraiteurAlert = async function() {
+        try {
+          const { addDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+          await addDoc(collection(db, 'notifications'), {
+            type: 'traiteur_reminder',
+            clientNom: 'Client Test',
+            typeEv: 'Mariage',
+            dateEv: new Date(Date.now() + 86400000).toISOString().split('T')[0],
+            daysLeft: 1,
+            label: 'demain',
+            nbPersonnes: 120,
+            lieu: 'Grand-Bassam',
+            read: false,
+            createdAt: new Date(),
+          });
+          alert('Notification test créée !');
+        } catch(e) { alert('Erreur : ' + e.message); }
       };
     })();
 

@@ -132,5 +132,11 @@ service cloud.firestore {
     match /prestations/{prestId} {
       allow read, write: if isAdmin();
     }
+
+    // ─── Notifications (alertes traiteur J-1/J-7) ────────────
+    match /notifications/{notifId} {
+      allow read, update: if isAuth(); // dashboard staff peut lire et marquer lu
+      allow write:        if isAdmin();
+    }
   }
 }
