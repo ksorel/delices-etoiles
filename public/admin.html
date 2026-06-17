@@ -2590,7 +2590,10 @@ window.Admin.addDevisLine = function() {
 
   // Sous-ligne qté + prix + suppression — toujours groupés ensemble
   const subRow = document.createElement('div');
-  subRow.style.cssText = 'display:flex;gap:8px;flex:1 1 100%;align-items:center';
+  // flex-wrap:wrap = filet de sécurité : si qty+prix+suppr ne rentrent pas
+  // sur une ligne (petits écrans), le bouton passe à la ligne au lieu
+  // d'être coupé par overflow-x:hidden sur .main
+  subRow.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;flex:1 1 100%;align-items:center';
 
   const qty = document.createElement('input');
   qty.className = 'form-input';
@@ -2598,7 +2601,7 @@ window.Admin.addDevisLine = function() {
   qty.placeholder = 'Qté';
   qty.value = '1';
   qty.min = '1';
-  qty.style.cssText = 'font-size:13px;text-align:center;flex:0 1 70px;min-width:55px;background:#fff';
+  qty.style.cssText = 'font-size:13px;text-align:center;flex:0 1 60px;min-width:48px;width:60px;background:#fff';
   qty.addEventListener('input', window.Admin.calcDevisTotal);
 
   const prix = document.createElement('input');
@@ -2606,13 +2609,15 @@ window.Admin.addDevisLine = function() {
   prix.type = 'number';
   prix.placeholder = 'Prix unit.';
   prix.min = '0';
-  prix.style.cssText = 'font-size:13px;text-align:right;flex:1 1 90px;min-width:80px;background:#fff';
+  prix.style.cssText = 'font-size:13px;text-align:right;flex:1 1 70px;min-width:70px;background:#fff';
   prix.addEventListener('input', window.Admin.calcDevisTotal);
 
   const del = document.createElement('button');
   del.textContent = '🗑';
-  del.style.cssText = 'padding:8px 12px;background:#FEE2E2;color:#EF4444;border:none;'
-    + 'border-radius:8px;cursor:pointer;flex:0 0 auto;font-size:15px';
+  del.title = 'Supprimer la ligne';
+  del.style.cssText = 'padding:8px 14px;background:#FEE2E2;color:#EF4444;border:none;'
+    + 'border-radius:8px;cursor:pointer;flex:0 0 auto;font-size:16px;min-width:42px;'
+    + 'display:flex;align-items:center;justify-content:center';
   del.addEventListener('click', function() { row.remove(); window.Admin.calcDevisTotal(); });
 
   subRow.appendChild(qty);
