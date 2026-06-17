@@ -2746,19 +2746,26 @@ window.Admin.sendDevisWhatsApp = async function() {
     }
   } catch(e) { console.warn('TinyURL indisponible, lien original utilisé'); }
 
-  const msgFinal = msg.replace(devisUrl, shortUrl);
-  const waUrl    = 'https://wa.me/' + intlTel + '?text=' + encodeURIComponent(msgFinal);
+  const msgFinal   = msg.replace(devisUrl, shortUrl);
+  const waUrl      = 'https://wa.me/' + intlTel + '?text=' + encodeURIComponent(msgFinal);
+  const desktopUrl = 'whatsapp://send/?phone=' + intlTel + '&text=' + encodeURIComponent(msgFinal);
 
   restoreWaBtn();
 
-  // Rediriger la fenêtre déjà ouverte vers le lien WhatsApp final
+  // 1) Tenter d'ouvrir directement l'application WhatsApp Desktop (protocole natif).
+  //    Ne nécessite aucune connexion réseau côté navigateur — l'OS prend le relais.
+  //    Si l'app n'est pas installée, le navigateur ignore silencieusement la tentative.
+  try { window.location.href = desktopUrl; } catch(e) {}
+
+  // 2) Garder en parallèle l'onglet web déjà ouvert comme solution de repli
+  //    (utile si WhatsApp Desktop n'est pas installé sur ce PC).
   if (waWindow && !waWindow.closed) {
     waWindow.location.href = waUrl;
   } else {
-    // Fallback si le navigateur a bloqué l'ouverture initiale
     window.open(waUrl, '_blank');
   }
 
+  toast('📱 Ouverture de WhatsApp (app de bureau si installée, sinon onglet web)');
   window.Admin.saveDevis();
 };
 
