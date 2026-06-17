@@ -1368,7 +1368,7 @@ function renderTraiteur(container) {
       </div>
     </div>
     <div style="padding:20px 16px;max-width:560px;margin:0 auto">
-      <div style="text-align:center;margin-bottom:24px">
+      <div style="text-align:center;margin-bottom:20px">
         <div style="font-size:32px;margin-bottom:8px">🎉</div>
         <div style="font-size:20px;font-weight:800;color:var(--brown);margin-bottom:6px">
           ${t('traiteur_title')}
@@ -1377,6 +1377,54 @@ function renderTraiteur(container) {
           ${t('traiteur_subtitle')}
         </div>
       </div>
+
+      <!-- Nos compétences -->
+      <div style="margin-bottom:24px">
+        <button onclick="window.App.toggleCompetences()" id="competences-toggle"
+                style="width:100%;display:flex;align-items:center;justify-content:space-between;
+                       padding:14px 16px;background:linear-gradient(135deg,#FFF8F5,#FFF0E8);
+                       border:1.5px solid #FDDCCC;border-radius:14px;cursor:pointer">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:20px">✨</span>
+            <span style="font-size:14px;font-weight:700;color:#C94E10">${t('comp_title')}</span>
+          </div>
+          <span id="competences-arrow" style="font-size:13px;color:#C94E10;transition:transform .2s">▼</span>
+        </button>
+
+        <div id="competences-panel" style="display:none;margin-top:10px">
+
+          ${[
+            { icon:'🍽️', title:t('comp_cuisine_title'),
+              items:[t('comp_cuisine_1'),t('comp_cuisine_2'),t('comp_cuisine_3'),t('comp_cuisine_4')] },
+            { icon:'🎪', title:t('comp_service_title'),
+              items:[t('comp_service_1'),t('comp_service_2'),t('comp_service_3'),t('comp_service_4')] },
+            { icon:'🛠️', title:t('comp_logistique_title'),
+              items:[t('comp_logistique_1'),t('comp_logistique_2'),t('comp_logistique_3'),t('comp_logistique_4')] },
+            { icon:'📊', title:t('comp_capacite_title'),
+              items:[t('comp_capacite_1'),t('comp_capacite_2'),t('comp_capacite_3'),t('comp_capacite_4')] },
+          ].map(cat => `
+            <div style="background:#fff;border:1.5px solid var(--border);border-radius:14px;
+                        padding:14px 16px;margin-bottom:10px">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+                <span style="font-size:17px">${cat.icon}</span>
+                <span style="font-size:13px;font-weight:800;color:var(--brown)">${cat.title}</span>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                ${cat.items.map(item => `
+                  <div style="display:flex;align-items:center;gap:6px;padding:7px 10px;
+                              background:var(--bg);border-radius:9px;font-size:12px;color:var(--brown)">
+                    <span style="color:#10B981;font-weight:800;flex-shrink:0">✓</span>
+                    <span>${item}</span>
+                  </div>`).join('')}
+              </div>
+            </div>`).join('')}
+
+          <div style="text-align:center;padding:10px 4px;font-size:12px;color:var(--muted);line-height:1.6">
+            ${t('comp_footer_note')}
+          </div>
+        </div>
+      </div>
+
       <!-- Type d'événement -->
       <div style="margin-bottom:20px">
         <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;
@@ -2146,6 +2194,15 @@ window.App.submitDevis = async function() {
     btn.disabled = false;
     btn.textContent = t('tr_send_btn');
   }
+};
+
+window.App.toggleCompetences = function() {
+  const panel = document.getElementById('competences-panel');
+  const arrow = document.getElementById('competences-arrow');
+  if (!panel) return;
+  const isOpen = panel.style.display !== 'none';
+  panel.style.display = isOpen ? 'none' : 'block';
+  if (arrow) arrow.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
 };
 
 window.App.copyDevisLink = function() {
