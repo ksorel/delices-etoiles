@@ -2576,33 +2576,51 @@ window.Admin.addDevisLine = function() {
   window.Admin.devisLines.push(id);
   const container = document.getElementById('dv-lines');
   if (!container) return;
+
+  // Conteneur principal — colonne sur mobile, ligne sur desktop
   const row = document.createElement('div');
   row.id = 'dv-line-' + id;
-  row.style.cssText = 'display:grid;grid-template-columns:2fr 80px 120px auto;gap:8px;margin-bottom:8px;align-items:center';
+  row.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;align-items:center;'
+    + 'background:var(--bg);padding:8px;border-radius:10px';
+
   const desc = document.createElement('input');
   desc.className = 'form-input';
   desc.placeholder = 'Description (ex: Menu mariage, Service...)';
-  desc.style.fontSize = '13px';
+  desc.style.cssText = 'font-size:13px;flex:1 1 100%;min-width:0;background:#fff';
+
+  // Sous-ligne qté + prix + suppression — toujours groupés ensemble
+  const subRow = document.createElement('div');
+  subRow.style.cssText = 'display:flex;gap:8px;flex:1 1 100%;align-items:center';
+
   const qty = document.createElement('input');
   qty.className = 'form-input';
   qty.type = 'number';
   qty.placeholder = 'Qté';
   qty.value = '1';
   qty.min = '1';
-  qty.style.cssText = 'font-size:13px;text-align:center';
+  qty.style.cssText = 'font-size:13px;text-align:center;flex:0 1 70px;min-width:55px;background:#fff';
   qty.addEventListener('input', window.Admin.calcDevisTotal);
+
   const prix = document.createElement('input');
   prix.className = 'form-input';
   prix.type = 'number';
   prix.placeholder = 'Prix unit.';
   prix.min = '0';
-  prix.style.cssText = 'font-size:13px;text-align:right';
+  prix.style.cssText = 'font-size:13px;text-align:right;flex:1 1 90px;min-width:80px;background:#fff';
   prix.addEventListener('input', window.Admin.calcDevisTotal);
+
   const del = document.createElement('button');
   del.textContent = '🗑';
-  del.style.cssText = 'padding:8px;background:#FEE2E2;color:#EF4444;border:none;border-radius:6px;cursor:pointer';
+  del.style.cssText = 'padding:8px 12px;background:#FEE2E2;color:#EF4444;border:none;'
+    + 'border-radius:8px;cursor:pointer;flex:0 0 auto;font-size:15px';
   del.addEventListener('click', function() { row.remove(); window.Admin.calcDevisTotal(); });
-  row.appendChild(desc); row.appendChild(qty); row.appendChild(prix); row.appendChild(del);
+
+  subRow.appendChild(qty);
+  subRow.appendChild(prix);
+  subRow.appendChild(del);
+
+  row.appendChild(desc);
+  row.appendChild(subRow);
   container.appendChild(row);
 };
 
@@ -2683,6 +2701,10 @@ window.Admin.sendDevisWhatsApp = async function() {
   const tel = (d.client?.tel || '').replace(/[^0-9]/g, '');
   if (!tel) { toast('Numéro de téléphone manquant'); return; }
 
+  // Ouvrir la fenêtre IMMÉDIATEMENT (synchrone) pour éviter le blocage popup
+  // des navigateurs desktop sur les appels asynchrones (TinyURL, etc.)
+  const waWindow = window.open('about:blank', '_blank');
+
   // Feedback visuel pendant le raccourcissement
   const waBtn = document.querySelector('[onclick*="sendDevisWhatsApp"]');
   const waBtnOrig = waBtn?.textContent;
@@ -2720,8 +2742,18 @@ window.Admin.sendDevisWhatsApp = async function() {
   } catch(e) { console.warn('TinyURL indisponible, lien original utilisé'); }
 
   const msgFinal = msg.replace(devisUrl, shortUrl);
+  const waUrl    = 'https://wa.me/' + intlTel + '?text=' + encodeURIComponent(msgFinal);
+
   restoreWaBtn();
-  window.open('https://wa.me/' + intlTel + '?text=' + encodeURIComponent(msgFinal), '_blank');
+
+  // Rediriger la fenêtre déjà ouverte vers le lien WhatsApp final
+  if (waWindow && !waWindow.closed) {
+    waWindow.location.href = waUrl;
+  } else {
+    // Fallback si le navigateur a bloqué l'ouverture initiale
+    window.open(waUrl, '_blank');
+  }
+
   window.Admin.saveDevis();
 };
 
