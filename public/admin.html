@@ -2480,7 +2480,7 @@ window.Admin.loadDemandeInfo = async function(devisId, loadLines) {
 
     // Prestations souhaitées sélectionnées par le client
     const ps = d.prestationsSouhaitees || {};
-    const allSelected = [].concat(ps.cuisine || [], ps.service || [], ps.logistique || []);
+    const allSelected = [].concat(ps.cuisine || [], ps.composition || [], ps.service || [], ps.logistique || []);
     const prestationsHtml = allSelected.length
       ? '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">'
         + '<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;'
@@ -2610,7 +2610,7 @@ window.Admin.prefillFromSelection = function() {
   const d = window.Admin._currentDevisData;
   if (!d) { toast('Sélectionnez une demande'); return; }
   const ps = d.prestationsSouhaitees || {};
-  const allSelected = [].concat(ps.cuisine || [], ps.service || [], ps.logistique || []);
+  const allSelected = [].concat(ps.cuisine || [], ps.composition || [], ps.service || [], ps.logistique || []);
   if (!allSelected.length) { toast('Aucune prestation sélectionnée par le client'); return; }
 
   allSelected.forEach(item => {

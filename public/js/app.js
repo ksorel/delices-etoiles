@@ -1400,7 +1400,9 @@ function renderTraiteur(container) {
 
           ${[
             { cat:'cuisine', icon:'🍽️', title:t('comp_cuisine_title'),
-              items:[t('comp_cuisine_1'),t('comp_cuisine_2'),t('comp_cuisine_3'),t('comp_cuisine_4')] },
+              items:[t('comp_cuisine_1'),t('comp_cuisine_2'),t('comp_cuisine_3')] },
+            { cat:'composition', icon:'🍴', title:t('comp_composition_title'),
+              items:[t('comp_composition_1'),t('comp_composition_2'),t('comp_composition_3'),t('comp_composition_4')] },
             { cat:'service', icon:'🎪', title:t('comp_service_title'),
               items:[t('comp_service_1'),t('comp_service_2'),t('comp_service_3'),t('comp_service_4')] },
             { cat:'logistique', icon:'🛠️', title:t('comp_logistique_title'),
@@ -2162,7 +2164,7 @@ window.App.submitDevis = async function() {
       type, date, nbPersonnes: parseInt(nb), lieu, besoins,
       fichier: fichierUrl ? { url: fichierUrl, nom: fichierNom } : null,
       client: { nom, tel, email },
-      prestationsSouhaitees: window._trSelections || { cuisine: [], service: [], logistique: [] },
+      prestationsSouhaitees: window._trSelections || { cuisine: [], composition: [], service: [], logistique: [] },
       statut: 'nouveau',
       token,
       messages: [],
@@ -2233,7 +2235,7 @@ window.App.toggleCompetences = function() {
 };
 
 // État des sélections de prestations souhaitées
-window._trSelections = window._trSelections || { cuisine: [], service: [], logistique: [] };
+window._trSelections = window._trSelections || { cuisine: [], composition: [], service: [], logistique: [] };
 
 window.App.toggleCompetenceItem = function(cat, item, el) {
   if (!window._trSelections[cat]) window._trSelections[cat] = [];
