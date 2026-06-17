@@ -1393,15 +1393,18 @@ function renderTraiteur(container) {
 
         <div id="competences-panel" style="display:none;margin-top:10px">
 
+          <div style="font-size:11px;color:var(--muted);text-align:center;margin-bottom:12px;
+                      padding:0 4px;line-height:1.5">
+            ${t('comp_select_hint')}
+          </div>
+
           ${[
-            { icon:'🍽️', title:t('comp_cuisine_title'),
+            { cat:'cuisine', icon:'🍽️', title:t('comp_cuisine_title'),
               items:[t('comp_cuisine_1'),t('comp_cuisine_2'),t('comp_cuisine_3'),t('comp_cuisine_4')] },
-            { icon:'🎪', title:t('comp_service_title'),
+            { cat:'service', icon:'🎪', title:t('comp_service_title'),
               items:[t('comp_service_1'),t('comp_service_2'),t('comp_service_3'),t('comp_service_4')] },
-            { icon:'🛠️', title:t('comp_logistique_title'),
+            { cat:'logistique', icon:'🛠️', title:t('comp_logistique_title'),
               items:[t('comp_logistique_1'),t('comp_logistique_2'),t('comp_logistique_3'),t('comp_logistique_4')] },
-            { icon:'📊', title:t('comp_capacite_title'),
-              items:[t('comp_capacite_1'),t('comp_capacite_2'),t('comp_capacite_3'),t('comp_capacite_4')] },
           ].map(cat => `
             <div style="background:#fff;border:1.5px solid var(--border);border-radius:14px;
                         padding:14px 16px;margin-bottom:10px">
@@ -1410,16 +1413,39 @@ function renderTraiteur(container) {
                 <span style="font-size:13px;font-weight:800;color:var(--brown)">${cat.title}</span>
               </div>
               <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-                ${cat.items.map(item => `
-                  <div style="display:flex;align-items:center;gap:6px;padding:7px 10px;
-                              background:var(--bg);border-radius:9px;font-size:12px;color:var(--brown)">
-                    <span style="color:#10B981;font-weight:800;flex-shrink:0">✓</span>
+                ${cat.items.map((item, i) => `
+                  <div data-cat="${cat.cat}" data-item="${item}"
+                       onclick="window.App.toggleCompetenceItem('${cat.cat}','${item.replace(/'/g,"\\'")}',this)"
+                       style="display:flex;align-items:center;gap:6px;padding:8px 10px;
+                              background:var(--bg);border:1.5px solid transparent;border-radius:9px;
+                              font-size:12px;color:var(--brown);cursor:pointer;transition:all .15s">
+                    <span class="comp-check" style="width:16px;height:16px;border-radius:50%;
+                          border:1.5px solid #C9BBA8;flex-shrink:0;display:flex;align-items:center;
+                          justify-content:center;font-size:10px;color:#fff;font-weight:800">
+                    </span>
                     <span>${item}</span>
                   </div>`).join('')}
               </div>
             </div>`).join('')}
 
-          <div style="text-align:center;padding:10px 4px;font-size:12px;color:var(--muted);line-height:1.6">
+          <!-- Capacités (informatif) -->
+          <div style="background:#fff;border:1.5px solid var(--border);border-radius:14px;
+                      padding:14px 16px;margin-bottom:10px">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+              <span style="font-size:17px">📊</span>
+              <span style="font-size:13px;font-weight:800;color:var(--brown)">${t('comp_capacite_title')}</span>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+              ${[t('comp_capacite_1'),t('comp_capacite_2'),t('comp_capacite_3'),t('comp_capacite_4')].map(item => `
+                <div style="display:flex;align-items:center;gap:6px;padding:7px 10px;
+                            background:var(--bg);border-radius:9px;font-size:12px;color:var(--brown)">
+                  <span style="color:#10B981;font-weight:800;flex-shrink:0">✓</span>
+                  <span>${item}</span>
+                </div>`).join('')}
+            </div>
+          </div>
+
+          <div style="text-align:center;padding:6px 4px;font-size:12px;color:var(--muted);line-height:1.6">
             ${t('comp_footer_note')}
           </div>
         </div>
@@ -2136,6 +2162,7 @@ window.App.submitDevis = async function() {
       type, date, nbPersonnes: parseInt(nb), lieu, besoins,
       fichier: fichierUrl ? { url: fichierUrl, nom: fichierNom } : null,
       client: { nom, tel, email },
+      prestationsSouhaitees: window._trSelections || { cuisine: [], service: [], logistique: [] },
       statut: 'nouveau',
       token,
       messages: [],
@@ -2203,6 +2230,28 @@ window.App.toggleCompetences = function() {
   const isOpen = panel.style.display !== 'none';
   panel.style.display = isOpen ? 'none' : 'block';
   if (arrow) arrow.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
+};
+
+// État des sélections de prestations souhaitées
+window._trSelections = window._trSelections || { cuisine: [], service: [], logistique: [] };
+
+window.App.toggleCompetenceItem = function(cat, item, el) {
+  if (!window._trSelections[cat]) window._trSelections[cat] = [];
+  const arr = window._trSelections[cat];
+  const idx = arr.indexOf(item);
+  const check = el.querySelector('.comp-check');
+
+  if (idx >= 0) {
+    arr.splice(idx, 1);
+    el.style.background = 'var(--bg)';
+    el.style.borderColor = 'transparent';
+    if (check) { check.style.background = 'transparent'; check.style.borderColor = '#C9BBA8'; check.textContent = ''; }
+  } else {
+    arr.push(item);
+    el.style.background = '#FFF0E8';
+    el.style.borderColor = '#F26522';
+    if (check) { check.style.background = '#F26522'; check.style.borderColor = '#F26522'; check.textContent = '✓'; }
+  }
 };
 
 window.App.copyDevisLink = function() {

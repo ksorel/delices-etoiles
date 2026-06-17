@@ -1813,9 +1813,15 @@ async function renderDevisGestion(c) {
 
       + '<div class="form-label" style="margin-bottom:8px">Lignes du devis</div>'
       + '<div id="dv-lines"></div>'
-      + '<button onclick="window.Admin.addDevisLine()" '
-      +   'style="margin-bottom:16px;padding:8px 14px;background:transparent;border:1.5px dashed var(--border);'
-      +   'border-radius:8px;cursor:pointer;font-size:13px;color:var(--muted)">+ Ajouter une ligne</button>'
+      + '<div style="display:flex;gap:8px;margin-bottom:16px">'
+      +   '<button onclick="window.Admin.addDevisLine()" '
+      +     'style="flex:1;padding:8px 14px;background:transparent;border:1.5px dashed var(--border);'
+      +     'border-radius:8px;cursor:pointer;font-size:13px;color:var(--muted)">+ Ajouter une ligne</button>'
+      +   '<button onclick="window.Admin.prefillFromSelection()" '
+      +     'style="flex:1;padding:8px 14px;background:#FFF0E8;border:1.5px solid #FDDCCC;'
+      +     'border-radius:8px;cursor:pointer;font-size:13px;color:#C94E10;font-weight:600">'
+      +     '✨ Pré-remplir depuis sélection</button>'
+      + '</div>'
 
       + '<div style="display:flex;justify-content:flex-end;margin-bottom:16px">'
       +   '<div style="min-width:280px">'
@@ -2472,6 +2478,21 @@ window.Admin.loadDemandeInfo = async function(devisId, loadLines) {
         + (sc.label || d.statut) + '</span>'
       : '';
 
+    // Prestations souhaitées sélectionnées par le client
+    const ps = d.prestationsSouhaitees || {};
+    const allSelected = [].concat(ps.cuisine || [], ps.service || [], ps.logistique || []);
+    const prestationsHtml = allSelected.length
+      ? '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">'
+        + '<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;'
+        + 'letter-spacing:.04em;margin-bottom:6px">✨ Prestations souhaitées par le client</div>'
+        + '<div style="display:flex;flex-wrap:wrap;gap:6px">'
+        + allSelected.map(item =>
+            '<span style="background:#FFF0E8;color:#C94E10;padding:4px 10px;border-radius:20px;'
+            + 'font-size:12px;font-weight:600;border:1px solid #FDDCCC">' + item + '</span>'
+          ).join('')
+        + '</div></div>'
+      : '';
+
     info.style.display = 'block';
     info.innerHTML = '<strong>' + (d.client?.nom || '—') + '</strong>' + badge
       + ' · ' + (EVENT_LABELS[d.type] || d.type)
@@ -2480,7 +2501,8 @@ window.Admin.loadDemandeInfo = async function(devisId, loadLines) {
       + ' · ' + (d.lieu || '—')
       + (d.besoins ? '<br><em style="color:var(--muted)">' + d.besoins + '</em>' : '')
       + (d.client?.tel ? '<br>📞 ' + d.client.tel : '')
-      + (d.client?.email ? ' · ✉️ ' + d.client.email : '');
+      + (d.client?.email ? ' · ✉️ ' + d.client.email : '')
+      + prestationsHtml;
 
     window.Admin._currentDevisId   = devisId;
     window.Admin._currentDevisData = d;
@@ -2582,6 +2604,25 @@ window.Admin.addDevisLine = function() {
   del.addEventListener('click', function() { row.remove(); window.Admin.calcDevisTotal(); });
   row.appendChild(desc); row.appendChild(qty); row.appendChild(prix); row.appendChild(del);
   container.appendChild(row);
+};
+
+window.Admin.prefillFromSelection = function() {
+  const d = window.Admin._currentDevisData;
+  if (!d) { toast('Sélectionnez une demande'); return; }
+  const ps = d.prestationsSouhaitees || {};
+  const allSelected = [].concat(ps.cuisine || [], ps.service || [], ps.logistique || []);
+  if (!allSelected.length) { toast('Aucune prestation sélectionnée par le client'); return; }
+
+  allSelected.forEach(item => {
+    window.Admin.addDevisLine();
+    const rows = document.querySelectorAll('#dv-lines > div');
+    const row  = rows[rows.length - 1];
+    if (row) {
+      const inputs = row.querySelectorAll('input');
+      if (inputs[0]) inputs[0].value = item;
+    }
+  });
+  toast('✅ ' + allSelected.length + ' ligne(s) pré-remplie(s) — complétez les prix');
 };
 
 window.Admin.calcDevisTotal = function() {
