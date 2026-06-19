@@ -1496,9 +1496,19 @@ function renderTraiteur(container) {
       <div style="margin-bottom:16px">
         <label style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;
                       letter-spacing:.05em;display:block;margin-bottom:5px">${t('tr_lieu')}</label>
-        <input type="text" id="tr-lieu" class="form-input" placeholder="${t('tr_lieu_ph')}"
-               style="width:100%;padding:10px 12px;border:1.5px solid var(--border);
-                      border-radius:10px;font-size:14px;outline:none">
+        <select id="tr-lieu-zone" class="form-input"
+                onchange="window.App.onZoneChange(this.value)"
+                style="width:100%;padding:10px 12px;border:1.5px solid var(--border);
+                       border-radius:10px;font-size:14px;outline:none;background:#fff">
+          <option value="">${t('tr_lieu_loading')}</option>
+        </select>
+        <div id="tr-zone-frais" style="display:none;margin-top:8px;padding:9px 12px;
+             background:#FFF8F5;border:1px solid #FDDCCC;border-radius:9px;font-size:12px;
+             color:#C94E10;font-weight:600"></div>
+        <input type="text" id="tr-lieu-precision" class="form-input"
+               placeholder="${t('tr_lieu_precision_ph')}"
+               style="width:100%;padding:9px 12px;border:1.5px solid var(--border);
+                      border-radius:10px;font-size:13px;outline:none;margin-top:8px">
       </div>
       <div style="margin-bottom:16px">
         <label style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;
@@ -1575,7 +1585,40 @@ function renderTraiteur(container) {
       </div>
     </div>
   `;
+
+  // Charger les zones de livraison existantes (réutilisées pour le traiteur)
+  window.App.loadTraiteurZones();
 }
+
+window.App.loadTraiteurZones = async function() {
+  try {
+    const { fetchZones } = await import('./db.js');
+    const zones = await fetchZones();
+    window._trZones = zones;
+    const sel = document.getElementById('tr-lieu-zone');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">' + t('tr_lieu_select') + '</option>'
+      + zones.map(z =>
+          '<option value="' + z.id + '">' + z.name
+          + (z.region ? ' (' + z.region + ')' : '') + '</option>'
+        ).join('');
+  } catch(e) {
+    console.error('Erreur chargement zones:', e);
+    const sel = document.getElementById('tr-lieu-zone');
+    if (sel) sel.innerHTML = '<option value="">' + t('tr_lieu_error') + '</option>';
+  }
+};
+
+window.App.onZoneChange = function(zoneId) {
+  const box = document.getElementById('tr-zone-frais');
+  if (!box) return;
+  if (!zoneId) { box.style.display = 'none'; return; }
+  const zone = (window._trZones || []).find(z => z.id === zoneId);
+  if (!zone) { box.style.display = 'none'; return; }
+  box.style.display = 'block';
+  box.textContent = '🚚 ' + t('tr_zone_frais_label') + ' : '
+    + (zone.frais || 0).toLocaleString('fr-FR') + ' FCFA';
+};
 
 // ─── Espace Devis Client ─────────────────────────────────
 async function renderDevisClient(container) {
@@ -2089,7 +2132,12 @@ window.App.submitDevis = async function() {
     }
   }
   const nb      = document.getElementById('tr-nb')?.value;
-  const lieu    = document.getElementById('tr-lieu')?.value.trim();
+  const zoneId  = document.getElementById('tr-lieu-zone')?.value;
+  const zoneObj = (window._trZones || []).find(z => z.id === zoneId);
+  const lieuPrecision = document.getElementById('tr-lieu-precision')?.value.trim();
+  const lieu    = zoneObj
+    ? zoneObj.name + (lieuPrecision ? ' — ' + lieuPrecision : '')
+    : (lieuPrecision || '');
   const besoins = document.getElementById('tr-besoins')?.value.trim();
   const nom     = document.getElementById('tr-nom')?.value.trim();
   const tel     = document.getElementById('tr-tel')?.value.trim();
@@ -2162,6 +2210,9 @@ window.App.submitDevis = async function() {
 
     const devisRef = await addDoc(collection(db, 'devis'), {
       type, date, nbPersonnes: parseInt(nb), lieu, besoins,
+      zoneId:   zoneObj ? zoneObj.id   : null,
+      zoneNom:  zoneObj ? zoneObj.name : null,
+      zoneFrais: zoneObj ? (zoneObj.frais || 0) : 0,
       fichier: fichierUrl ? { url: fichierUrl, nom: fichierNom } : null,
       client: { nom, tel, email },
       prestationsSouhaitees: window._trSelections || { cuisine: [], composition: [], service: [], logistique: [] },

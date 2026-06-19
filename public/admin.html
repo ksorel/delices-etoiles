@@ -1802,7 +1802,7 @@ async function renderDevisGestion(c) {
 
       + '<div class="form-group">'
       +   '<label class="form-label">Demande concernée</label>'
-      +   '<select class="form-input" id="dv-demande-id" onchange="window.Admin.loadDemandeInfo(this.value)">'
+      +   '<select class="form-input" id="dv-demande-id" onchange="window.Admin.loadDemandeInfo(this.value,true)">'
       +     '<option value="">— Sélectionner une demande —</option>'
       +     options
       +   '</select>'
@@ -2493,12 +2493,18 @@ window.Admin.loadDemandeInfo = async function(devisId, loadLines) {
         + '</div></div>'
       : '';
 
+    const zoneFraisHtml = d.zoneFrais
+      ? '<br>🚚 <strong style="color:#C94E10">Frais de déplacement zone : '
+        + d.zoneFrais.toLocaleString('fr-FR') + ' FCFA</strong>'
+      : '';
+
     info.style.display = 'block';
     info.innerHTML = '<strong>' + (d.client?.nom || '—') + '</strong>' + badge
       + ' · ' + (EVENT_LABELS[d.type] || d.type)
       + ' · ' + dateEv
       + ' · ' + (d.nbPersonnes || '?') + ' pers.'
       + ' · ' + (d.lieu || '—')
+      + zoneFraisHtml
       + (d.besoins ? '<br><em style="color:var(--muted)">' + d.besoins + '</em>' : '')
       + (d.client?.tel ? '<br>📞 ' + d.client.tel : '')
       + (d.client?.email ? ' · ✉️ ' + d.client.email : '')
@@ -2506,6 +2512,24 @@ window.Admin.loadDemandeInfo = async function(devisId, loadLines) {
 
     window.Admin._currentDevisId   = devisId;
     window.Admin._currentDevisData = d;
+
+    // Pré-remplir automatiquement les frais de déplacement pour un NOUVEAU devis
+    // (évite l'oubli de facturation lié à la zone du client)
+    if (loadLines && !d.devis?.lignes?.length && d.zoneFrais > 0) {
+      const container = document.getElementById('dv-lines');
+      if (container) { container.innerHTML = ''; window.Admin.devisLines = []; }
+      window.Admin.addDevisLine();
+      const rows = document.querySelectorAll('#dv-lines > div');
+      const row  = rows[rows.length - 1];
+      if (row) {
+        const inputs = row.querySelectorAll('input');
+        if (inputs[0]) inputs[0].value = 'Frais de déplacement — ' + (d.zoneNom || d.lieu || '');
+        if (inputs[1]) inputs[1].value = 1;
+        if (inputs[2]) inputs[2].value = d.zoneFrais;
+      }
+      window.Admin.calcDevisTotal();
+      toast('🚚 Frais de déplacement pré-remplis automatiquement');
+    }
 
     // Charger les lignes existantes si demandé
     if (loadLines && d.devis?.lignes?.length) {
