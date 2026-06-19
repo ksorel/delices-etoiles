@@ -1590,36 +1590,6 @@ function renderTraiteur(container) {
   window.App.loadTraiteurZones();
 }
 
-window.App.loadTraiteurZones = async function() {
-  try {
-    const { fetchZones } = await import('./db.js');
-    const zones = await fetchZones();
-    window._trZones = zones;
-    const sel = document.getElementById('tr-lieu-zone');
-    if (!sel) return;
-    sel.innerHTML = '<option value="">' + t('tr_lieu_select') + '</option>'
-      + zones.map(z =>
-          '<option value="' + z.id + '">' + z.name
-          + (z.region ? ' (' + z.region + ')' : '') + '</option>'
-        ).join('');
-  } catch(e) {
-    console.error('Erreur chargement zones:', e);
-    const sel = document.getElementById('tr-lieu-zone');
-    if (sel) sel.innerHTML = '<option value="">' + t('tr_lieu_error') + '</option>';
-  }
-};
-
-window.App.onZoneChange = function(zoneId) {
-  const box = document.getElementById('tr-zone-frais');
-  if (!box) return;
-  if (!zoneId) { box.style.display = 'none'; return; }
-  const zone = (window._trZones || []).find(z => z.id === zoneId);
-  if (!zone) { box.style.display = 'none'; return; }
-  box.style.display = 'block';
-  box.textContent = '🚚 ' + t('tr_zone_frais_label') + ' : '
-    + (zone.frais || 0).toLocaleString('fr-FR') + ' FCFA';
-};
-
 // ─── Espace Devis Client ─────────────────────────────────
 async function renderDevisClient(container) {
   const params  = new URLSearchParams(window.location.search);
@@ -1899,6 +1869,39 @@ window.App = {
   confirmSalle, confirmLivraison, onZoneChange, selectPayment,
   toggleLang,
 };
+
+window.App.loadTraiteurZones = async function() {
+  try {
+    const { fetchZones } = await import('./db.js');
+    const zones = await fetchZones();
+    window._trZones = zones;
+    const sel = document.getElementById('tr-lieu-zone');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">' + t('tr_lieu_select') + '</option>'
+      + zones.map(z =>
+          '<option value="' + z.id + '">' + z.name
+          + (z.region ? ' (' + z.region + ')' : '') + '</option>'
+        ).join('');
+  } catch(e) {
+    console.error('Erreur chargement zones:', e);
+    const sel = document.getElementById('tr-lieu-zone');
+    if (sel) sel.innerHTML = '<option value="">' + t('tr_lieu_error') + '</option>';
+  }
+};
+
+
+window.App.onZoneChange = function(zoneId) {
+  const box = document.getElementById('tr-zone-frais');
+  if (!box) return;
+  if (!zoneId) { box.style.display = 'none'; return; }
+  const zone = (window._trZones || []).find(z => z.id === zoneId);
+  if (!zone) { box.style.display = 'none'; return; }
+  box.style.display = 'block';
+  box.textContent = '🚚 ' + t('tr_zone_frais_label') + ' : '
+    + (zone.frais || 0).toLocaleString('fr-FR') + ' FCFA';
+};
+
+
 
 window.App.confirmerDevisClient = async function(devisId, token) {
   if (!confirm('Confirmer votre devis ? Un acompte de 50% sera demandé.')) return;
