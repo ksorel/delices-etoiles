@@ -33,11 +33,106 @@
       ]
     },
     {
+      "collectionGroup": "commandes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "restoId",   "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "commandes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "restoId",   "order": "ASCENDING" },
+        { "fieldPath": "status",    "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "commandes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "restoId",   "order": "ASCENDING" },
+        { "fieldPath": "type",      "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "commandes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "sessionId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "sessions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "restoId",   "order": "ASCENDING" },
+        { "fieldPath": "status",    "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "sessions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "restoId",   "order": "ASCENDING" },
+        { "fieldPath": "tableId",   "order": "ASCENDING" },
+        { "fieldPath": "status",    "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "menus",
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "category",  "order": "ASCENDING" },
         { "fieldPath": "order",     "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "menus",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "restoId",   "order": "ASCENDING" },
+        { "fieldPath": "category",  "order": "ASCENDING" },
+        { "fieldPath": "order",     "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "zones-livraison",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "restoId",   "order": "ASCENDING" },
+        { "fieldPath": "active",    "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "plat-du-jour",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "active",    "order": "ASCENDING" },
+        { "fieldPath": "updatedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "plat-du-jour",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "restoId",   "order": "ASCENDING" },
+        { "fieldPath": "active",    "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "plat-du-jour",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "restoId",   "order": "ASCENDING" },
+        { "fieldPath": "active",    "order": "ASCENDING" },
+        { "fieldPath": "updatedAt", "order": "DESCENDING" }
       ]
     }
   ],
