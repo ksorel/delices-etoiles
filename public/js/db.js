@@ -1,19 +1,47 @@
 // ════════════════════════════════════════════════════════════
 //  db.js — Helpers Firestore
 //  Toutes les opérations en base passent par ce module
+//
+//  MULTI-ÉTABLISSEMENT (Bassam / Abobo / Ebimpé / …) :
+//  - Les collections RESTAURANT sont filtrées par restoId.
+//  - Le module garde un "restoId courant" (setRestoId), posé par
+//    le résolveur de lieu au démarrage (URL/QR), défaut 'bassam'.
+//  - Chaque helper resto accepte un override explicite en dernier
+//    argument (utile au propriétaire qui consolide plusieurs lieux).
+//  - Le TRAITEUR est CENTRAL : il ne passe pas par restoId. Ses zones
+//    sont séparées (fetchZonesTraiteur → /zones-traiteur, "Zone A").
 // ════════════════════════════════════════════════════════════
 
-import { db } from './config.js';
+import { db, INITIAL_RESTO_ID } from './config.js';
 import {
   collection, doc, getDoc, getDocs, addDoc, updateDoc, setDoc, deleteDoc,
   query, where, orderBy, onSnapshot,
   serverTimestamp, Timestamp,
 } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
+// ─── Établissement courant ───────────────────────────────
+// Valeur initiale résolue par config.js (depuis l'URL/QR, défaut 'bassam').
+// setRestoId() permet au propriétaire de basculer de lieu à chaud (admin).
+// Toutes les requêtes resto s'y réfèrent par défaut.
+let _currentRestoId = INITIAL_RESTO_ID;
+
+export function setRestoId(restoId) {
+  if (restoId) _currentRestoId = restoId;
+}
+export function getRestoId() {
+  return _currentRestoId;
+}
+// Résout le restoId effectif : override explicite sinon courant.
+function rid(override) {
+  return override || _currentRestoId;
+}
+
 // ─── Menu ────────────────────────────────────────────────
-export async function fetchMenu() {
+// ⚠️ Index composite requis : restoId ASC, category ASC, order ASC
+export async function fetchMenu(restoId) {
   const q = query(
     collection(db, 'menus'),
+    where('restoId', '==', rid(restoId)),
     orderBy('category'),
     orderBy('order')
   );
@@ -21,16 +49,34 @@ export async function fetchMenu() {
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
-// ─── Zones de livraison ──────────────────────────────────
-export async function fetchZones() {
-  const q = query(collection(db, 'zones-livraison'), where('active', '==', true));
+// ─── Zones de livraison (RESTAURANT, par lieu) ───────────
+// ⚠️ Index composite requis : restoId ASC, active ASC
+export async function fetchZones(restoId) {
+  const q = query(
+    collection(db, 'zones-livraison'),
+    where('restoId', '==', rid(restoId)),
+    where('active', '==', true)
+  );
   const snap = await getDocs(q);
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
-// ─── Règles upselling ────────────────────────────────────
-export async function fetchUpsellRules() {
-  const snap = await getDocs(collection(db, 'upselling-rules'));
+// ─── Zones TRAITEUR (central, "Zone A") ──────────────────
+// Jeu de zones propre au traiteur, indépendant des lieux resto.
+// Tarif de déplacement calculé depuis la base de production traiteur.
+export async function fetchZonesTraiteur() {
+  const q = query(collection(db, 'zones-traiteur'), where('active', '==', true));
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+// ─── Règles upselling (par lieu) ─────────────────────────
+export async function fetchUpsellRules(restoId) {
+  const q = query(
+    collection(db, 'upselling-rules'),
+    where('restoId', '==', rid(restoId))
+  );
+  const snap = await getDocs(q);
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
@@ -43,10 +89,11 @@ function genSessionId() {
 }
 
 // Créer une nouvelle session sur une table
-export async function createSession(tableId, clientUid) {
+export async function createSession(tableId, clientUid, restoId) {
   const sessionId = genSessionId();
   await setDoc(doc(db, 'sessions', sessionId), {
     sessionId,
+    restoId:   rid(restoId),
     tableId,
     clientUid,
     status:    'ouverte',     // ouverte | payee | cloturee
@@ -57,9 +104,12 @@ export async function createSession(tableId, clientUid) {
 }
 
 // Récupérer les sessions ouvertes sur une table
-export async function getOpenSessions(tableId) {
+// ⚠️ La table 5 existe dans plusieurs lieux → restoId indispensable ici.
+// ⚠️ Index composite requis : restoId ASC, tableId ASC, status ASC, createdAt ASC
+export async function getOpenSessions(tableId, restoId) {
   const q = query(
     collection(db, 'sessions'),
+    where('restoId', '==', rid(restoId)),
     where('tableId', '==', tableId),
     where('status', '==', 'ouverte'),
     orderBy('createdAt', 'asc')
@@ -77,6 +127,7 @@ export async function updateSessionStatus(sessionId, status) {
 }
 
 // Récupérer toutes les commandes d'une session
+// (sessionId est déjà unique → pas de filtre restoId nécessaire)
 export async function getSessionOrders(sessionId) {
   const q = query(
     collection(db, 'commandes'),
@@ -87,10 +138,12 @@ export async function getSessionOrders(sessionId) {
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
-// Écouter toutes les sessions ouvertes (dashboard)
-export function listenOpenSessions(callback) {
+// Écouter toutes les sessions ouvertes (dashboard d'un lieu)
+// ⚠️ Index composite requis : restoId ASC, status ASC, createdAt DESC
+export function listenOpenSessions(callback, restoId) {
   const q = query(
     collection(db, 'sessions'),
+    where('restoId', '==', rid(restoId)),
     where('status', '==', 'ouverte'),
     orderBy('createdAt', 'desc')
   );
@@ -100,22 +153,30 @@ export function listenOpenSessions(callback) {
 }
 
 // ─── Table session ───────────────────────────────────────
-export async function getOrCreateTable(tableId) {
-  const ref = doc(db, 'tables', tableId);
+// ⚠️ Le doc est namespacé par lieu pour éviter la collision des numéros
+// de table entre établissements : id = `${restoId}-${tableId}`.
+// Les QR codes doivent encoder ce tableId namespacé (ou restoId + tableId).
+export async function getOrCreateTable(tableId, restoId) {
+  const r = rid(restoId);
+  const docId = r + '-' + tableId;
+  const ref = doc(db, 'tables', docId);
   const snap = await getDoc(ref);
   if (!snap.exists()) {
     await setDoc(ref, {
       number:    tableId,
+      restoId:   r,
       status:    'active',
       createdAt: serverTimestamp(),
     });
   }
-  return { id: tableId, ...snap.data() };
+  return { id: docId, restoId: r, ...snap.data() };
 }
 
 // ─── Créer une commande ──────────────────────────────────
+// Le restoId est injecté si absent (filet de sécurité).
 export async function createOrder(orderData) {
   const ref = await addDoc(collection(db, 'commandes'), {
+    restoId:   orderData.restoId || _currentRestoId,
     ...orderData,
     status:    'pending',
     createdAt: serverTimestamp(),
@@ -123,13 +184,17 @@ export async function createOrder(orderData) {
   return ref.id;
 }
 
-// ─── Dashboard staff : écoute temps réel ────────────────
-export function listenOrders(callback, filters = {}) {
+// ─── Dashboard staff : écoute temps réel (par lieu) ──────
+// ⚠️ Index composites requis (restoId en 1re position) :
+//    restoId+createdAt, restoId+status+createdAt, restoId+type+createdAt
+export function listenOrders(callback, filters = {}, restoId) {
   let q = collection(db, 'commandes');
 
+  // restoId d'abord, puis les filtres optionnels, puis l'ordre.
   const conditions = [orderBy('createdAt', 'desc')];
   if (filters.status)  conditions.unshift(where('status', '==', filters.status));
   if (filters.type)    conditions.unshift(where('type',   '==', filters.type));
+  conditions.unshift(where('restoId', '==', rid(restoId)));
 
   q = query(q, ...conditions);
   return onSnapshot(q, snap => {
@@ -157,17 +222,22 @@ export async function updateZone(zoneId, data) {
 }
 
 
-// ─── Plat du jour ────────────────────────────────────────
-export async function fetchPlatDuJour() {
+// ─── Plat du jour (par lieu) ─────────────────────────────
+// Le carrousel "menu-du-jour" était un doc à ID FIXE → collision entre
+// lieux. On namespace l'ID par restoId.
+export async function fetchPlatDuJour(restoId) {
+  const r = rid(restoId);
   try {
-    // 1. Chercher le menu du jour carrousel (document fixe 'menu-du-jour')
-    const menuDoc = await getDoc(doc(db, 'plat-du-jour', 'menu-du-jour'));
+    // 1. Menu du jour carrousel (doc fixe par lieu)
+    const menuDoc = await getDoc(doc(db, 'plat-du-jour', 'menu-du-jour-' + r));
     if (menuDoc.exists() && menuDoc.data().slides && menuDoc.data().slides.length) {
       return { id: menuDoc.id, isCarousel: true, ...menuDoc.data() };
     }
-    // 2. Fallback : ancien format plat du jour unique
+    // 2. Fallback : ancien format plat du jour unique (scopé au lieu)
+    // ⚠️ Index composite requis : restoId ASC, active ASC, updatedAt DESC
     const q = query(
       collection(db, 'plat-du-jour'),
+      where('restoId', '==', r),
       where('active', '==', true),
       orderBy('updatedAt', 'desc')
     );
@@ -191,15 +261,25 @@ export async function fetchPlatDuJour() {
 }
 
 
-export async function setPlatDuJour(data) {
-  // Désactiver l'ancien plat du jour
-  const q = query(collection(db, 'plat-du-jour'), where('active', '==', true));
+// ⚠️ BUG CORRIGÉ : l'ancienne version désactivait TOUS les plats du jour
+// actifs (active==true) sans filtre de lieu. En multi-lieu, publier le plat
+// du jour de Bassam aurait désactivé celui d'Abobo et Ebimpé. On scope la
+// désactivation au lieu concerné.
+export async function setPlatDuJour(data, restoId) {
+  const r = rid(restoId);
+  // Désactiver l'ancien plat du jour DE CE LIEU UNIQUEMENT
+  const q = query(
+    collection(db, 'plat-du-jour'),
+    where('restoId', '==', r),
+    where('active', '==', true)
+  );
   const snap = await getDocs(q);
   const batch = (await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js')).writeBatch(db);
   snap.docs.forEach(d => batch.update(d.ref, { active: false }));
   await batch.commit();
   // Créer le nouveau
   await addDoc(collection(db, 'plat-du-jour'), {
+    restoId: r,
     ...data,
     active: true,
     updatedAt: serverTimestamp(),
@@ -208,6 +288,7 @@ export async function setPlatDuJour(data) {
 
 
 // ─── Suivi commande en temps réel ────────────────────────
+// (par orderId unique → pas de filtre restoId nécessaire)
 export function listenOrder(orderId, callback) {
   let unsub = null;
   let retryCount = 0;

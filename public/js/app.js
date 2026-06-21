@@ -6,7 +6,8 @@ import { auth, db }                from './config.js';
 import { signInAnonymously }       from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import { t, initLang, getLang, setLang, itemName, itemDesc } from './i18n.js';
 import { fetchMenu, fetchZones, fetchUpsellRules, getOrCreateTable, fetchPlatDuJour, listenOrder,
-         createSession, getOpenSessions, updateSessionStatus, getSessionOrders } from './db.js';
+         createSession, getOpenSessions, updateSessionStatus, getSessionOrders,
+         getRestoId, setRestoId } from './db.js';
 import { getDoc, doc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { requestNotificationPermission, listenForegroundMessages } from './fcm.js';
 // ─── Panier inline (cart.js supprimé) ───────────────────────
@@ -227,7 +228,9 @@ async function init() {
       withTimeout(fetchZones(),       15000),
       withTimeout(fetchUpsellRules(), 15000),
       withTimeout(fetchPlatDuJour(),  10000).catch(() => null),
-      getDoc(doc(db, 'config', 'restaurant')).catch(() => null),
+      getDoc(doc(db, 'config', getRestoId()))
+        .then(s => (s && s.exists && s.exists()) ? s : getDoc(doc(db, 'config', 'restaurant')))
+        .catch(() => null),
     ]);
     State.menu       = menu       || [];
     State.zones      = zones      || [];
