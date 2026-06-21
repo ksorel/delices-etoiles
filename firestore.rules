@@ -124,7 +124,9 @@ service cloud.firestore {
                         && request.resource.data.token == resource.data.token); // token inchangé
 
       match /paiements/{pId} {
-        allow read, write: if isAdmin();
+        allow read:   if isAdmin() || isAuth(); // client consulte ses propres paiements via token niveau parent
+        allow create: if isAuth();              // client déclare un paiement
+        allow update: if isAdmin();             // seul l'admin confirme la réception
       }
     }
 
@@ -137,6 +139,11 @@ service cloud.firestore {
     match /notifications/{notifId} {
       allow read, update: if isAuth(); // dashboard staff peut lire et marquer lu
       allow write:        if isAdmin();
+    }
+
+    // ─── Comptabilité — Dépenses (admin uniquement) ───────────
+    match /depenses/{depId} {
+      allow read, write: if isAdmin();
     }
   }
 }

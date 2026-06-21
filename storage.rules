@@ -29,6 +29,12 @@ service firebase.storage {
       allow create: if request.auth != null;
     }
 
+    // ─── Justificatifs de dépenses (comptabilité) ─────────────
+    match /depenses/{fileName} {
+      allow read:  if request.auth != null && request.auth.token.role == 'admin';
+      allow write: if request.auth != null && request.auth.token.role == 'admin';
+    }
+
     // ─── Fallback ────────────────────────────────────────────
     match /{allPaths=**} {
       allow read, write: if false;

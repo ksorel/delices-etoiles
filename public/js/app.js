@@ -1680,7 +1680,8 @@ async function renderDevisClient(container) {
         + '<div style="font-size:20px;margin-bottom:4px">🎉</div>'
         + '<div style="font-weight:700;color:#065F46">Prestation confirmée !</div>'
         + '<div style="font-size:13px;color:#4D7C60;margin-top:4px">Nous vous contacterons pour finaliser les détails.</div>'
-        + '</div>';
+        + '</div>'
+        + '<div id="devis-paiement-zone"></div>';
     } else if (d.statut === 'annule') {
       actionHtml = '<div style="background:#FEF2F2;border-radius:12px;padding:14px;text-align:center;margin-bottom:16px">'
         + '<div style="font-weight:700;color:#991B1B">Devis annulé</div>'
@@ -1790,6 +1791,11 @@ async function renderDevisClient(container) {
       }).join('');
       el.scrollTop = el.scrollHeight;
     });
+
+    // Zone paiement (uniquement si confirmé)
+    if (d.statut === 'confirme' && d.devis) {
+      window.App.loadPaiementZone(devisId, token, d);
+    }
 
   } catch(e) {
     container.innerHTML = '<div style="padding:40px;text-align:center;color:#EF4444">Erreur : ' + e.message + '</div>';
@@ -1902,6 +1908,152 @@ window.App.onZoneChange = function(zoneId) {
 };
 
 
+
+window.App.loadPaiementZone = async function(devisId, token, d) {
+  try {
+    const { doc, getDoc, collection, query, orderBy, onSnapshot }
+      = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+
+    const cfgSnap = await getDoc(doc(db, 'config', 'restaurant'));
+    const cfg = cfgSnap.exists() ? cfgSnap.data() : {};
+    const managerPhone = (cfg.managerPhone || '0759731911').replace(/[^0-9]/g, '');
+
+    const total   = d.devis?.total   || 0;
+    const acompte = d.devis?.acompte || 0;
+
+    const q = query(collection(db, 'devis', devisId, 'paiements'), orderBy('declaredAt', 'desc'));
+
+    window.App._unsubPaiements && window.App._unsubPaiements();
+    window.App._unsubPaiements = onSnapshot(q, snap => {
+      const paiements = snap.docs.map(s => ({ id: s.id, ...s.data() }));
+      const payeConfirme = paiements
+        .filter(p => p.statut === 'confirme')
+        .reduce((s, p) => s + (p.montant || 0), 0);
+      const resteAPayer = Math.max(0, total - payeConfirme);
+
+      const zone = document.getElementById('devis-paiement-zone');
+      if (!zone) return;
+
+      const histoHtml = paiements.length
+        ? '<div style="margin-top:12px">'
+          + paiements.map(p => {
+              const isConfirme = p.statut === 'confirme';
+              const dateStr = p.declaredAt ? new Date(p.declaredAt).toLocaleDateString('fr-FR', { day:'numeric', month:'short' }) : '';
+              return '<div style="display:flex;justify-content:space-between;align-items:center;'
+                + 'padding:8px 10px;background:#fff;border-radius:8px;margin-bottom:6px;font-size:12px">'
+                + '<div>' + (p.moyen || '') + ' · ' + (p.montant || 0).toLocaleString('fr-FR') + ' FCFA · ' + dateStr + '</div>'
+                + '<span style="padding:2px 8px;border-radius:10px;font-weight:700;'
+                + 'background:' + (isConfirme ? '#ECFDF5' : '#FEF3C7') + ';'
+                + 'color:' + (isConfirme ? '#065F46' : '#854F0B') + '">'
+                + (isConfirme ? '✓ Confirmé' : '⏳ En attente') + '</span>'
+                + '</div>';
+            }).join('')
+          + '</div>'
+        : '';
+
+      if (resteAPayer <= 0) {
+        zone.innerHTML = '<div style="background:#ECFDF5;border-radius:14px;padding:16px;margin-bottom:16px">'
+          + '<div style="font-size:15px;font-weight:800;color:#065F46;margin-bottom:4px">✅ Paiement complet</div>'
+          + '<div style="font-size:13px;color:#4D7C60">Merci ! Votre prestation est entièrement réglée.</div>'
+          + histoHtml
+          + '</div>';
+        return;
+      }
+
+      zone.innerHTML = '<div style="background:#fff;border-radius:14px;padding:16px;margin-bottom:16px;'
+        + 'box-shadow:0 2px 12px rgba(43,29,22,.08)">'
+        + '<div style="font-size:15px;font-weight:800;color:var(--brown);margin-bottom:10px">💰 Paiement</div>'
+        + '<div style="display:flex;justify-content:space-between;font-size:13px;padding:6px 0;border-bottom:1px solid var(--border)">'
+        + '<span style="color:var(--muted)">Total</span><span style="font-weight:700">' + total.toLocaleString('fr-FR') + ' FCFA</span></div>'
+        + '<div style="display:flex;justify-content:space-between;font-size:13px;padding:6px 0;border-bottom:1px solid var(--border)">'
+        + '<span style="color:var(--muted)">Déjà payé</span><span style="font-weight:700;color:#10B981">' + payeConfirme.toLocaleString('fr-FR') + ' FCFA</span></div>'
+        + '<div style="display:flex;justify-content:space-between;font-size:14px;padding:8px 0 12px">'
+        + '<span style="font-weight:700">Reste à payer</span><span style="font-weight:800;color:#F26522">' + resteAPayer.toLocaleString('fr-FR') + ' FCFA</span></div>'
+
+        + '<div style="font-size:12px;color:var(--muted);margin-bottom:8px">Choisissez votre moyen de paiement :</div>'
+        + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">'
+        + '<button onclick="window.App.selectMoyenPaiement(\x27wave\x27)" id="pm-wave" '
+        +   'style="padding:10px;border:1.5px solid var(--border);border-radius:10px;background:#fff;cursor:pointer;font-size:13px">🌊 Wave</button>'
+        + '<button onclick="window.App.selectMoyenPaiement(\x27orange\x27)" id="pm-orange" '
+        +   'style="padding:10px;border:1.5px solid var(--border);border-radius:10px;background:#fff;cursor:pointer;font-size:13px">🟠 Orange Money</button>'
+        + '<button onclick="window.App.selectMoyenPaiement(\x27mtn\x27)" id="pm-mtn" '
+        +   'style="padding:10px;border:1.5px solid var(--border);border-radius:10px;background:#fff;cursor:pointer;font-size:13px">💛 MTN MoMo</button>'
+        + '<button onclick="window.App.selectMoyenPaiement(\x27cheque\x27)" id="pm-cheque" '
+        +   'style="padding:10px;border:1.5px solid var(--border);border-radius:10px;background:#fff;cursor:pointer;font-size:13px">📝 Chèque</button>'
+        + '</div>'
+
+        + '<div id="pm-instructions" style="display:none;background:var(--bg);border-radius:10px;padding:12px;margin-bottom:10px;font-size:12px;color:var(--muted)"></div>'
+
+        + '<div id="pm-declare-form" style="display:none">'
+        + '<input type="number" id="pm-montant" placeholder="Montant versé (FCFA)" '
+        +   'style="width:100%;padding:10px;border:1.5px solid var(--border);border-radius:10px;'
+        +   'font-size:14px;margin-bottom:8px;outline:none">'
+        + '<button onclick="window.App.declarerPaiement(\x27' + devisId + '\x27,\x27' + token + '\x27)" '
+        +   'style="width:100%;padding:12px;background:#F26522;color:#fff;border:none;border-radius:10px;'
+        +   'font-size:14px;font-weight:700;cursor:pointer">J\x27ai effectué le paiement</button>'
+        + '</div>'
+
+        + histoHtml
+        + '</div>';
+
+      window._pmData = { managerPhone, resteAPayer };
+    });
+  } catch(e) { console.error('Erreur loadPaiementZone:', e); }
+};
+
+window.App.selectMoyenPaiement = function(moyen) {
+  window._pmSelected = moyen;
+  document.querySelectorAll('[id^="pm-"]').forEach(b => {
+    if (b.id.startsWith('pm-') && !['pm-instructions','pm-declare-form','pm-montant'].includes(b.id)) {
+      b.style.borderColor = (b.id === 'pm-' + moyen) ? '#F26522' : 'var(--border)';
+      b.style.background  = (b.id === 'pm-' + moyen) ? '#FFF0E8' : '#fff';
+    }
+  });
+
+  const instr = document.getElementById('pm-instructions');
+  const form  = document.getElementById('pm-declare-form');
+  const { managerPhone, resteAPayer } = window._pmData || {};
+
+  const labels = { wave: '🌊 Wave', orange: '🟠 Orange Money', mtn: '💛 MTN MoMo', cheque: '📝 Chèque' };
+
+  if (moyen === 'cheque') {
+    instr.innerHTML = '<strong>' + labels[moyen] + '</strong><br>'
+      + 'Remettez votre chèque directement à notre établissement, puis déclarez le paiement ci-dessous.';
+  } else {
+    instr.innerHTML = '<strong>' + labels[moyen] + '</strong><br>'
+      + 'Envoyez le montant au numéro marchand : <strong>' + managerPhone + '</strong><br>'
+      + 'Puis déclarez votre paiement ci-dessous.';
+  }
+  instr.style.display = 'block';
+  form.style.display = 'block';
+  const montantInput = document.getElementById('pm-montant');
+  if (montantInput && resteAPayer) montantInput.value = resteAPayer;
+};
+
+window.App.declarerPaiement = async function(devisId, token) {
+  const moyen = window._pmSelected;
+  if (!moyen) { alert('Choisissez un moyen de paiement'); return; }
+  const montant = parseFloat(document.getElementById('pm-montant')?.value);
+  if (!montant || montant <= 0) { alert('Indiquez un montant valide'); return; }
+
+  const labels = { wave: 'Wave', orange: 'Orange Money', mtn: 'MTN MoMo', cheque: 'Chèque' };
+
+  try {
+    const { doc, getDoc, collection, addDoc, serverTimestamp }
+      = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+    const snap = await getDoc(doc(db, 'devis', devisId));
+    if (!snap.exists() || snap.data().token !== token) { alert('Lien invalide'); return; }
+
+    await addDoc(collection(db, 'devis', devisId, 'paiements'), {
+      montant, moyen: labels[moyen] || moyen, type: 'paiement',
+      statut: 'declare', declaredAt: new Date().toISOString(),
+      createdAt: serverTimestamp(),
+    });
+    alert('✅ Paiement déclaré ! Nous le confirmerons dès réception des fonds.');
+    document.getElementById('pm-declare-form').style.display = 'none';
+    document.getElementById('pm-instructions').style.display = 'none';
+  } catch(e) { alert('Erreur : ' + e.message); }
+};
 
 window.App.confirmerDevisClient = async function(devisId, token) {
   if (!confirm('Confirmer votre devis ? Un acompte de 50% sera demandé.')) return;
