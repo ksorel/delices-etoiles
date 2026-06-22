@@ -45,9 +45,23 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // ─── Zones traiteur (Zone A — lecture publique, écriture admin) ─
+    match /zones-traiteur/{zoneId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     // ─── Règles upselling (lecture publique, écriture admin) ───
     match /upselling-rules/{ruleId} {
       allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ─── Établissements (lecture publique : sélecteur client) ──
+    // Lu AVANT l'auth anonyme (le sélecteur s'affiche avant bootApp),
+    // donc lecture ouverte. Données non sensibles (nom, commune, adresse).
+    match /restos/{restoId} {
+      allow read:  if true;
       allow write: if isAdmin();
     }
 
