@@ -460,9 +460,9 @@ function updateHeader() {
       const nom = State.resto?.nom || State.resto?.commune || '';
       badge.textContent = nom ? `${t('mode_livraison')} · ${nom}` : t('mode_livraison');
     }
-    // Bouton "changer d'établissement" — hors salle (QR) uniquement
+    // Bouton "changer d'établissement" — hors salle (QR) ET si un lieu est sélectionné
     let chg = document.getElementById('change-resto-btn');
-    if (State.mode !== 'salle' && badge.parentNode) {
+    if (State.mode !== 'salle' && State.resto && badge.parentNode) {
       if (!chg) {
         chg = document.createElement('button');
         chg.id = 'change-resto-btn';
@@ -611,7 +611,25 @@ function buildContactBlock() {
 }
 function renderMenu(container) {
   if (!State.menu.length) {
-    container.innerHTML = `<div class="loading"><div class="spinner"></div><p>${t('loading')}</p></div>`;
+    const nom = State.resto?.nom || State.resto?.commune || '';
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-state-icon">🍽️</div>
+        <p class="empty-state-title">${t('menu_empty_title')}</p>
+        <p class="empty-state-sub">${nom ? nom + ' — ' : ''}${t('menu_empty_sub')}</p>
+        ${State.mode !== 'salle'
+          ? `<button class="empty-state-btn" onclick="window.App.changeResto()">${t('picker_change')}</button>`
+          : ''}
+      </div>
+      <style>
+        .empty-state{max-width:480px;margin:48px auto;text-align:center;padding:0 16px}
+        .empty-state-icon{font-size:48px;margin-bottom:12px}
+        .empty-state-title{font-size:18px;font-weight:700;color:var(--brown-dk,#2B1D16);margin:0 0 6px}
+        .empty-state-sub{font-size:14px;color:var(--brown-md,#7a6a55);margin:0 0 20px;line-height:1.4}
+        .empty-state-btn{background:#F26522;color:#fff;border:none;border-radius:12px;
+          padding:12px 22px;font-weight:700;font-size:14px;cursor:pointer;transition:background .14s}
+        .empty-state-btn:hover{background:#d8551a}
+      </style>`;
     return;
   }
   // Banner
@@ -1994,6 +2012,7 @@ window.App.changeResto = function () {
   clearCart();
   _restoChosen = false;
   State.resto = null;
+  updateHeader();   // efface le nom du lieu et le bouton "Changer" du header
   try {
     const u = new URL(window.location.href);
     u.searchParams.delete('resto');
