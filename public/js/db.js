@@ -81,6 +81,43 @@ export async function fetchUpsellRules(restoId) {
 }
 
 
+// ─── Établissements / lieux ──────────────────────────────
+// Source unique des lieux : collection 'restos'. Le propriétaire les gère
+// depuis l'admin (ajout, libellé, commune, adresse, activation, ordre).
+// restoId = clé technique stable ; la commune n'est qu'une étiquette
+// (plusieurs établissements peuvent partager une même commune).
+
+// Lieux ACTIFS, triés — pour le sélecteur client.
+// ⚠️ Index composite requis : actif ASC, ordre ASC
+export async function fetchLieux() {
+  const q = query(
+    collection(db, 'restos'),
+    where('actif', '==', true),
+    orderBy('ordre')
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+// TOUS les lieux (actifs ou non) — pour l'admin.
+export async function fetchAllLieux() {
+  const snap = await getDocs(query(collection(db, 'restos'), orderBy('ordre')));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+// Créer / mettre à jour un lieu (merge — ne réécrit que les champs fournis).
+export async function saveLieu(restoId, data) {
+  await setDoc(doc(db, 'restos', restoId), {
+    ...data,
+    updatedAt: serverTimestamp(),
+  }, { merge: true });
+}
+
+// Activer / désactiver un lieu (le retire du sélecteur client sans suppression).
+export async function setLieuActif(restoId, actif) {
+  await updateDoc(doc(db, 'restos', restoId), { actif, updatedAt: serverTimestamp() });
+}
+
 // ─── Sessions de table ───────────────────────────────────
 
 // Générer un ID de session court (6 chars)

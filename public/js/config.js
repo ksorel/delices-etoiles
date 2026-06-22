@@ -40,31 +40,30 @@ export default app;
 //  inverse (config → db) pour éviter toute dépendance circulaire.
 // ════════════════════════════════════════════════════════════
 
-// Établissements connus — métadonnées d'affichage pour le sélecteur client.
-// ⚠️ Ajouter ici tout nouveau lieu : id technique + libellé + commune.
-// (Adresse/horaires fins pourront plus tard venir de config/{id}.)
-export const LIEUX = [
-  { id: 'bassam', nom: 'Délices Étoiles — Grand-Bassam', commune: 'Grand-Bassam' },
-  { id: 'abobo',  nom: 'Délices Étoiles — Abobo',        commune: 'Abobo' },
-  { id: 'ebimpe', nom: 'Délices Étoiles — Ébimpé',       commune: 'Ébimpé' },
-];
+// Les établissements ne sont PAS codés en dur : ils vivent dans la collection
+// Firestore 'restos' (gérés par le propriétaire depuis l'admin). Le portail
+// client lit la liste des lieux actifs via fetchLieux() (db.js).
 
-export const RESTO_IDS = LIEUX.map(l => l.id);
+// Normalise un identifiant de lieu venu de l'URL (accents, casse, caractères).
+function sanitizeRestoId(raw) {
+  return (raw || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // enlève les accents (Ébimpé → ebimpe)
+    .trim().toLowerCase()
+    .replace(/[^a-z0-9-]/g, '');                       // slug sûr : [a-z0-9-]
+}
 
-// Le lieu a-t-il été déterminé depuis l'URL/QR (?resto=…) ?
-// Sinon, le portail client affichera un sélecteur de lieu.
+// Le lieu a-t-il été fourni dans l'URL/QR (?resto=…) ?
+// Sinon, le portail client affiche le sélecteur de lieu.
 let _restoFromUrl = false;
 
 function resolveRestoId() {
   try {
-    const p = new URLSearchParams(window.location.search);
-    let r = (p.get('resto') || '').trim().toLowerCase();
-    if (r === 'ebimpé') r = 'ebimpe';   // tolérance accent
-    if (RESTO_IDS.includes(r)) { _restoFromUrl = true; return r; }
+    const r = sanitizeRestoId(new URLSearchParams(window.location.search).get('resto'));
+    if (r) { _restoFromUrl = true; return r; }
   } catch (_) {
-    // pas de window (contexte non-navigateur) → défaut
+    // pas de window (contexte non-navigateur)
   }
-  return 'bassam';
+  return 'bassam';   // défaut : l'établissement historique
 }
 
 // Valeur initiale, figée au chargement du module.

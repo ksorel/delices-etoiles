@@ -2,12 +2,12 @@
 //  app.js — Contrôleur principal de la PWA Délices Étoiles
 //  SPA vanilla JS avec routage par hash (#menu #cart #checkout)
 // ════════════════════════════════════════════════════════════
-import { auth, db, LIEUX, RESTO_FROM_URL } from './config.js';
+import { auth, db, RESTO_FROM_URL } from './config.js';
 import { signInAnonymously }       from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import { t, initLang, getLang, setLang, itemName, itemDesc } from './i18n.js';
 import { fetchMenu, fetchZones, fetchUpsellRules, getOrCreateTable, fetchPlatDuJour, listenOrder,
          createSession, getOpenSessions, updateSessionStatus, getSessionOrders,
-         getRestoId, setRestoId } from './db.js';
+         getRestoId, setRestoId, fetchLieux } from './db.js';
 import { getDoc, doc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { requestNotificationPermission, listenForegroundMessages } from './fcm.js';
 // ─── Panier inline (cart.js supprimé) ───────────────────────
@@ -1895,15 +1895,38 @@ window.App = {
 // ─── Sélecteur d'établissement (portail client, hors QR) ──
 let _restoChosen = false;
 
-function renderRestoPicker() {
+async function renderRestoPicker() {
   const view = document.getElementById('view');
   if (!view) return;
-  const cards = LIEUX.map(l => `
+  view.innerHTML = `<div class="loading"><div class="spinner"></div><p>${t('picker_loading')}</p></div>`;
+
+  let lieux = [];
+  try {
+    lieux = await fetchLieux();
+  } catch (e) {
+    // Échec de lecture (index en construction, réseau…) → ne pas bloquer le client.
+    console.warn('fetchLieux:', e.code || e.message);
+    _restoChosen = true;
+    return bootApp();
+  }
+
+  // Aucun lieu actif → on charge le défaut pour éviter un écran vide.
+  if (!lieux.length) {
+    _restoChosen = true;
+    return bootApp();
+  }
+  // Un seul lieu actif → inutile de demander, on le sélectionne directement.
+  if (lieux.length === 1) {
+    return window.App.chooseResto(lieux[0].id);
+  }
+
+  const cards = lieux.map(l => `
     <button class="resto-pick-card" onclick="window.App.chooseResto('${l.id}')">
-      <div class="resto-pick-name">${l.nom}</div>
-      <div class="resto-pick-commune">📍 ${l.commune}</div>
+      <div class="resto-pick-name">${l.nom || l.id}</div>
+      ${l.commune ? `<div class="resto-pick-commune">📍 ${l.commune}${l.adresse ? ' · ' + l.adresse : ''}</div>` : ''}
       <div class="resto-pick-go">${t('picker_choose')} →</div>
     </button>`).join('');
+
   view.innerHTML = `
     <div class="resto-picker">
       <h2 class="resto-picker-title">${t('picker_title')}</h2>
@@ -1925,10 +1948,10 @@ function renderRestoPicker() {
     </style>`;
 }
 
-// Choix d'un lieu depuis le sélecteur → fixe le lieu, le reflète dans l'URL
-// (persistance au refresh), puis lance le chargement.
+// Choix d'un lieu → fixe le lieu, le reflète dans l'URL (persistance au
+// refresh), puis lance le chargement.
 window.App.chooseResto = function (id) {
-  if (!LIEUX.some(l => l.id === id)) return;
+  if (!id) return;
   setRestoId(id);
   _restoChosen = true;
   try {
