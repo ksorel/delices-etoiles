@@ -8,6 +8,7 @@ const translations = {
     // Header
     mode_salle:        'Table',
     mode_livraison:    'Livraison',
+    brand_tagline:     'Resto & Traiteur',
     banner_salle:      'Commande en salle · ',
     banner_table:      'Table',
     banner_livraison:  'Livraison à domicile',
@@ -176,6 +177,7 @@ const translations = {
   en: {
     mode_salle:        'Table',
     mode_livraison:    'Delivery',
+    brand_tagline:     'Restaurant & Catering',
     banner_salle:      'Dine-in · ',
     banner_table:      'Table',
     banner_livraison:  'Home delivery',

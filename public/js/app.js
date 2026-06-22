@@ -450,32 +450,13 @@ function renderView(view, data = {}) {
 }
 // ─── Header ──────────────────────────────────────────────
 function updateHeader() {
-  // Badge mode
+  // Le sous-titre du logo reste la signature de marque "Resto & Traiteur".
   const badge = document.getElementById('mode-badge');
-  if (badge) {
-    if (State.mode === 'salle') {
-      badge.textContent = `${t('mode_salle')} ${State.tableId}`;
-    } else {
-      // Livraison : marquer l'établissement courant
-      const nom = State.resto?.nom || State.resto?.commune || '';
-      badge.textContent = nom ? `${t('mode_livraison')} · ${nom}` : t('mode_livraison');
-    }
-    // Bouton "changer d'établissement" — hors salle (QR) ET si un lieu est sélectionné
-    let chg = document.getElementById('change-resto-btn');
-    if (State.mode !== 'salle' && State.resto && badge.parentNode) {
-      if (!chg) {
-        chg = document.createElement('button');
-        chg.id = 'change-resto-btn';
-        chg.onclick = () => window.App.changeResto();
-        chg.style.cssText = 'margin-left:8px;font-size:11px;font-weight:700;color:#F26522;' +
-          'background:none;border:none;cursor:pointer;text-decoration:underline;padding:0';
-        badge.parentNode.insertBefore(chg, badge.nextSibling);
-      }
-      chg.textContent = t('picker_change');
-    } else if (chg) {
-      chg.remove();
-    }
-  }
+  if (badge) badge.textContent = t('brand_tagline');
+
+  // Barre de contexte sous le header : table (salle) ou établissement + changer (livraison).
+  renderRestoBar();
+
   // Bouton langue
   const langBtn = document.getElementById('lang-btn');
   if (langBtn) langBtn.textContent = State.lang.toUpperCase();
@@ -488,6 +469,37 @@ function updateCartBadge() {
   if (!el) return;
   el.textContent = n;
   el.classList.toggle('hidden', n === 0);
+}
+
+// Barre de contexte sous le header : indique où l'on est.
+// - salle  : « Table X »
+// - livraison + établissement choisi : « 📍 Nom · Changer »
+// - sinon (sélecteur ouvert) : barre masquée
+function renderRestoBar() {
+  const view = document.getElementById('view');
+  if (!view || !view.parentNode) return;
+  let bar = document.getElementById('resto-bar');
+
+  const show = State.mode === 'salle' ? !!State.tableId : !!State.resto;
+  if (!show) { if (bar) bar.remove(); return; }
+
+  if (!bar) {
+    bar = document.createElement('div');
+    bar.id = 'resto-bar';
+    bar.style.cssText = 'display:flex;align-items:center;justify-content:center;gap:10px;' +
+      'padding:8px 16px;background:#fff6ef;border-bottom:1px solid #f0e3d6;font-size:13px';
+    view.parentNode.insertBefore(bar, view);
+  }
+
+  if (State.mode === 'salle') {
+    bar.innerHTML = `<span style="font-weight:700;color:#2B1D16">${t('mode_salle')} ${State.tableId}</span>`;
+  } else {
+    const nom = State.resto?.nom || State.resto?.commune || '';
+    bar.innerHTML =
+      `<span style="color:#7a6a55">📍 <strong style="color:#2B1D16">${nom}</strong></span>` +
+      `<button onclick="window.App.changeResto()" style="background:none;border:none;color:#F26522;` +
+      `font-weight:700;cursor:pointer;text-decoration:underline;font-size:13px;padding:0">${t('picker_change')}</button>`;
+  }
 }
 // ─── Render Plat du Jour ─────────────────────────────────
 function renderPlatDuJour(pdj) {
@@ -2020,6 +2032,12 @@ window.App.changeResto = function () {
   } catch (_) {}
   if (location.hash && location.hash !== '#menu') location.hash = '';
   renderRestoPicker();
+};
+
+// Clic sur le logo : en livraison → retour au sélecteur ; en salle → accueil menu.
+window.App.logoClick = function () {
+  if (State.mode === 'salle') { window.App.navigate('menu'); return; }
+  window.App.changeResto();
 };
 
 // Choix d'un lieu → fixe le lieu, le reflète dans l'URL (persistance au
