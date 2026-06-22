@@ -14,6 +14,9 @@ const translations = {
 
     // Menu
     loading:           'Chargement du menu…',
+    picker_title:      'Choisissez votre établissement',
+    picker_subtitle:   'Sélectionnez le restaurant où passer votre commande',
+    picker_choose:     'Voir le menu',
     unavailable:       'Indisponible',
     all:               'Tout',
     cat_plats:         'Plats',
@@ -174,6 +177,9 @@ const translations = {
     banner_livraison:  'Home delivery',
 
     loading:           'Loading menu…',
+    picker_title:      'Choose your location',
+    picker_subtitle:   'Select the restaurant for your order',
+    picker_choose:     'View menu',
     unavailable:       'Unavailable',
     all:               'All',
     cat_plats:         'Mains',

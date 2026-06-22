@@ -2,7 +2,7 @@
 //  app.js — Contrôleur principal de la PWA Délices Étoiles
 //  SPA vanilla JS avec routage par hash (#menu #cart #checkout)
 // ════════════════════════════════════════════════════════════
-import { auth, db }                from './config.js';
+import { auth, db, LIEUX, RESTO_FROM_URL } from './config.js';
 import { signInAnonymously }       from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import { t, initLang, getLang, setLang, itemName, itemDesc } from './i18n.js';
 import { fetchMenu, fetchZones, fetchUpsellRules, getOrCreateTable, fetchPlatDuJour, listenOrder,
@@ -215,6 +215,19 @@ async function init() {
     try { await getOrCreateTable(tableId); } catch (e) { console.warn(e); }
     // La session sera choisie/créée après l'auth et le chargement du menu
   }
+
+  // 3bis. Porte de sélection du lieu (livraison / arrivée directe).
+  // Pas en salle (QR) + lieu absent de l'URL → on demande de choisir avant de charger.
+  if (State.mode !== 'salle' && !RESTO_FROM_URL && !_restoChosen) {
+    renderRestoPicker();
+    return;
+  }
+
+  await bootApp();
+}
+
+// Chargement des données + rendu, une fois le lieu déterminé.
+async function bootApp() {
   // 4. Auth anonyme avec retry (WebViews lents à initialiser Firebase)
   const viewEl = document.getElementById('view');
   if (viewEl) viewEl.querySelector('p') && (viewEl.querySelector('p').textContent = 'Connexion...');
@@ -1877,6 +1890,53 @@ window.App = {
   updateQty: doUpdateQty, removeItem: doRemoveItem, goCheckout,
   confirmSalle, confirmLivraison, onZoneChange, selectPayment,
   toggleLang,
+};
+
+// ─── Sélecteur d'établissement (portail client, hors QR) ──
+let _restoChosen = false;
+
+function renderRestoPicker() {
+  const view = document.getElementById('view');
+  if (!view) return;
+  const cards = LIEUX.map(l => `
+    <button class="resto-pick-card" onclick="window.App.chooseResto('${l.id}')">
+      <div class="resto-pick-name">${l.nom}</div>
+      <div class="resto-pick-commune">📍 ${l.commune}</div>
+      <div class="resto-pick-go">${t('picker_choose')} →</div>
+    </button>`).join('');
+  view.innerHTML = `
+    <div class="resto-picker">
+      <h2 class="resto-picker-title">${t('picker_title')}</h2>
+      <p class="resto-picker-sub">${t('picker_subtitle')}</p>
+      <div class="resto-pick-list">${cards}</div>
+    </div>
+    <style>
+      .resto-picker{max-width:560px;margin:32px auto;padding:0 16px;text-align:center}
+      .resto-picker-title{font-size:22px;color:var(--brown-dk,#3a2a1a);margin:8px 0}
+      .resto-picker-sub{font-size:14px;color:var(--brown-md,#7a6a55);margin:0 0 20px}
+      .resto-pick-list{display:flex;flex-direction:column;gap:12px}
+      .resto-pick-card{display:block;width:100%;text-align:left;background:#fff;
+        border:1px solid var(--border,#e6ddd0);border-radius:14px;padding:18px 20px;
+        cursor:pointer;transition:transform .12s,box-shadow .12s,border-color .12s}
+      .resto-pick-card:hover{transform:translateY(-2px);box-shadow:0 6px 18px rgba(0,0,0,.08);border-color:#F26522}
+      .resto-pick-name{font-size:16px;font-weight:700;color:#3a2a1a}
+      .resto-pick-commune{font-size:13px;color:#7a6a55;margin-top:2px}
+      .resto-pick-go{font-size:13px;font-weight:700;color:#F26522;margin-top:10px}
+    </style>`;
+}
+
+// Choix d'un lieu depuis le sélecteur → fixe le lieu, le reflète dans l'URL
+// (persistance au refresh), puis lance le chargement.
+window.App.chooseResto = function (id) {
+  if (!LIEUX.some(l => l.id === id)) return;
+  setRestoId(id);
+  _restoChosen = true;
+  try {
+    const u = new URL(window.location.href);
+    u.searchParams.set('resto', id);
+    window.history.replaceState(null, '', u);
+  } catch (_) {}
+  bootApp();
 };
 
 window.App.loadTraiteurZones = async function() {

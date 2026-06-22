@@ -40,14 +40,27 @@ export default app;
 //  inverse (config → db) pour éviter toute dépendance circulaire.
 // ════════════════════════════════════════════════════════════
 
-export const RESTO_IDS = ['bassam', 'abobo', 'ebimpe'];
+// Établissements connus — métadonnées d'affichage pour le sélecteur client.
+// ⚠️ Ajouter ici tout nouveau lieu : id technique + libellé + commune.
+// (Adresse/horaires fins pourront plus tard venir de config/{id}.)
+export const LIEUX = [
+  { id: 'bassam', nom: 'Délices Étoiles — Grand-Bassam', commune: 'Grand-Bassam' },
+  { id: 'abobo',  nom: 'Délices Étoiles — Abobo',        commune: 'Abobo' },
+  { id: 'ebimpe', nom: 'Délices Étoiles — Ébimpé',       commune: 'Ébimpé' },
+];
+
+export const RESTO_IDS = LIEUX.map(l => l.id);
+
+// Le lieu a-t-il été déterminé depuis l'URL/QR (?resto=…) ?
+// Sinon, le portail client affichera un sélecteur de lieu.
+let _restoFromUrl = false;
 
 function resolveRestoId() {
   try {
     const p = new URLSearchParams(window.location.search);
     let r = (p.get('resto') || '').trim().toLowerCase();
     if (r === 'ebimpé') r = 'ebimpe';   // tolérance accent
-    if (RESTO_IDS.includes(r)) return r;
+    if (RESTO_IDS.includes(r)) { _restoFromUrl = true; return r; }
   } catch (_) {
     // pas de window (contexte non-navigateur) → défaut
   }
@@ -55,6 +68,6 @@ function resolveRestoId() {
 }
 
 // Valeur initiale, figée au chargement du module.
-// Le changement de lieu à chaud (propriétaire dans l'admin) passe par
-// setRestoId() exporté depuis db.js.
+// Le changement de lieu à chaud passe par setRestoId() exporté depuis db.js.
 export const INITIAL_RESTO_ID = resolveRestoId();
+export const RESTO_FROM_URL    = _restoFromUrl;
