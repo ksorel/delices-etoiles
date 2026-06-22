@@ -7,7 +7,7 @@ import { signInAnonymously }       from 'https://www.gstatic.com/firebasejs/10.1
 import { t, initLang, getLang, setLang, itemName, itemDesc } from './i18n.js';
 import { fetchMenu, fetchZones, fetchUpsellRules, getOrCreateTable, fetchPlatDuJour, listenOrder,
          createSession, getOpenSessions, updateSessionStatus, getSessionOrders,
-         getRestoId, setRestoId, fetchLieux } from './db.js';
+         getRestoId, setRestoId, fetchLieux, fetchLieu } from './db.js';
 import { getDoc, doc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { requestNotificationPermission, listenForegroundMessages } from './fcm.js';
 // ─── Panier inline (cart.js supprimé) ───────────────────────
@@ -66,6 +66,7 @@ const State = {
   menu:        [],
   zones:       [],
   platDuJour:  null,
+  resto:       null,    // établissement courant {id, nom, commune, …}
   sessionId:   null,    // Session courante du client
   notifEnabled: false,  // Notifications push activées
   activeCategory: 'all',
@@ -236,7 +237,7 @@ async function bootApp() {
   // 5. Charger le menu depuis localStorage d'abord (affichage instantané)
   // Charger les données depuis Firestore
   try {
-    const [menu, zones, rules, pdj, cfg] = await Promise.all([
+    const [menu, zones, rules, pdj, cfg, restoDoc] = await Promise.all([
       withTimeout(fetchMenu(),        15000),
       withTimeout(fetchZones(),       15000),
       withTimeout(fetchUpsellRules(), 15000),
@@ -244,8 +245,10 @@ async function bootApp() {
       getDoc(doc(db, 'config', getRestoId()))
         .then(s => (s && s.exists && s.exists()) ? s : getDoc(doc(db, 'config', 'restaurant')))
         .catch(() => null),
+      withTimeout(fetchLieu(getRestoId()), 8000).catch(() => null),
     ]);
     State.menu       = menu       || [];
+    State.resto      = restoDoc   || null;
     State.zones      = zones      || [];
     State.platDuJour = pdj;
     initUpselling(rules || [], State.menu);
@@ -450,9 +453,28 @@ function updateHeader() {
   // Badge mode
   const badge = document.getElementById('mode-badge');
   if (badge) {
-    badge.textContent = State.mode === 'salle'
-      ? `${t('mode_salle')} ${State.tableId}`
-      : t('mode_livraison');
+    if (State.mode === 'salle') {
+      badge.textContent = `${t('mode_salle')} ${State.tableId}`;
+    } else {
+      // Livraison : marquer l'établissement courant
+      const nom = State.resto?.nom || State.resto?.commune || '';
+      badge.textContent = nom ? `${t('mode_livraison')} · ${nom}` : t('mode_livraison');
+    }
+    // Bouton "changer d'établissement" — hors salle (QR) uniquement
+    let chg = document.getElementById('change-resto-btn');
+    if (State.mode !== 'salle' && badge.parentNode) {
+      if (!chg) {
+        chg = document.createElement('button');
+        chg.id = 'change-resto-btn';
+        chg.onclick = () => window.App.changeResto();
+        chg.style.cssText = 'margin-left:8px;font-size:11px;font-weight:700;color:#F26522;' +
+          'background:none;border:none;cursor:pointer;text-decoration:underline;padding:0';
+        badge.parentNode.insertBefore(chg, badge.nextSibling);
+      }
+      chg.textContent = t('picker_change');
+    } else if (chg) {
+      chg.remove();
+    }
   }
   // Bouton langue
   const langBtn = document.getElementById('lang-btn');
@@ -1920,33 +1942,66 @@ async function renderRestoPicker() {
     return window.App.chooseResto(lieux[0].id);
   }
 
-  const cards = lieux.map(l => `
+  const cards = lieux.map(l => {
+    const initiale = (l.commune || l.nom || l.id).trim().charAt(0).toUpperCase();
+    return `
     <button class="resto-pick-card" onclick="window.App.chooseResto('${l.id}')">
-      <div class="resto-pick-name">${l.nom || l.id}</div>
-      ${l.commune ? `<div class="resto-pick-commune">📍 ${l.commune}${l.adresse ? ' · ' + l.adresse : ''}</div>` : ''}
-      <div class="resto-pick-go">${t('picker_choose')} →</div>
-    </button>`).join('');
+      <span class="resto-pick-avatar">${initiale}</span>
+      <span class="resto-pick-body">
+        <span class="resto-pick-name">${l.nom || l.id}</span>
+        ${l.commune ? `<span class="resto-pick-commune">📍 ${l.commune}${l.adresse ? ' · ' + l.adresse : ''}</span>` : ''}
+      </span>
+      <span class="resto-pick-go">→</span>
+    </button>`;
+  }).join('');
 
   view.innerHTML = `
     <div class="resto-picker">
-      <h2 class="resto-picker-title">${t('picker_title')}</h2>
-      <p class="resto-picker-sub">${t('picker_subtitle')}</p>
+      <div class="resto-picker-hero">
+        <div class="resto-picker-brand">Délices Étoiles</div>
+        <h2 class="resto-picker-title">${t('picker_title')}</h2>
+        <p class="resto-picker-sub">${t('picker_subtitle')}</p>
+      </div>
       <div class="resto-pick-list">${cards}</div>
     </div>
     <style>
-      .resto-picker{max-width:560px;margin:32px auto;padding:0 16px;text-align:center}
-      .resto-picker-title{font-size:22px;color:var(--brown-dk,#3a2a1a);margin:8px 0}
-      .resto-picker-sub{font-size:14px;color:var(--brown-md,#7a6a55);margin:0 0 20px}
-      .resto-pick-list{display:flex;flex-direction:column;gap:12px}
-      .resto-pick-card{display:block;width:100%;text-align:left;background:#fff;
-        border:1px solid var(--border,#e6ddd0);border-radius:14px;padding:18px 20px;
-        cursor:pointer;transition:transform .12s,box-shadow .12s,border-color .12s}
-      .resto-pick-card:hover{transform:translateY(-2px);box-shadow:0 6px 18px rgba(0,0,0,.08);border-color:#F26522}
-      .resto-pick-name{font-size:16px;font-weight:700;color:#3a2a1a}
-      .resto-pick-commune{font-size:13px;color:#7a6a55;margin-top:2px}
-      .resto-pick-go{font-size:13px;font-weight:700;color:#F26522;margin-top:10px}
+      .resto-picker{max-width:600px;margin:0 auto;padding:0 16px 40px;text-align:center}
+      .resto-picker-hero{padding:40px 0 28px}
+      .resto-picker-brand{font-size:12px;letter-spacing:.18em;text-transform:uppercase;
+        font-weight:700;color:#F26522;margin-bottom:10px}
+      .resto-picker-title{font-size:24px;line-height:1.2;color:var(--brown-dk,#2B1D16);margin:0 0 8px;font-weight:800}
+      .resto-picker-sub{font-size:14px;color:var(--brown-md,#7a6a55);margin:0}
+      .resto-pick-list{display:flex;flex-direction:column;gap:14px}
+      .resto-pick-card{display:flex;align-items:center;gap:14px;width:100%;text-align:left;
+        background:#fff;border:1px solid var(--border,#ece3d6);border-radius:16px;padding:16px 18px;
+        cursor:pointer;transition:transform .14s ease,box-shadow .14s ease,border-color .14s ease}
+      .resto-pick-card:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(43,29,22,.10);border-color:#F26522}
+      .resto-pick-avatar{flex:0 0 auto;width:44px;height:44px;border-radius:50%;
+        display:flex;align-items:center;justify-content:center;font-weight:800;font-size:18px;
+        color:#fff;background:linear-gradient(135deg,#F26522,#c84e12)}
+      .resto-pick-body{flex:1 1 auto;display:flex;flex-direction:column;min-width:0}
+      .resto-pick-name{font-size:16px;font-weight:700;color:#2B1D16}
+      .resto-pick-commune{font-size:13px;color:#7a6a55;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .resto-pick-go{flex:0 0 auto;font-size:20px;font-weight:700;color:#F26522;opacity:.5;transition:opacity .14s,transform .14s}
+      .resto-pick-card:hover .resto-pick-go{opacity:1;transform:translateX(3px)}
     </style>`;
 }
+
+// Revenir au sélecteur d'établissement (hors salle). Le panier d'un autre
+// lieu n'étant plus valide (prix/plats différents), on le vide.
+window.App.changeResto = function () {
+  if (State.mode === 'salle') return;
+  clearCart();
+  _restoChosen = false;
+  State.resto = null;
+  try {
+    const u = new URL(window.location.href);
+    u.searchParams.delete('resto');
+    window.history.replaceState(null, '', u);
+  } catch (_) {}
+  if (location.hash && location.hash !== '#menu') location.hash = '';
+  renderRestoPicker();
+};
 
 // Choix d'un lieu → fixe le lieu, le reflète dans l'URL (persistance au
 // refresh), puis lance le chargement.

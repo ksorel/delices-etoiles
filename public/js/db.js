@@ -99,6 +99,12 @@ export async function fetchLieux() {
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
+// Un lieu précis (par son restoId) — pour afficher le nom courant.
+export async function fetchLieu(restoId) {
+  const snap = await getDoc(doc(db, 'restos', restoId));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
 // TOUS les lieux (actifs ou non) — pour l'admin.
 export async function fetchAllLieux() {
   const snap = await getDocs(query(collection(db, 'restos'), orderBy('ordre')));
