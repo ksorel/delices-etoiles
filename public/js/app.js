@@ -450,12 +450,34 @@ function renderView(view, data = {}) {
 }
 // ─── Header ──────────────────────────────────────────────
 function updateHeader() {
-  // Le sous-titre du logo reste la signature de marque "Resto & Traiteur".
-  const badge = document.getElementById('mode-badge');
-  if (badge) badge.textContent = t('brand_tagline');
+  const badge = document.getElementById('mode-badge');   // = sous-titre du logo
+  if (badge) {
+    // 1) La tagline de marque reste affichée
+    badge.textContent = t('brand_tagline');              // "Resto & Traiteur"
 
-  // Barre de contexte sous le header : table (salle) ou établissement + changer (livraison).
-  renderRestoBar();
+    // 2) Marqueur d'établissement, ajouté juste SOUS la tagline (dans le logo,
+    //    donc toujours visible ; le clic sur le logo gère déjà le changement).
+    const parent = badge.parentNode;
+    let mk = document.getElementById('resto-marker');
+    const show = State.mode === 'salle' ? !!State.tableId : !!State.resto;
+    if (show && parent) {
+      if (!mk) {
+        mk = document.createElement('div');
+        mk.id = 'resto-marker';
+        mk.style.cssText = 'font-size:12px;margin-top:1px;color:#7a6a55;line-height:1.2';
+        parent.appendChild(mk);
+      }
+      if (State.mode === 'salle') {
+        mk.innerHTML = `<strong style="color:#2B1D16">${t('mode_salle')} ${State.tableId}</strong>`;
+      } else {
+        const nom = State.resto?.nom || State.resto?.commune || '';
+        mk.innerHTML = `📍 <strong style="color:#2B1D16">${nom}</strong>`
+          + ` · <span style="color:#F26522;font-weight:700">${t('picker_change')}</span>`;
+      }
+    } else if (mk) {
+      mk.remove();
+    }
+  }
 
   // Bouton langue
   const langBtn = document.getElementById('lang-btn');
@@ -469,37 +491,6 @@ function updateCartBadge() {
   if (!el) return;
   el.textContent = n;
   el.classList.toggle('hidden', n === 0);
-}
-
-// Barre de contexte sous le header : indique où l'on est.
-// - salle  : « Table X »
-// - livraison + établissement choisi : « 📍 Nom · Changer »
-// - sinon (sélecteur ouvert) : barre masquée
-function renderRestoBar() {
-  const view = document.getElementById('view');
-  if (!view || !view.parentNode) return;
-  let bar = document.getElementById('resto-bar');
-
-  const show = State.mode === 'salle' ? !!State.tableId : !!State.resto;
-  if (!show) { if (bar) bar.remove(); return; }
-
-  if (!bar) {
-    bar = document.createElement('div');
-    bar.id = 'resto-bar';
-    bar.style.cssText = 'display:flex;align-items:center;justify-content:center;gap:10px;' +
-      'padding:8px 16px;background:#fff6ef;border-bottom:1px solid #f0e3d6;font-size:13px';
-    view.parentNode.insertBefore(bar, view);
-  }
-
-  if (State.mode === 'salle') {
-    bar.innerHTML = `<span style="font-weight:700;color:#2B1D16">${t('mode_salle')} ${State.tableId}</span>`;
-  } else {
-    const nom = State.resto?.nom || State.resto?.commune || '';
-    bar.innerHTML =
-      `<span style="color:#7a6a55">📍 <strong style="color:#2B1D16">${nom}</strong></span>` +
-      `<button onclick="window.App.changeResto()" style="background:none;border:none;color:#F26522;` +
-      `font-weight:700;cursor:pointer;text-decoration:underline;font-size:13px;padding:0">${t('picker_change')}</button>`;
-  }
 }
 // ─── Render Plat du Jour ─────────────────────────────────
 function renderPlatDuJour(pdj) {
