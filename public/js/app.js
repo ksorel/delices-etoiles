@@ -464,14 +464,16 @@ function updateHeader() {
       if (!mk) {
         mk = document.createElement('div');
         mk.id = 'resto-marker';
-        mk.style.cssText = 'font-size:12px;margin-top:1px;color:#7a6a55;line-height:1.2';
+        mk.style.cssText = 'font-size:12px;margin-top:1px;line-height:1.2';
         parent.appendChild(mk);
       }
+      // Même couleur que la tagline "Resto & Traiteur" (header sombre → texte clair)
+      try { mk.style.color = getComputedStyle(badge).color; } catch (_) {}
       if (State.mode === 'salle') {
-        mk.innerHTML = `<strong style="color:#2B1D16">${t('mode_salle')} ${State.tableId}</strong>`;
+        mk.innerHTML = `<strong>${t('mode_salle')} ${State.tableId}</strong>`;
       } else {
         const nom = State.resto?.nom || State.resto?.commune || '';
-        mk.innerHTML = `📍 <strong style="color:#2B1D16">${nom}</strong>`
+        mk.innerHTML = `📍 <strong>${nom}</strong>`
           + ` · <span style="color:#F26522;font-weight:700">${t('picker_change')}</span>`;
       }
     } else if (mk) {
