@@ -27,6 +27,26 @@ async function checkAdmin(context) {
 }
 
 // ─────────────────────────────────────────────────────────
+//  HELPER : construire les custom claims selon le rôle
+//  - 'admin' = PROPRIÉTAIRE : accès global, AUCUN restoId
+//  - tous les autres rôles  : rattachés à un établissement (restoId requis)
+// ─────────────────────────────────────────────────────────
+const STAFF_ROLES = ['manager', 'serveur', 'bar', 'cuisine', 'livreur', 'caissier'];
+const ALL_ROLES   = ['admin', ...STAFF_ROLES];
+
+function buildRoleClaims(role, restoId) {
+  if (!ALL_ROLES.includes(role)) {
+    throw new functions.https.HttpsError('invalid-argument', 'Rôle invalide');
+  }
+  if (role === 'admin') return { role };               // propriétaire : global
+  if (!restoId) {
+    throw new functions.https.HttpsError('invalid-argument',
+      "Un établissement (restoId) est requis pour ce rôle");
+  }
+  return { role, restoId };                              // manager + staff : lié au lieu
+}
+
+// ─────────────────────────────────────────────────────────
 //  1. TRIGGER : Nouvelle commande → Notification WhatsApp
 // ─────────────────────────────────────────────────────────
 exports.onNewOrder = region.firestore
@@ -267,26 +287,23 @@ exports.onStockUpdate = region.firestore
 
 exports.createEmployee = region.https.onCall(async (data, context) => {
   await checkAdmin(context);
-  const { email, password, role, displayName, username } = data;
+  const { email, password, role, displayName, username, restoId } = data;
   if (!email || !password || !role) {
     throw new functions.https.HttpsError('invalid-argument', 'Email, mot de passe et rôle requis');
   }
-  const VALID_ROLES = ['admin','serveur','bar','cuisine','livreur','caissier'];
-  if (!VALID_ROLES.includes(role)) {
-    throw new functions.https.HttpsError('invalid-argument', 'Rôle invalide');
-  }
+  const claims = buildRoleClaims(role, restoId);   // valide le rôle + restoId
   try {
     const userRecord = await admin.auth().createUser({
       email, password,
       displayName: displayName || email.split('@')[0],
       emailVerified: true,
     });
-    await admin.auth().setCustomUserClaims(userRecord.uid, { role });
+    await admin.auth().setCustomUserClaims(userRecord.uid, claims);
     await db.collection('employees').doc(userRecord.uid).set({
       uid: userRecord.uid, email,
       username: username || email.replace('@delices-etoiles.staff', ''),
       displayName: displayName || username || email.split('@')[0],
-      role, active: true,
+      role, restoId: claims.restoId || null, active: true,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       createdBy: context.auth.uid,
     });
@@ -301,15 +318,13 @@ exports.createEmployee = region.https.onCall(async (data, context) => {
 
 exports.updateEmployeeRole = region.https.onCall(async (data, context) => {
   await checkAdmin(context);
-  const { uid, role } = data;
+  const { uid, role, restoId } = data;
   if (!uid || !role) throw new functions.https.HttpsError('invalid-argument', 'UID et rôle requis');
-  const VALID_ROLES = ['admin','serveur','bar','cuisine','livreur','caissier'];
-  if (!VALID_ROLES.includes(role)) {
-    throw new functions.https.HttpsError('invalid-argument', 'Rôle invalide');
-  }
-  await admin.auth().setCustomUserClaims(uid, { role });
+  const claims = buildRoleClaims(role, restoId);
+  await admin.auth().setCustomUserClaims(uid, claims);
   await db.collection('employees').doc(uid).update({
-    role, updatedAt: admin.firestore.FieldValue.serverTimestamp(), updatedBy: context.auth.uid,
+    role, restoId: claims.restoId || null,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(), updatedBy: context.auth.uid,
   });
   return { success: true };
 });
@@ -354,8 +369,9 @@ exports.setUserRole = region.https.onCall(async (data, context) => {
   if (context.auth?.token?.role !== 'admin') {
     throw new functions.https.HttpsError('permission-denied', 'Admin uniquement');
   }
-  const { uid, role } = data;
-  await admin.auth().setCustomUserClaims(uid, { role });
+  const { uid, role, restoId } = data;
+  if (!uid) throw new functions.https.HttpsError('invalid-argument', 'UID requis');
+  await admin.auth().setCustomUserClaims(uid, buildRoleClaims(role, restoId));
   return { success: true };
 });
 

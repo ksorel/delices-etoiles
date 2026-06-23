@@ -3469,13 +3469,29 @@ window.Admin.stockAdjust = function(id, name, current) {
 
 // ── Gestion des utilisateurs ─────────────────────────────
 const ROLE_INFO = {
-  admin:    { label:'ADMINISTRATION', icon:'👑', color:'#F26522' },
-  serveur:  { label:'SERVEUR',        icon:'🪑', color:'#3B82F6' },
-  bar:      { label:'BAR',            icon:'🍺', color:'#8B5CF6' },
-  cuisine:  { label:'CUISINE',        icon:'👨‍🍳', color:'#10B981' },
-  livreur:  { label:'LIVREUR',        icon:'🚴', color:'#F59E0B' },
-  caissier: { label:'CAISSIER',       icon:'💳', color:'#EC4899' },
+  admin:    { label:'PROPRIÉTAIRE', icon:'👑', color:'#F26522' },
+  manager:  { label:'GÉRANT',       icon:'🧑‍💼', color:'#0EA5E9' },
+  serveur:  { label:'SERVEUR',      icon:'🪑', color:'#3B82F6' },
+  bar:      { label:'BAR',          icon:'🍺', color:'#8B5CF6' },
+  cuisine:  { label:'CUISINE',      icon:'👨‍🍳', color:'#10B981' },
+  livreur:  { label:'LIVREUR',      icon:'🚴', color:'#F59E0B' },
+  caissier: { label:'CAISSIER',     icon:'💳', color:'#EC4899' },
 };
+
+// Options <option> des établissements (collection 'restos'), pour les formulaires employés.
+async function _restoOptionsHTML(selectedId) {
+  try {
+    const snap = await getDocs(query(collection(db, 'restos'), orderBy('ordre')));
+    if (snap.empty) return '<option value="">(aucun établissement — créez-en un)</option>';
+    return snap.docs.map(function(d) {
+      const x = d.data();
+      const label = x.nom || x.commune || d.id;
+      return '<option value="' + d.id + '"' + (d.id === selectedId ? ' selected' : '') + '>' + label + '</option>';
+    }).join('');
+  } catch (e) {
+    return '<option value="">(erreur chargement établissements)</option>';
+  }
+}
 
 async function renderUsers(c) {
   c.innerHTML = '<div class="loading"><div class="spinner"></div><p>Chargement des utilisateurs…</p></div>';
@@ -3508,7 +3524,7 @@ async function renderUsers(c) {
       + '</td>'
       + '<td style="padding:10px 12px">' + statusBadge + '</td>'
       + '<td style="padding:10px 12px;text-align:right">'
-      +   '<button class="btn btn-sm btn-secondary" style="margin-right:4px" onclick="window.Admin.editEmployee(\'' + emp.uid + '\',\'' + emp.role + '\',\'' + (emp.displayName||'') + '\')">✏️ Rôle</button>'
+      +   '<button class="btn btn-sm btn-secondary" style="margin-right:4px" onclick="window.Admin.editEmployee(\'' + emp.uid + '\',\'' + emp.role + '\',\'' + (emp.displayName||'') + '\',\'' + (emp.restoId||'') + '\')">✏️ Rôle</button>'
       +   '<button class="btn btn-sm btn-secondary" style="margin-right:4px;background:#EFF6FF;color:#1D4ED8" onclick="window.Admin.resetPassword(\'' + emp.uid + '\',\'' + (emp.username||'') + '\')">🔑 MDP</button>'
       +   '<button class="btn btn-sm" style="background:' + (emp.active ? '#FEE2E2' : '#ECFDF5') + ';color:' + (emp.active ? '#991B1B' : '#065F46') + '" onclick="window.Admin.toggleEmployee(\'' + emp.uid + '\',' + !emp.active + ')">'
       +     (emp.active ? '🔒 Désactiver' : '🔓 Activer')
@@ -3537,10 +3553,11 @@ async function renderUsers(c) {
     + '</div>';
 }
 
-window.Admin.showAddEmployee = function() {
+window.Admin.showAddEmployee = async function() {
   const roleOpts = Object.entries(ROLE_INFO).map(function(e) {
     return '<option value="' + e[0] + '">' + e[1].icon + ' ' + e[1].label + '</option>';
   }).join('');
+  const restoOpts = await _restoOptionsHTML();
 
   const modal = document.createElement('div');
   modal.className = 'modal-overlay';
@@ -3571,16 +3588,29 @@ window.Admin.showAddEmployee = function() {
             <label style="font-size:12px;font-weight:700;color:#7A6356;text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:6px">Rôle <span style="color:#F26522">*</span></label>
             <select class="form-input" id="emp-role"
               style="width:100%;padding:10px 14px;border:2px solid #E0D4C8;border-radius:10px;font-size:14px;outline:none;cursor:pointer;transition:border .15s"
+              onchange="window.Admin._toggleEmpResto(this.value)"
               onfocus="this.style.borderColor='#F26522'" onblur="this.style.borderColor='#E0D4C8'">
               ${roleOpts}
             </select>
           </div>
         </div>
+        <div id="emp-resto-wrap" style="display:none">
+          <label style="font-size:12px;font-weight:700;color:#7A6356;text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:6px">Établissement <span style="color:#F26522">*</span></label>
+          <select class="form-input" id="emp-resto"
+            style="width:100%;padding:10px 14px;border:2px solid #E0D4C8;border-radius:10px;font-size:14px;outline:none;cursor:pointer;transition:border .15s"
+            onfocus="this.style.borderColor='#F26522'" onblur="this.style.borderColor='#E0D4C8'">
+            ${restoOpts}
+          </select>
+          <div style="font-size:11px;color:#9A8576;margin-top:6px">Le propriétaire a accès à tous les établissements ; les autres rôles sont rattachés à un seul lieu.</div>
+        </div>
         <div>
-          <label style="font-size:12px;font-weight:700;color:#7A6356;text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:6px">Email <span style="color:#F26522">*</span></label>
-          <input class="form-input" id="emp-email" type="email" placeholder="employe@delices-etoiles.ci"
+          <label style="font-size:12px;font-weight:700;color:#7A6356;text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:6px">Identifiant <span style="color:#F26522">*</span></label>
+          <input class="form-input" id="emp-username" type="text" placeholder="Ex: cuisine01, serveur-jean"
+            autocomplete="off" autocapitalize="off" spellcheck="false"
+            oninput="this.value=this.value.toLowerCase().replace(/[^a-z0-9_-]/g,'')"
             style="width:100%;padding:10px 14px;border:2px solid #E0D4C8;border-radius:10px;font-size:14px;outline:none;transition:border .15s"
             onfocus="this.style.borderColor='#F26522'" onblur="this.style.borderColor='#E0D4C8'">
+          <div style="font-size:11px;color:#9A8576;margin-top:6px">L'employé se connecte au dashboard avec cet identifiant — aucun email requis.</div>
         </div>
         <div>
           <label style="font-size:12px;font-weight:700;color:#7A6356;text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:6px">Mot de passe <span style="color:#F26522">*</span></label>
@@ -3610,13 +3640,21 @@ window.Admin.showAddEmployee = function() {
       </div>
     </div>`;
   document.body.appendChild(modal);
+  window.Admin._toggleEmpResto(document.getElementById('emp-role').value);
+};
+
+// Affiche/masque le champ Établissement selon le rôle (propriétaire = global, pas de lieu)
+window.Admin._toggleEmpResto = function(role) {
+  const w = document.getElementById('emp-resto-wrap');
+  if (w) w.style.display = (role === 'admin') ? 'none' : 'block';
 };
 
 window.Admin.saveEmployee = async function() {
   const name     = document.getElementById('emp-name')?.value.trim();
-  const username = document.getElementById('emp-username')?.value.trim();
+  const username = document.getElementById('emp-username')?.value.trim().toLowerCase();
   const pass     = document.getElementById('emp-pass')?.value;
   const role     = document.getElementById('emp-role')?.value;
+  const restoId  = document.getElementById('emp-resto')?.value || '';
   const err      = document.getElementById('emp-err');
   const btn      = document.getElementById('emp-save-btn');
 
@@ -3624,22 +3662,30 @@ window.Admin.saveEmployee = async function() {
     err.textContent = 'Identifiant, mot de passe et rôle sont obligatoires';
     err.style.display = 'block'; return;
   }
-  if (!/^[a-z0-9_-]+$/.test(username)) {
-    err.textContent = 'Identifiant invalide (lettres minuscules, chiffres, tirets uniquement)';
+  if (!/^[a-z0-9_-]{3,}$/.test(username)) {
+    err.textContent = 'Identifiant invalide (min. 3 caractères : lettres minuscules, chiffres, tirets)';
     err.style.display = 'block'; return;
   }
   if (pass.length < 6) {
     err.textContent = 'Le mot de passe doit contenir au moins 6 caractères';
     err.style.display = 'block'; return;
   }
+  if (role !== 'admin' && !restoId) {
+    err.textContent = 'Sélectionnez un établissement pour ce rôle';
+    err.style.display = 'block'; return;
+  }
 
-  // Convertir l'identifiant en email interne fictif
+  // L'identifiant devient un email interne fictif (Firebase Auth exige un email).
   const email = username + '@delices-etoiles.staff';
 
   btn.disabled = true; btn.textContent = 'Création…';
   try {
     const fn  = httpsCallable(functions, 'createEmployee');
-    await fn({ email, password: pass, role, displayName: name || username, username });
+    await fn({
+      email, password: pass, role,
+      displayName: name || username, username,
+      restoId: role === 'admin' ? null : restoId,
+    });
     document.getElementById('emp-modal')?.remove();
     toast('✅ Employé créé avec succès');
     renderPage(currentPage);
@@ -3650,7 +3696,7 @@ window.Admin.saveEmployee = async function() {
   }
 };
 
-window.Admin.editEmployee = function(uid, currentRole, name) {
+window.Admin.editEmployee = async function(uid, currentRole, name, currentResto) {
   const modal = document.createElement('div');
   modal.className = 'modal-overlay';
   modal.id = 'edit-modal';
@@ -3669,6 +3715,8 @@ window.Admin.editEmployee = function(uid, currentRole, name) {
       + '</div>';
   }).join('');
 
+  const restoOpts = await _restoOptionsHTML(currentResto);
+
   modal.innerHTML = ''
     + '<div style="max-width:400px;width:100%;background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 20px 60px rgba(43,29,22,.3)">'
     +   '<div style="background:linear-gradient(135deg,#2B1D16,#4A3020);padding:20px 24px;position:relative">'
@@ -3686,6 +3734,10 @@ window.Admin.editEmployee = function(uid, currentRole, name) {
     +       roleCards
     +     '</div>'
     +     '<input type="hidden" id="edit-role" value="' + currentRole + '">'
+    +     '<div id="edit-resto-wrap" style="margin-top:16px;display:' + (currentRole === 'admin' ? 'none' : 'block') + '">'
+    +       '<label style="display:block;font-size:11px;font-weight:700;color:#7A6356;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Établissement</label>'
+    +       '<select id="edit-resto" class="form-input" style="width:100%;padding:10px 14px;border:2px solid #E0D4C8;border-radius:10px;font-size:14px;outline:none;cursor:pointer">' + restoOpts + '</select>'
+    +     '</div>'
     +   '</div>'
     +   '<div style="padding:12px 24px 20px;display:flex;gap:10px;justify-content:flex-end">'
     +     '<button onclick="document.getElementById(\'edit-modal\').remove()"'
@@ -3705,6 +3757,8 @@ window.Admin.editEmployee = function(uid, currentRole, name) {
 
   window.selectRoleCard = function(role) {
     document.getElementById('edit-role').value = role;
+    var w = document.getElementById('edit-resto-wrap');
+    if (w) w.style.display = (role === 'admin') ? 'none' : 'block';
     Object.entries(ROLE_INFO).forEach(function(entry) {
       var key = entry[0], ri = entry[1];
       var card = document.getElementById('rcard-' + key);
@@ -3738,10 +3792,15 @@ window.Admin.resetPassword = async function(uid, username) {
 };
 
 window.Admin.saveRole = async function(uid) {
-  const role = document.getElementById('edit-role')?.value;
+  const role    = document.getElementById('edit-role')?.value;
+  const restoId = document.getElementById('edit-resto')?.value || '';
+  if (role !== 'admin' && !restoId) {
+    toast('⚠️ Sélectionnez un établissement pour ce rôle');
+    return;
+  }
   try {
     const fn = httpsCallable(functions, 'updateEmployeeRole');
-    await fn({ uid, role });
+    await fn({ uid, role, restoId: role === 'admin' ? null : restoId });
     document.getElementById('edit-modal')?.remove();
     toast('✅ Rôle mis à jour');
     renderPage(currentPage);
