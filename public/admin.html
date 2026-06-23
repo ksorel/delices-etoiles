@@ -483,6 +483,7 @@ function closeSidebar() {
         <div class="page-title" id="page-title">Tableau de bord</div>
       </div>
       <div style="display:flex;align-items:center;gap:8px">
+        <div id="resto-switcher-wrap"></div>
         <div id="topbar-action"></div>
         <button id="topbar-logout" onclick="doAdminLogout()"
           style="background:#EF4444;color:#fff;border:none;border-radius:8px;
@@ -521,6 +522,21 @@ import {
 } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js';
 
 let currentPage = 'dashboard';
+
+// ── Multi-établissement (propriétaire) ────────────────────
+// activeResto : restoId sélectionné, ou 'ALL' pour comparer tous les établissements.
+let lieux       = [];        // [{id, nom, commune, ...}] chargés depuis 'restos'
+let activeResto = sessionStorage.getItem('admin_resto') || 'ALL';
+
+// Contraintes Firestore selon l'établissement actif (vide en mode 'ALL' = tous).
+function ridConstraints() {
+  return activeResto && activeResto !== 'ALL' ? [where('restoId', '==', activeResto)] : [];
+}
+// restoId à estampiller sur les créations (null si « Tous » est sélectionné).
+function activeRestoForWrite() {
+  return activeResto && activeResto !== 'ALL' ? activeResto : null;
+}
+
 let menuItems   = [];
 let zones       = [];
 let upsellRules = [];
@@ -578,6 +594,7 @@ onAuthStateChanged(auth, async user => {
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('admin-app').style.display    = 'flex';
     await loadData();
+    renderRestoSwitcher();
     showPage('dashboard', document.querySelector('.nav-item'));
 
     // Initialiser l'assistant IA (une seule fois)
@@ -594,10 +611,17 @@ onAuthStateChanged(auth, async user => {
 
 // ── Data loading ──────────────────────────────────────────
 async function loadData() {
+  // Établissements (toujours chargés) pour le sélecteur
+  try {
+    const rSnap = await getDocs(query(collection(db,'restos'), orderBy('ordre')));
+    lieux = rSnap.docs.map(d => ({id:d.id, ...d.data()}));
+  } catch(e) { lieux = []; console.warn('Lieux:', e); }
+
+  const rc = ridConstraints();
   const [mSnap, zSnap, uSnap] = await Promise.all([
-    getDocs(query(collection(db,'menus'), orderBy('category'), orderBy('order'))),
-    getDocs(collection(db,'zones-livraison')),
-    getDocs(collection(db,'upselling-rules')),
+    getDocs(query(collection(db,'menus'), ...rc, orderBy('category'), orderBy('order'))),
+    getDocs(query(collection(db,'zones-livraison'), ...rc)),
+    getDocs(query(collection(db,'upselling-rules'), ...rc)),
   ]);
   menuItems   = mSnap.docs.map(d => ({id:d.id,...d.data()}));
   zones       = zSnap.docs.map(d => ({id:d.id,...d.data()}));
@@ -605,6 +629,35 @@ async function loadData() {
 }
 
 // ── Navigation ────────────────────────────────────────────
+// Sélecteur d'établissement (propriétaire) dans la barre du haut.
+function renderRestoSwitcher() {
+  const wrap = document.getElementById('resto-switcher-wrap');
+  if (!wrap) return;
+  if (activeResto !== 'ALL' && !lieux.some(l => l.id === activeResto)) {
+    activeResto = 'ALL'; sessionStorage.setItem('admin_resto', 'ALL');
+  }
+  if (!lieux.length) { wrap.innerHTML = ''; return; }
+  const opts = ['<option value="ALL">🏢 Tous les établissements</option>']
+    .concat(lieux.map(l => {
+      const nom = l.nom || l.commune || l.id;
+      return '<option value="' + l.id + '"' + (l.id === activeResto ? ' selected' : '') + '>📍 ' + nom + '</option>';
+    })).join('');
+  wrap.innerHTML =
+    '<select id="resto-switcher" onchange="window.setResto(this.value)" '
+    + 'style="padding:8px 12px;border:2px solid #E0D4C8;border-radius:10px;font-size:13px;'
+    + 'font-weight:700;color:#2B1D16;background:#fff;cursor:pointer;max-width:220px">'
+    + opts + '</select>';
+}
+
+// Changer d'établissement : recharge les données scopées et re-rend la page courante.
+window.setResto = async (id) => {
+  activeResto = id;
+  sessionStorage.setItem('admin_resto', id);
+  await loadData();
+  renderRestoSwitcher();
+  renderPage(currentPage);
+};
+
 window.showPage = (page, el) => {
   currentPage = page;
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
@@ -4089,8 +4142,13 @@ function showItemModal(item) {
     }
 
     try {
-      if (id) await updateDoc(doc(db,'menus',id), data);
-      else    await addDoc(collection(db,'menus'), data);
+      if (id) {
+        await updateDoc(doc(db,'menus',id), data);
+      } else {
+        const rid = activeRestoForWrite();
+        if (!rid) { toast('⚠️ Choisissez un établissement (pas « Tous ») pour créer un article'); btn.disabled = false; return; }
+        await addDoc(collection(db,'menus'), { ...data, restoId: rid });
+      }
       overlay.remove();
       await loadData();
       renderPage(currentPage);
@@ -4126,7 +4184,9 @@ function showZoneModal() {
       active: true,
     };
     if (!data.name || !data.frais) { toast('Nom et frais obligatoires'); return; }
-    await addDoc(collection(db,'zones-livraison'), data);
+    const rid = activeRestoForWrite();
+    if (!rid) { toast('⚠️ Choisissez un établissement pour créer une zone'); return; }
+    await addDoc(collection(db,'zones-livraison'), { ...data, restoId: rid });
     overlay.remove();
     await loadData(); renderPage(currentPage); toast('Zone ajoutée ✓');
   };
@@ -4166,10 +4226,13 @@ function showRuleModal() {
   window.Admin._saveRule = async () => {
     const checked = [...overlay.querySelectorAll('input[type=checkbox]:checked')].map(i=>i.value);
     if (!checked.length) { toast('Sélectionnez au moins un article'); return; }
+    const rid = activeRestoForWrite();
+    if (!rid) { toast('⚠️ Choisissez un établissement pour créer une règle'); return; }
     await addDoc(collection(db,'upselling-rules'), {
       triggerCategory: document.getElementById('r-cat').value,
       type:            document.getElementById('r-type').value,
       itemIds:         checked,
+      restoId:         rid,
     });
     overlay.remove();
     await loadData(); renderPage(currentPage); toast('Règle ajoutée ✓');
