@@ -536,6 +536,18 @@ function ridConstraints() {
 function activeRestoForWrite() {
   return activeResto && activeResto !== 'ALL' ? activeResto : null;
 }
+// Documents uniques par établissement (plan de salle, carrousel plat du jour).
+function layoutDocId()   { return activeResto && activeResto !== 'ALL' ? 'layout-' + activeResto : 'layout'; }
+function platJourDocId() { return activeResto && activeResto !== 'ALL' ? 'menu-du-jour-' + activeResto : 'menu-du-jour'; }
+// Bandeau affiché quand une page exige un établissement précis (mode « Tous »).
+function pickEstablishmentNotice(label) {
+  return '<div class="card"><div style="text-align:center;padding:30px 16px;color:#7A6356">'
+    + '<div style="font-size:32px;margin-bottom:10px">🏢</div>'
+    + '<div style="font-weight:800;color:#2B1D16;margin-bottom:6px">Choisissez un établissement</div>'
+    + '<div style="font-size:14px">' + label + ' se gère établissement par établissement.<br>'
+    + 'Sélectionnez un lieu dans le menu « 🏢 Tous les établissements » en haut.</div>'
+    + '</div></div>';
+}
 
 let menuItems   = [];
 let zones       = [];
@@ -790,12 +802,33 @@ window.orderRow  = orderRow;
 
 // ── Dashboard ─────────────────────────────────────────────
 function renderDashboard(c) {
-  const q = query(collection(db,'commandes'), orderBy('createdAt','desc'));
-  const unsub = onSnapshot(q, snap => {
+  if (window._dashUnsub) { try { window._dashUnsub(); } catch(_){} }
+  const q = query(collection(db,'commandes'), ...ridConstraints(), orderBy('createdAt','desc'));
+  window._dashUnsub = onSnapshot(q, snap => {
     orders = snap.docs.map(d=>({id:d.id,...d.data()}));
     const today  = new Date(); today.setHours(0,0,0,0);
     const todayO = orders.filter(o => o.createdAt?.toDate() >= today);
     const ca     = todayO.filter(o=>o.status==='done').reduce((s,o)=>s+(o.total||0),0);
+
+    // Comparaison par établissement (mode « Tous »)
+    let compCard = '';
+    if (activeResto === 'ALL') {
+      const byResto = {};
+      for (const o of todayO) {
+        const r = o.restoId || '—';
+        (byResto[r] = byResto[r] || { n:0, ca:0 }).n++;
+        if (o.status === 'done') byResto[r].ca += o.total || 0;
+      }
+      const lieuName = id => { const l = lieux.find(x=>x.id===id); return l ? (l.nom||l.commune||id) : id; };
+      const rows = Object.entries(byResto)
+        .sort((a,b)=>b[1].ca-a[1].ca)
+        .map(([r,v]) => '<tr><td style="font-weight:700">' + lieuName(r) + '</td><td>' + v.n
+          + '</td><td>' + new Intl.NumberFormat('fr-FR').format(v.ca) + ' FCFA</td></tr>').join('');
+      compCard = rows ? (
+        '<div class="card"><div class="card-title">Comparaison par établissement (aujourd&#39;hui)</div>'
+        + '<table><tr><th>Établissement</th><th>Commandes</th><th>CA servis</th></tr>' + rows + '</table></div>'
+      ) : '';
+    }
 
     c.innerHTML = `
       <div class="stats-grid">
@@ -811,6 +844,7 @@ function renderDashboard(c) {
           <span>🚴 Livraison : <strong>${todayO.filter(o=>o.type==='livraison').length}</strong></span>
         </div>
       </div>
+      ${compCard}
       <div class="card">
         <div class="card-title">Commandes récentes</div>
         ${recentOrdersTable(orders.slice(0,10), 'orders-dash')}
@@ -1012,7 +1046,9 @@ async function loadStocksPage() {
   if (!wrap) return;
   try {
     const snap = await getDocs(query(collection(db, 'stocks'), orderBy('name')));
-    _stocksAll = snap.docs.map(function(d) { return { id: d.id, ...d.data() }; });
+    let all = snap.docs.map(function(d) { return { id: d.id, ...d.data() }; });
+    if (activeResto !== 'ALL') all = all.filter(s => s.restoId === activeResto);
+    _stocksAll = all;
     _stocksPage = 1;
     renderStocksTable();
   } catch(e) {
@@ -1284,9 +1320,11 @@ let _fpTables = []; // [{id, label, col, row}]
 let _fpDragging = null;
 
 async function renderFloorPlan(c) {
-  // Charger le plan depuis Firestore
+  if (activeResto === 'ALL') { c.innerHTML = pickEstablishmentNotice('Le plan de salle'); return; }
+  // Charger le plan de l'établissement (repli sur l'ancien plan global pour la transition)
   try {
-    const snap = await getDoc(doc(db, 'floor-plan', 'layout'));
+    let snap = await getDoc(doc(db, 'floor-plan', layoutDocId()));
+    if (!snap.exists()) snap = await getDoc(doc(db, 'floor-plan', 'layout'));
     if (snap.exists()) _fpTables = snap.data().tables || [];
     else {
       // Initialiser avec les 20 tables par défaut
@@ -1397,12 +1435,14 @@ window._fpRename = function(tableId) {
 // ── QR Codes ──────────────────────────────────────────────
 async function renderQRCodes(c) {
   const base = window.location.origin;
+  if (activeResto === 'ALL') { c.innerHTML = pickEstablishmentNotice('Les QR codes des tables'); return; }
   c.innerHTML = '<div class="loading"><div class="spinner"></div><p>Chargement du plan de salle...</p></div>';
 
-  // Lire les tables depuis le plan de salle
+  // Lire les tables depuis le plan de salle de l'établissement (repli sur l'ancien plan global)
   let tables = [];
   try {
-    const snap = await getDoc(doc(db, 'floor-plan', 'layout'));
+    let snap = await getDoc(doc(db, 'floor-plan', layoutDocId()));
+    if (!snap.exists()) snap = await getDoc(doc(db, 'floor-plan', 'layout'));
     if (snap.exists() && snap.data().tables?.length) {
       // Trier par numéro/nom
       tables = snap.data().tables
@@ -1428,7 +1468,7 @@ async function renderQRCodes(c) {
       <div class="card-title">QR Codes — ${tables.length} table(s) depuis le plan de salle</div>
       <p style="font-size:12px;color:var(--muted);margin-bottom:8px">Ajoutez des tables dans <strong>Plan de salle</strong> pour les voir apparaître ici.</p>
       <p style="font-size:13px;color:var(--muted);margin-bottom:16px">
-        Cliquez sur un QR code pour l'imprimer. URL : <code style="background:var(--bg);padding:2px 6px;border-radius:4px">${base}/?table={N}</code>
+        Cliquez sur un QR code pour l'imprimer. URL : <code style="background:var(--bg);padding:2px 6px;border-radius:4px">${base}/?table={N}&resto=${activeResto}</code>
       </p>
       <div class="qr-grid" id="qr-grid"></div>
     </div>`;
@@ -1444,7 +1484,7 @@ async function renderQRCodes(c) {
       div.onclick = () => printQR(tableLabel, base, tableId);
       grid.appendChild(div);
       new QRCode(document.getElementById(`qr-${tableId}`), {
-        text: `${base}/?table=${tableId}&src=qr`,
+        text: `${base}/?table=${tableId}&resto=${activeResto}&src=qr`,
         width: 100, height: 100,
         colorDark: '#2B1D16', colorLight: '#FDF8F3',
       });
@@ -1465,7 +1505,7 @@ function printQR(label, base, id) {
     <h2>⭐ Délices Étoiles</h2><p>Scannez pour commander</p>
     <div id="qr"></div>
     <p style="margin-top:12px;font-weight:700;font-size:18px">Table ${n}</p>
-    <script>new QRCode(document.getElementById('qr'),{text:'${base}/?table=${n}',width:200,height:200,colorDark:'#2B1D16'})</scr`+`ipt>
+    <script>new QRCode(document.getElementById('qr'),{text:'${base}/?table=${n}&resto=${activeResto}',width:200,height:200,colorDark:'#2B1D16'})</scr`+`ipt>
     </body></html>`);
   w.document.close();
   setTimeout(()=>w.print(), 800);
@@ -1474,6 +1514,7 @@ function printQR(label, base, id) {
 
 // ── Plat du Jour ──────────────────────────────────────────
 function renderPlatDuJour(c, a) {
+  if (activeResto === 'ALL') { c.innerHTML = pickEstablishmentNotice('Le plat / menu du jour'); return; }
   const BOISSONS_CATS = ['bieres','eaux','jus','spiritueux','boissons'];
   const platItems = menuItems.filter(m => !BOISSONS_CATS.includes(m.category));
 
@@ -1526,7 +1567,7 @@ function renderPlatDuJour(c, a) {
     + '</div>';
 
   // Charger le menu du jour actuel
-  getDoc(doc(db, 'plat-du-jour', 'menu-du-jour')).then(function(snap) {
+  getDoc(doc(db, 'plat-du-jour', platJourDocId())).then(function(snap) {
     const el = document.getElementById('pdj-current');
     if (!el) return;
     if (!snap.exists() || !snap.data().slides || !snap.data().slides.length) {
@@ -2256,8 +2297,9 @@ window.Admin = {
     }
   },
   async saveFloorPlan() {
-    await setDoc(doc(db, 'floor-plan', 'layout'), {
-      tables: _fpTables, updatedAt: serverTimestamp(),
+    if (!activeRestoForWrite()) { toast('⚠️ Choisissez un établissement'); return; }
+    await setDoc(doc(db, 'floor-plan', layoutDocId()), {
+      tables: _fpTables, restoId: activeRestoForWrite(), updatedAt: serverTimestamp(),
     });
     toast('Plan de salle enregistré ✓');
   },
@@ -2286,15 +2328,16 @@ window.Admin = {
       });
     }
     if (!slides.length) { toast('Selectionnez au moins un plat'); return; }
-    await setDoc(doc(db, 'plat-du-jour', 'menu-du-jour'), {
-      slides, active: true, updatedAt: serverTimestamp(),
+    if (!activeRestoForWrite()) { toast('⚠️ Choisissez un établissement'); return; }
+    await setDoc(doc(db, 'plat-du-jour', platJourDocId()), {
+      slides, active: true, restoId: activeRestoForWrite(), updatedAt: serverTimestamp(),
     });
     toast('Menu du jour publie (' + slides.length + ' plat(s)) !');
     renderPage(currentPage);
   },
   async clearMenuDuJour() {
     if (!confirm('Retirer le menu du jour ?')) return;
-    await deleteDoc(doc(db, 'plat-du-jour', 'menu-du-jour'));
+    await deleteDoc(doc(db, 'plat-du-jour', platJourDocId()));
     toast('Menu du jour retire');
     renderPage(currentPage);
   },
@@ -2308,10 +2351,12 @@ window.Admin = {
     const menuItemId = document.getElementById('pdj-select-id')?.value || null;
 
     if (!name_fr) { toast('Le nom du plat est obligatoire'); return; }
+    const ridPdj = activeRestoForWrite();
+    if (!ridPdj) { toast('⚠️ Choisissez un établissement'); return; }
 
-    // Désactiver l'ancien
-    const oldSnap = await getDocs(query(collection(db,'plat-du-jour'), where('active','==',true)));
-    const batch2 = db.batch ? null : null; // use loop
+    // Désactiver l'ancien — UNIQUEMENT pour cet établissement
+    const oldSnap = await getDocs(query(collection(db,'plat-du-jour'),
+      where('active','==',true), where('restoId','==',ridPdj)));
     for (const d of oldSnap.docs) {
       await updateDoc(doc(db,'plat-du-jour',d.id), { active: false });
     }
@@ -2319,7 +2364,7 @@ window.Admin = {
     await addDoc(collection(db,'plat-du-jour'), {
       name_fr, name_en, description_fr: desc,
       price, imageUrl: img || null,
-      menuItemId, active: true,
+      menuItemId, active: true, restoId: ridPdj,
       updatedAt: serverTimestamp(),
     });
     toast('✅ Plat du jour publié !');
@@ -3476,9 +3521,12 @@ window.Admin.addStockItem = function() {
       const mSnap = await getDocs(query(collection(db, 'menus'), where('name_fr', '==', name)));
       if (!mSnap.empty) menuItemId = mSnap.docs[0].id;
     } catch(e) {}
+    const ridStock = activeRestoForWrite();
+    if (!ridStock) { toast('⚠️ Choisissez un établissement pour ajouter un stock'); return; }
     await addDoc(collection(db, 'stocks'), {
       name, qty, unit, threshold: thr, category: cat,
       menuItemId, // lien direct avec le menu
+      restoId: ridStock,
       updatedAt: serverTimestamp()
     });
     // Mettre à jour la disponibilité menu si stock = 0
@@ -3555,6 +3603,10 @@ async function renderUsers(c) {
       query(collection(db, 'employees'), orderBy('createdAt', 'desc'))
     );
     employees = snap.docs.map(d => d.data());
+    // Filtrage par établissement : on garde le staff du lieu + le(s) propriétaire(s) (globaux)
+    if (activeResto !== 'ALL') {
+      employees = employees.filter(e => e.restoId === activeResto || e.role === 'admin');
+    }
   } catch(e) {
     c.innerHTML = '<div class="card"><p style="color:red">Erreur : ' + e.message + '</p></div>';
     return;
@@ -3569,6 +3621,9 @@ async function renderUsers(c) {
       + '<td style="padding:10px 12px">'
       +   '<div style="font-weight:700;color:var(--brown)">' + (emp.displayName || '—') + '</div>'
       +   '<div style="font-size:12px;color:var(--muted)">' + (emp.username || emp.email.replace('@delices-etoiles.staff','')) + '</div>'
+      +   (emp.role !== 'admin' && emp.restoId
+            ? '<div style="font-size:11px;color:#F26522;font-weight:700">📍 ' + ((lieux.find(l=>l.id===emp.restoId)||{}).nom || (lieux.find(l=>l.id===emp.restoId)||{}).commune || emp.restoId) + '</div>'
+            : (emp.role === 'admin' ? '<div style="font-size:11px;color:#7A6356;font-weight:700">🏢 Tous les établissements</div>' : ''))
       + '</td>'
       + '<td style="padding:10px 12px">'
       +   '<span style="background:' + ri.color + '20;color:' + ri.color + ';padding:3px 10px;border-radius:12px;font-size:12px;font-weight:700">'

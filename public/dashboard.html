@@ -619,8 +619,9 @@ async function initDashboard() {
     dashMenu = mSnap.docs.map(d=>({id:d.id,...d.data()}));
   } catch(e) { console.warn('Menu load:', e); }
 
-  // Écouter les changements du plan de salle en temps réel
-  onSnapshot(doc(db,'floor-plan','layout'), snap => {
+  // Écouter les changements du plan de salle de l'établissement en temps réel
+  const _layoutId = currentRestoId ? 'layout-' + currentRestoId : 'layout';
+  onSnapshot(doc(db,'floor-plan',_layoutId), snap => {
     if (snap.exists()) {
       window._floorPlanTables = snap.data().tables || [];
     }
@@ -890,7 +891,8 @@ window.showFloorPlan = async function() {
   let tables = [];
   try {
     const snap = await getDocs(query(collection(db,'floor-plan')));
-    const layout = snap.docs.find(d => d.id === 'layout');
+    const _lid = currentRestoId ? 'layout-' + currentRestoId : 'layout';
+    const layout = snap.docs.find(d => d.id === _lid) || snap.docs.find(d => d.id === 'layout');
     if (layout) tables = layout.data().tables || [];
   } catch(e) {}
 
@@ -906,7 +908,8 @@ async function renderFloorPlanModal(tables) {
   // Recharger le plan pour avoir les noms à jour
   try {
     const snap = await getDocs(query(collection(db,'floor-plan')));
-    const layout = snap.docs.find(d => d.id === 'layout');
+    const _lid = currentRestoId ? 'layout-' + currentRestoId : 'layout';
+    const layout = snap.docs.find(d => d.id === _lid) || snap.docs.find(d => d.id === 'layout');
     if (layout && layout.data().tables?.length) tables = layout.data().tables;
   } catch(e) {}
 
