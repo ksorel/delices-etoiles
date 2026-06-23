@@ -366,6 +366,7 @@ let allOrders   = [];
 let dashMenu    = [];   // Menu chargé pour la commande serveur
 let staffCart   = [];   // Panier de commande serveur
 let currentRole = '';   // Rôle de l'utilisateur connecté
+let currentRestoId = null; // Établissement de l'employé (null = propriétaire, voit tout)
 let currentUser = null; // Utilisateur Firebase courant
 let activeFilter = 'all';
 let soundEnabled = true;
@@ -422,6 +423,9 @@ onAuthStateChanged(auth, async user => {
       currentRole = token.claims.role || 'serveur'; // défaut serveur si toujours vide
     }
 
+    // Établissement de rattachement (les rôles ≠ admin sont liés à un lieu)
+    currentRestoId = token.claims.restoId || null;
+
     // Rafraîchir le token toutes les 55min pour éviter l'expiration silencieuse
     if (window._tokenRefreshInterval) clearInterval(window._tokenRefreshInterval);
     window._tokenRefreshInterval = setInterval(async () => {
@@ -439,6 +443,13 @@ onAuthStateChanged(auth, async user => {
     (async () => {
       const { collection, query, where, orderBy, onSnapshot, doc, updateDoc }
         = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+
+      // Le Traiteur est central (transverse aux établissements) : réservé au propriétaire et au gérant.
+      if (currentRole !== 'admin' && currentRole !== 'manager') {
+        const bar = document.getElementById('traiteur-alert-bar');
+        if (bar) bar.style.display = 'none';
+        return;
+      }
 
       // Simple query - no compound index needed
       const qAlert = query(
@@ -510,6 +521,7 @@ onAuthStateChanged(auth, async user => {
     // ── Matrice des permissions par rôle ──────────────────
     const ROLES_CONFIG = {
       admin:    { canOrder: true,  canPay: true,  canStatus: true,  canPlan: true,  filterAuto: null,         masquePlan: false },
+      manager:  { canOrder: true,  canPay: true,  canStatus: true,  canPlan: true,  filterAuto: null,         masquePlan: false },
       serveur:  { canOrder: true,  canPay: false, canStatus: true,  canPlan: true,  filterAuto: null,         masquePlan: false },
       bar:      { canOrder: true,  canPay: false, canStatus: true,  canPlan: true,  filterAuto: null,         masquePlan: false },
       cuisine:  { canOrder: false, canPay: false, canStatus: true,  canPlan: false, filterAuto: 'preparing',  masquePlan: true  },
@@ -523,7 +535,8 @@ onAuthStateChanged(auth, async user => {
 
     // Afficher le rôle en évidence dans le header
     const roleLabels = {
-      admin:    { label: 'ADMINISTRATION', color: '#F26522', bg: 'rgba(242,101,34,.2)', icon: '👑' },
+      admin:    { label: 'PROPRIÉTAIRE', color: '#F26522', bg: 'rgba(242,101,34,.2)', icon: '👑' },
+      manager:  { label: 'GÉRANT',       color: '#0EA5E9', bg: 'rgba(14,165,233,.2)', icon: '🧑‍💼' },
       serveur:  { label: 'SERVEUR',        color: '#3B82F6', bg: 'rgba(59,130,246,.2)', icon: '🪑' },
       bar:      { label: 'BAR',            color: '#8B5CF6', bg: 'rgba(139,92,246,.2)', icon: '🍺' },
       cuisine:  { label: 'CUISINE',        color: '#10B981', bg: 'rgba(16,185,129,.2)', icon: '👨‍🍳' },
@@ -574,6 +587,7 @@ onAuthStateChanged(auth, async user => {
       document.querySelector('.dash-actions')?.prepend(badge);
     }
 
+    showEstablishmentName();
     initDashboard();
     // Lancer l'onboarding au premier login
     setTimeout(() => startOnboarding('dashboard'), 800);
@@ -597,9 +611,11 @@ async function initDashboard() {
   updateTime();
   setInterval(updateTime, 30000);
 
-  // Charger le menu pour les commandes serveur
+  // Charger le menu pour les commandes serveur (limité à l'établissement)
   try {
-    const mSnap = await getDocs(query(collection(db,'menus'), where('available','==',true)));
+    const mCons = [ where('available','==',true) ];
+    if (currentRestoId) mCons.push(where('restoId','==',currentRestoId));
+    const mSnap = await getDocs(query(collection(db,'menus'), ...mCons));
     dashMenu = mSnap.docs.map(d=>({id:d.id,...d.data()}));
   } catch(e) { console.warn('Menu load:', e); }
 
@@ -610,12 +626,11 @@ async function initDashboard() {
     }
   });
 
-  // Écoute Firestore — toutes les commandes non archivées
-  const q = query(
-    collection(db, 'commandes'),
-    where('status', 'in', ['pending', 'preparing', 'ready', 'done']),
-    orderBy('createdAt', 'desc')
-  );
+  // Écoute Firestore — commandes non archivées de l'établissement
+  const oCons = [ where('status', 'in', ['pending', 'preparing', 'ready', 'done']) ];
+  if (currentRestoId) oCons.push(where('restoId', '==', currentRestoId));
+  oCons.push(orderBy('createdAt', 'desc'));
+  const q = query(collection(db, 'commandes'), ...oCons);
 
   unsubOrders = onSnapshot(q, snap => {
     const newOrders = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -636,6 +651,24 @@ async function initDashboard() {
 }
 
 // ── Stats ─────────────────────────────────────────────────
+// Affiche le nom de l'établissement de l'employé sous le titre du header.
+async function showEstablishmentName() {
+  if (!currentRestoId) return;   // propriétaire : aucun lieu unique
+  try {
+    const snap = await getDocs(query(collection(db, 'restos')));
+    const rdoc = snap.docs.find(d => d.id === currentRestoId);
+    const nom  = rdoc ? (rdoc.data().nom || rdoc.data().commune || currentRestoId) : currentRestoId;
+    const titleEl = document.querySelector('.dash-title');
+    if (titleEl && !document.getElementById('dash-resto')) {
+      const chip = document.createElement('div');
+      chip.id = 'dash-resto';
+      chip.style.cssText = 'font-size:12px;font-weight:800;color:#F26522;margin-top:2px';
+      chip.textContent = '📍 ' + nom;
+      titleEl.after(chip);
+    }
+  } catch (e) { console.warn('Resto name:', e); }
+}
+
 function updateStats() {
   const counts = { pending:0, preparing:0, ready:0, done:0 };
   let ca = 0;
