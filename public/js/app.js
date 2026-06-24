@@ -675,17 +675,6 @@ function renderMenu(container) {
     </div>`).join('');
   const pdjHtml = renderPlatDuJour(State.platDuJour);
   container.innerHTML = `
-    <div style="display:flex;border-bottom:1px solid var(--border)">
-      <div style="flex:1;padding:10px;text-align:center;font-size:13px;font-weight:700;
-                  color:#F26522;border-bottom:2px solid #F26522;cursor:pointer">
-        🍽️ ${t('tab_restaurant')}
-      </div>
-      <div style="flex:1;padding:10px;text-align:center;font-size:13px;font-weight:600;
-                  color:var(--muted);cursor:pointer"
-           onclick="window.App.navigate('traiteur')">
-        👨‍🍳 ${t('tab_traiteur')}
-      </div>
-    </div>
     <div class="mode-banner">${bannerText}</div>
     ${pdjHtml}
     <div class="cat-tabs">${catTabsHtml}</div>
@@ -1418,15 +1407,10 @@ function renderTraiteur(container) {
     { id:'autre',        label:t('tr_ev_autre') },
   ];
   container.innerHTML = `
-    <div style="display:flex;border-bottom:1px solid var(--border)">
-      <div style="flex:1;padding:10px;text-align:center;font-size:13px;font-weight:600;
-                  color:var(--muted);cursor:pointer" onclick="window.App.navigate('menu')">
-        🍽️ ${t('tab_restaurant')}
-      </div>
-      <div style="flex:1;padding:10px;text-align:center;font-size:13px;font-weight:700;
-                  color:#F26522;border-bottom:2px solid #F26522;cursor:pointer">
-        👨‍🍳 ${t('tab_traiteur')}
-      </div>
+    <div style="display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--border)">
+      <button onclick="window.App.backFromTraiteur()"
+              style="background:none;border:none;font-size:14px;color:#7A6356;cursor:pointer;font-weight:700">←</button>
+      <span style="font-size:15px;font-weight:800;color:#F26522">👨‍🍳 ${t('tab_traiteur')}</span>
     </div>
     <div style="padding:20px 16px;max-width:560px;margin:0 auto">
       <div style="text-align:center;margin-bottom:20px">
@@ -1986,9 +1970,22 @@ async function renderRestoPicker() {
         <p class="resto-picker-sub">${t('picker_subtitle')}</p>
       </div>
       <div class="resto-pick-list">${cards}</div>
+      <div class="resto-pick-or">— ${t('picker_or') || 'ou'} —</div>
+      <button class="resto-pick-card resto-pick-traiteur" onclick="window.App.navigate('traiteur')">
+        <span class="resto-pick-avatar" style="background:linear-gradient(135deg,#8B5CF6,#6D28D9)">👨‍🍳</span>
+        <span class="resto-pick-body">
+          <span class="resto-pick-name">${t('tab_traiteur')}</span>
+          <span class="resto-pick-commune">${t('traiteur_subtitle')}</span>
+        </span>
+        <span class="resto-pick-go">→</span>
+      </button>
     </div>
     <style>
       .resto-picker{max-width:600px;margin:0 auto;padding:0 16px 40px;text-align:center}
+      .resto-pick-or{margin:18px 0 14px;font-size:12px;font-weight:700;letter-spacing:.1em;
+        text-transform:uppercase;color:#b6a892}
+      .resto-pick-traiteur:hover{border-color:#8B5CF6!important}
+      .resto-pick-traiteur:hover .resto-pick-go{color:#8B5CF6}
       .resto-picker-hero{padding:40px 0 28px}
       .resto-picker-brand{font-size:12px;letter-spacing:.18em;text-transform:uppercase;
         font-weight:700;color:#F26522;margin-bottom:10px}
@@ -2025,6 +2022,12 @@ window.App.changeResto = function () {
   } catch (_) {}
   if (location.hash && location.hash !== '#menu') location.hash = '';
   renderRestoPicker();
+};
+
+// Retour depuis le Traiteur : vers le menu si un établissement est choisi, sinon vers l'accueil.
+window.App.backFromTraiteur = function () {
+  if (State.resto) { window.App.navigate('menu'); }
+  else { _restoChosen = false; renderRestoPicker(); }
 };
 
 // Clic sur le logo : en livraison → retour au sélecteur ; en salle → accueil menu.

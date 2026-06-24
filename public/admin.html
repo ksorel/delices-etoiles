@@ -1173,12 +1173,14 @@ async function renderPaiements(c) {
   c.innerHTML = '<div class="loading"><div class="spinner"></div><p>Chargement des paiements…</p></div>';
   try {
     const snap = await getDocs(query(collection(db, 'paiements'), orderBy('createdAt', 'desc')));
-    if (snap.empty) {
+    let pdocs = snap.docs;
+    if (activeResto !== 'ALL') pdocs = pdocs.filter(d => (d.data().restoId) === activeResto);
+    if (!pdocs.length) {
       c.innerHTML = '<div class="card"><div class="card-title">💳 Paiements</div>'
-        + '<p style="color:var(--muted);text-align:center;padding:24px">Aucun paiement enregistré.</p></div>';
+        + '<p style="color:var(--muted);text-align:center;padding:24px">Aucun paiement enregistré pour cette sélection.</p></div>';
       return;
     }
-    const rows = snap.docs.map(function(d) {
+    const rows = pdocs.map(function(d) {
       const p = d.data();
       const date = p.createdAt?.toDate ? p.createdAt.toDate().toLocaleString('fr-FR',
         {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).replace(',',' à') : '—';
@@ -1208,12 +1210,13 @@ async function renderPaiements(c) {
 
 // ── Configuration restaurant ──────────────────────────────
 async function renderConfig(c) {
+  if (activeResto === 'ALL') { c.innerHTML = pickEstablishmentNotice('La configuration'); return; }
   c.innerHTML = '<div class="loading"><div class="spinner"></div><p>Chargement…</p></div>';
 
   let cfg = {
     managerPhone:   '0779939254',
     restaurantName: 'Délices Étoiles',
-    restoId:        'bassam',
+    restoId:        activeResto,
     payments:  { especes:true, wave:true, orange:false, mtn:false },
     contacts:  {
       tel1: '', tel1_label: 'Fixe', tel1_show: true,
@@ -1222,8 +1225,10 @@ async function renderConfig(c) {
     }
   };
   try {
-    const snap = await getDoc(doc(db, 'config', 'restaurant'));
+    let snap = await getDoc(doc(db, 'config', activeResto));
+    if (!snap.exists()) snap = await getDoc(doc(db, 'config', 'restaurant')); // repli transition
     if (snap.exists()) cfg = { ...cfg, ...snap.data() };
+    cfg.restoId = activeResto;           // l'identifiant suit l'établissement sélectionné
     if (!cfg.payments) cfg.payments = { especes:true, wave:true, orange:false, mtn:false };
   } catch(e) {}
 
@@ -1265,8 +1270,8 @@ async function renderConfig(c) {
 
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'
     +   '<div><label class="form-label">Identifiant restaurant</label>'
-    +     '<input class="form-input" id="cfg-restoid" value="' + (cfg.restoId||'') + '" placeholder="bassam, abobo…">'
-    +     '<div style="font-size:11px;color:var(--muted);margin-top:3px">Pour le multi-restaurant</div></div>'
+    +     '<input class="form-input" id="cfg-restoid" value="' + (cfg.restoId||'') + '" placeholder="bassam, abobo…" readonly style="background:#F5F0EB">'
+    +     '<div style="font-size:11px;color:var(--muted);margin-top:3px">Établissement sélectionné (non modifiable ici)</div></div>'
     +   '<div><label class="form-label">📞 Numéro du gérant</label>'
     +     '<input class="form-input" id="cfg-phone" value="' + (cfg.managerPhone||'') + '" type="tel">'
     +     '<div style="font-size:11px;color:var(--muted);margin-top:3px">Affiché sur la page login</div></div>'
@@ -1637,13 +1642,14 @@ function renderCache(c) {
 
 // ── Commandes ─────────────────────────────────────────────
 function renderCommandes(c) {
-  const q = query(collection(db,'commandes'), orderBy('createdAt','desc'));
+  const q = query(collection(db,'commandes'), ...ridConstraints(), orderBy('createdAt','desc'));
   const unsubComm = onSnapshot(q,
     snap => {
       const list = snap.docs.map(d=>({id:d.id,...d.data()}));
+      const scopeLbl = activeResto === 'ALL' ? 'Tous les établissements' : ((lieux.find(l=>l.id===activeResto)||{}).nom || activeResto);
       c.innerHTML = `
         <div class="card">
-          <div class="card-title">Toutes les commandes (${list.length})</div>
+          <div class="card-title">Commandes — ${scopeLbl} (${list.length})</div>
           ${recentOrdersTable(list, 'orders-all')}
         </div>`;
     },
@@ -2070,24 +2076,30 @@ async function renderComptabilite(c) {
     const { collection, collectionGroup, query, where, orderBy, getDocs }
       = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
 
-    // Revenus restaurant
+    // Revenus restaurant (scopés par établissement ; cumul en mode « Tous »)
     const restoSnap = await getDocs(query(collection(db, 'paiements'), orderBy('createdAt', 'desc')));
-    const revenuRestaurant = restoSnap.docs.reduce((s, d) => s + (d.data().montant || 0), 0);
+    let restoPaie = restoSnap.docs;
+    if (activeResto !== 'ALL') restoPaie = restoPaie.filter(d => d.data().restoId === activeResto);
+    const revenuRestaurant = restoPaie.reduce((s, d) => s + (d.data().montant || 0), 0);
 
-    // Revenus traiteur (paiements confirmés, toutes prestations)
+    // Revenus traiteur — CENTRAL (transverse) : uniquement en vue consolidée « Tous »
     let revenuTraiteur = 0;
     let paiementsTraiteur = [];
-    try {
-      const traiteurSnap = await getDocs(
-        query(collectionGroup(db, 'paiements'), where('statut', '==', 'confirme'))
-      );
-      paiementsTraiteur = traiteurSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-      revenuTraiteur = paiementsTraiteur.reduce((s, p) => s + (p.montant || 0), 0);
-    } catch(e) { console.warn('CollectionGroup paiements indisponible (index manquant ?)', e); }
+    if (activeResto === 'ALL') {
+      try {
+        const traiteurSnap = await getDocs(
+          query(collectionGroup(db, 'paiements'), where('statut', '==', 'confirme'))
+        );
+        paiementsTraiteur = traiteurSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        revenuTraiteur = paiementsTraiteur.reduce((s, p) => s + (p.montant || 0), 0);
+      } catch(e) { console.warn('CollectionGroup paiements indisponible (index manquant ?)', e); }
+    }
 
-    // Dépenses
+    // Dépenses (scopées par établissement ; cumul en mode « Tous »)
     const depSnap = await getDocs(query(collection(db, 'depenses'), orderBy('date', 'desc')));
-    const depenses = depSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    let depDocs = depSnap.docs;
+    if (activeResto !== 'ALL') depDocs = depDocs.filter(d => d.data().restoId === activeResto);
+    const depenses = depDocs.map(d => ({ id: d.id, ...d.data() }));
     const totalDepenses = depenses.reduce((s, d) => s + (d.montant || 0), 0);
 
     const totalRevenus = revenuRestaurant + revenuTraiteur;
@@ -2124,17 +2136,24 @@ async function renderComptabilite(c) {
         }).join('')
       : '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--muted)">Aucune dépense enregistrée</td></tr>';
 
-    c.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:20px">'
+    c.innerHTML = '<div style="font-size:13px;color:#7A6356;font-weight:700;margin-bottom:10px">'
+      + (activeResto === 'ALL'
+          ? '🏢 Vue consolidée — tous les établissements + Traiteur central'
+          : '📍 ' + (((lieux.find(l=>l.id===activeResto)||{}).nom) || activeResto) + ' — restaurant uniquement')
+      + '</div>'
+      + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:20px">'
 
       + '<div class="card" style="margin:0;background:#ECFDF5">'
       +   '<div style="font-size:12px;color:#065F46;font-weight:700">💰 Revenus Restaurant</div>'
       +   '<div style="font-size:20px;font-weight:800;color:#065F46;margin-top:6px">' + revenuRestaurant.toLocaleString('fr-FR') + ' F</div>'
       + '</div>'
 
-      + '<div class="card" style="margin:0;background:#ECFDF5">'
-      +   '<div style="font-size:12px;color:#065F46;font-weight:700">🎉 Revenus Traiteur</div>'
-      +   '<div style="font-size:20px;font-weight:800;color:#065F46;margin-top:6px">' + revenuTraiteur.toLocaleString('fr-FR') + ' F</div>'
-      + '</div>'
+      + (activeResto === 'ALL' ? (
+          '<div class="card" style="margin:0;background:#ECFDF5">'
+        +   '<div style="font-size:12px;color:#065F46;font-weight:700">🎉 Revenus Traiteur</div>'
+        +   '<div style="font-size:20px;font-weight:800;color:#065F46;margin-top:6px">' + revenuTraiteur.toLocaleString('fr-FR') + ' F</div>'
+        + '</div>'
+        ) : '')
 
       + '<div class="card" style="margin:0;background:#FEF2F2">'
       +   '<div style="font-size:12px;color:#991B1B;font-weight:700">📉 Dépenses</div>'
@@ -2304,7 +2323,8 @@ window.Admin = {
     toast('Plan de salle enregistré ✓');
   },
   async resetFloorPlan() {
-    if (!confirm('Réinitialiser le plan avec les 20 tables par défaut ?')) return;
+    if (!activeRestoForWrite()) { toast('⚠️ Choisissez un établissement'); return; }
+    if (!confirm('Réinitialiser le plan de CET établissement avec les 20 tables par défaut ?')) return;
     _fpTables = Array.from({length:20},(_,i) => ({
       id: String(i+1), label:'T'+(i+1), col: i%5, row: Math.floor(i/5)
     }));
@@ -3397,7 +3417,7 @@ window.Admin.ajouterDepense = async function() {
 
     await addDoc(collection(db, 'depenses'), {
       montant, categorie: categorie || 'autre', description: description || '',
-      date, justificatifUrl, createdAt: serverTimestamp(),
+      date, justificatifUrl, restoId: activeRestoForWrite(), createdAt: serverTimestamp(),
     });
 
     toast('✅ Dépense enregistrée');
@@ -3422,26 +3442,27 @@ window.Admin.supprimerDepense = async function(depId) {
 
 
 window.Admin.togglePayment = async function(mode, enabled) {
+  if (!activeRestoForWrite()) { toast('⚠️ Choisissez un établissement'); return; }
   try {
-    const snap = await getDoc(doc(db, 'config', 'restaurant'));
+    const snap = await getDoc(doc(db, 'config', activeResto));
     const payments = snap.exists() ? (snap.data().payments || {}) : {};
     payments[mode] = enabled;
-    await setDoc(doc(db, 'config', 'restaurant'), { payments }, { merge: true });
+    await setDoc(doc(db, 'config', activeResto), { payments, restoId: activeResto }, { merge: true });
     toast((enabled ? '✅ ' : '❌ ') + mode.toUpperCase() + (enabled ? ' activé' : ' désactivé'));
   } catch(e) { toast('Erreur : ' + e.message); }
 };
 
 
 window.Admin.saveConfig = async function() {
+  if (!activeRestoForWrite()) { toast('⚠️ Choisissez un établissement'); return; }
   const name    = document.getElementById('cfg-name')?.value.trim();
-  const restoId = document.getElementById('cfg-restoid')?.value.trim();
   const phone   = document.getElementById('cfg-phone')?.value.trim();
   const msg     = document.getElementById('cfg-msg');
 
   try {
-    await setDoc(doc(db, 'config', 'restaurant'), {
+    await setDoc(doc(db, 'config', activeResto), {
       restaurantName: name,
-      restoId:        restoId,
+      restoId:        activeResto,
       managerPhone:   phone,
       contacts: {
         tel1:        document.getElementById('cfg-tel1')?.value.trim()       || '',
