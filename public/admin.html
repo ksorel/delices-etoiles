@@ -450,6 +450,7 @@ function closeSidebar() {
     </button>
 
     <div class="nav-item active" onclick="showPage('dashboard',this)"><span class="nav-icon">📊</span>Tableau de bord</div>
+    <div class="nav-item" onclick="showPage('etablissements',this)"><span class="nav-icon">🏢</span>Établissements</div>
     <div class="nav-item" onclick="showPage('menu',this)"><span class="nav-icon">🍽️</span>Articles</div>
     <div class="nav-item" onclick="showPage('zones',this)"><span class="nav-icon">🗺️</span>Zones livraison</div>
     <div class="nav-item" onclick="showPage('upselling',this)"><span class="nav-icon">⬆️</span>Upselling</div>
@@ -651,7 +652,7 @@ function renderRestoSwitcher() {
   if (!lieux.length) { wrap.innerHTML = ''; return; }
   const opts = ['<option value="ALL">🏢 Tous les établissements</option>']
     .concat(lieux.map(l => {
-      const nom = l.nom || l.commune || l.id;
+      const nom = (l.nom || l.commune || l.id) + (l.actif === false ? ' (désactivé)' : '');
       return '<option value="' + l.id + '"' + (l.id === activeResto ? ' selected' : '') + '>📍 ' + nom + '</option>';
     })).join('');
   wrap.innerHTML =
@@ -675,7 +676,7 @@ window.showPage = (page, el) => {
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
   el.classList.add('active');
   const titles = {
-    dashboard:'Tableau de bord', menu:'Gestion des articles',
+    dashboard:'Tableau de bord', etablissements:'Établissements', menu:'Gestion des articles',
     zones:'Zones de livraison', upselling:'Règles d\'upselling', platdujour:'Plat du jour', cache:'Gestion du cache',
     qrcodes:'QR Codes tables', floorplan:'Plan de salle', commandes:'Historique commandes',
     users:'Utilisateurs', stats:'Statistiques', stocks:'Stocks', paiements:'Paiements', config:'Configuration',
@@ -694,6 +695,7 @@ async function renderPage(page) {
   a.innerHTML = '';
   switch(page) {
     case 'dashboard':  renderDashboard(c); break;
+    case 'etablissements': await renderEtablissements(c); break;
     case 'menu':       renderMenu(c,a); break;
     case 'zones':      renderZones(c,a); break;
     case 'upselling':  renderUpselling(c,a); break;
@@ -1321,22 +1323,31 @@ async function renderConfig(c) {
 // ── Plan de salle ─────────────────────────────────────────
 const FP_COLS = 10;
 const FP_ROWS = 8;
+const LEGACY_PLAN_RESTO = 'bassam'; // établissement initial (ère mono-resto) : hérite l'ancien plan global
 let _fpTables = []; // [{id, label, col, row}]
 let _fpDragging = null;
 
+function _defaultFpTables() {
+  return Array.from({length:20},(_,i) => ({ id: String(i+1), label:'T'+(i+1), col: i%5, row: Math.floor(i/5) }));
+}
+
 async function renderFloorPlan(c) {
   if (activeResto === 'ALL') { c.innerHTML = pickEstablishmentNotice('Le plan de salle'); return; }
-  // Charger le plan de l'établissement (repli sur l'ancien plan global pour la transition)
   try {
-    let snap = await getDoc(doc(db, 'floor-plan', layoutDocId()));
-    if (!snap.exists()) snap = await getDoc(doc(db, 'floor-plan', 'layout'));
-    if (snap.exists()) _fpTables = snap.data().tables || [];
-    else {
-      // Initialiser avec les 20 tables par défaut
-      _fpTables = Array.from({length:20},(_,i) => ({
-        id: String(i+1), label:'T'+(i+1),
-        col: i%5, row: Math.floor(i/5)
-      }));
+    const snap = await getDoc(doc(db, 'floor-plan', layoutDocId()));
+    if (snap.exists()) {
+      _fpTables = snap.data().tables || [];
+    } else if (activeResto === LEGACY_PLAN_RESTO) {
+      // Migration unique : récupérer l'ancien plan global (ère mono-établissement) vers cet établissement
+      const legacy = await getDoc(doc(db, 'floor-plan', 'layout'));
+      if (legacy.exists() && (legacy.data().tables || []).length) {
+        _fpTables = legacy.data().tables;
+        await setDoc(doc(db, 'floor-plan', layoutDocId()),
+          { tables: _fpTables, restoId: activeResto, updatedAt: serverTimestamp() });
+      } else { _fpTables = _defaultFpTables(); }
+    } else {
+      // Nouvel établissement : plan vierge par défaut (indépendant de Bassam)
+      _fpTables = _defaultFpTables();
     }
   } catch(e) { _fpTables = []; }
   renderFPEditor(c);
@@ -1446,8 +1457,7 @@ async function renderQRCodes(c) {
   // Lire les tables depuis le plan de salle de l'établissement (repli sur l'ancien plan global)
   let tables = [];
   try {
-    let snap = await getDoc(doc(db, 'floor-plan', layoutDocId()));
-    if (!snap.exists()) snap = await getDoc(doc(db, 'floor-plan', 'layout'));
+    const snap = await getDoc(doc(db, 'floor-plan', layoutDocId()));
     if (snap.exists() && snap.data().tables?.length) {
       // Trier par numéro/nom
       tables = snap.data().tables
@@ -2325,9 +2335,13 @@ window.Admin = {
   async resetFloorPlan() {
     if (!activeRestoForWrite()) { toast('⚠️ Choisissez un établissement'); return; }
     if (!confirm('Réinitialiser le plan de CET établissement avec les 20 tables par défaut ?')) return;
-    _fpTables = Array.from({length:20},(_,i) => ({
-      id: String(i+1), label:'T'+(i+1), col: i%5, row: Math.floor(i/5)
-    }));
+    _fpTables = _defaultFpTables();
+    // Persister immédiatement (la réinitialisation est définitive pour cet établissement)
+    try {
+      await setDoc(doc(db, 'floor-plan', layoutDocId()),
+        { tables: _fpTables, restoId: activeRestoForWrite(), updatedAt: serverTimestamp() });
+      toast('Plan réinitialisé et enregistré ✓');
+    } catch(e) { toast('Erreur : ' + e.message); }
     renderFPEditor(document.getElementById('page-content'));
   },
   async saveMenuDuJour() {
@@ -3439,6 +3453,111 @@ window.Admin.supprimerDepense = async function(depId) {
   } catch(e) { toast('Erreur : ' + e.message); }
 };
 
+
+// ── Établissements (gestion — propriétaire) ───────────────
+async function renderEtablissements(c) {
+  c.innerHTML = '<div class="loading"><div class="spinner"></div><p>Chargement…</p></div>';
+  let docs = [];
+  try {
+    const snap = await getDocs(query(collection(db, 'restos'), orderBy('ordre')));
+    docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch(e) {
+    c.innerHTML = '<div class="card"><p style="color:red">Erreur : ' + e.message + '</p></div>';
+    return;
+  }
+  const rows = docs.map(function(l) {
+    const actif = l.actif !== false;
+    const badge = actif
+      ? '<span style="color:#10B981;font-weight:700;font-size:12px">● Actif</span>'
+      : '<span style="color:#EF4444;font-weight:700;font-size:12px">● Désactivé</span>';
+    const sub = [l.commune, l.adresse].filter(Boolean).join(' · ');
+    return '<tr style="border-bottom:1px solid var(--border)">'
+      + '<td style="padding:12px 14px">'
+      +   '<div style="font-weight:700;color:var(--brown)">' + (l.nom || l.id) + '</div>'
+      +   '<div style="font-size:12px;color:var(--muted)">' + (sub || '—') + '</div>'
+      +   '<div style="font-size:11px;color:#b6a892;margin-top:2px">id : ' + l.id + ' · ordre : ' + (l.ordre != null ? l.ordre : '—') + '</div>'
+      + '</td>'
+      + '<td style="padding:12px 14px">' + badge + '</td>'
+      + '<td style="padding:12px 14px;text-align:right;white-space:nowrap">'
+      +   '<button class="btn btn-sm btn-secondary" style="margin-right:4px" onclick="window.Admin.editLieu(\x27' + l.id + '\x27)">✏️ Modifier</button>'
+      +   '<button class="btn btn-sm" style="background:' + (actif?'#FEE2E2':'#ECFDF5') + ';color:' + (actif?'#991B1B':'#065F46') + '" onclick="window.Admin.toggleLieuActif(\x27' + l.id + '\x27,' + actif + ')">' + (actif?'Désactiver':'Activer') + '</button>'
+      + '</td></tr>';
+  }).join('');
+  c.innerHTML =
+    '<div class="card">'
+    + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">'
+    +   '<div class="card-title" style="margin:0">🏢 Établissements (' + docs.length + ')</div>'
+    +   '<button class="btn btn-primary btn-sm" onclick="window.Admin.showAddLieu()">+ Ajouter un établissement</button>'
+    + '</div>'
+    + '<p style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.5">Les établissements actifs apparaissent dans le portail client et dans le sélecteur en haut. Désactiver un établissement le retire du portail client sans supprimer ses données.</p>'
+    + '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">'
+    +   '<thead><tr style="background:var(--bg)"><th style="padding:10px 14px;text-align:left;font-size:12px;color:var(--muted)">Établissement</th><th style="padding:10px 14px;text-align:left;font-size:12px;color:var(--muted)">Statut</th><th></th></tr></thead>'
+    +   '<tbody>' + (rows || '<tr><td colspan="3" style="padding:24px;text-align:center;color:var(--muted)">Aucun établissement.</td></tr>') + '</tbody>'
+    + '</table></div></div>';
+}
+
+function _openLieuModal(l) {
+  const isNew = !l || !lieux.some(x => x.id === l.id);
+  const cur = l || { actif: true, ordre: (lieux.length ? Math.max.apply(null, lieux.map(x=>x.ordre||0)) + 1 : 1) };
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:9999;padding:16px';
+  overlay.innerHTML =
+    '<div class="card" style="max-width:440px;width:100%;margin:0;max-height:90vh;overflow:auto">'
+    + '<div class="card-title">' + (isNew ? 'Nouvel établissement' : 'Modifier l\x27établissement') + '</div>'
+    + '<div style="display:flex;flex-direction:column;gap:12px">'
+    +   '<div><label class="form-label">Identifiant (technique) *</label>'
+    +     '<input class="form-input" id="lieu-id" value="' + (cur.id||'') + '" placeholder="ex: cocody" ' + (isNew?'':'readonly style="background:#F5F0EB"') + '>'
+    +     '<div style="font-size:11px;color:var(--muted);margin-top:3px">minuscules, chiffres et tirets. Non modifiable après création.</div></div>'
+    +   '<div><label class="form-label">Nom affiché *</label><input class="form-input" id="lieu-nom" value="' + (cur.nom||'') + '" placeholder="Délices Étoiles — Cocody"></div>'
+    +   '<div><label class="form-label">Commune</label><input class="form-input" id="lieu-commune" value="' + (cur.commune||'') + '" placeholder="Cocody"></div>'
+    +   '<div><label class="form-label">Adresse</label><input class="form-input" id="lieu-adresse" value="' + (cur.adresse||'') + '" placeholder="Rue, repère…"></div>'
+    +   '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'
+    +     '<div><label class="form-label">Ordre</label><input class="form-input" id="lieu-ordre" type="number" value="' + (cur.ordre != null ? cur.ordre : 1) + '"></div>'
+    +     '<div><label class="form-label">Statut</label><select class="form-select" id="lieu-actif"><option value="true"' + (cur.actif!==false?' selected':'') + '>Actif</option><option value="false"' + (cur.actif===false?' selected':'') + '>Désactivé</option></select></div>'
+    +   '</div>'
+    +   '<div style="display:flex;gap:8px;margin-top:4px">'
+    +     '<button class="btn btn-primary" onclick="window.Admin.saveLieu(' + (isNew?'true':'false') + ')">Enregistrer</button>'
+    +     '<button class="btn btn-secondary" onclick="this.closest(\x27[style*=fixed]\x27).remove()">Annuler</button>'
+    +   '</div>'
+    + '</div></div>';
+  document.body.appendChild(overlay);
+  window.Admin._lieuOverlay = overlay;
+}
+
+window.Admin.showAddLieu = function() { _openLieuModal(null); };
+window.Admin.editLieu = function(id) { _openLieuModal(lieux.find(x => x.id === id) || { id }); };
+
+window.Admin.saveLieu = async function(isNew) {
+  const id      = (document.getElementById('lieu-id').value || '').trim().toLowerCase();
+  const nom     = document.getElementById('lieu-nom').value.trim();
+  const commune = document.getElementById('lieu-commune').value.trim();
+  const adresse = document.getElementById('lieu-adresse').value.trim();
+  const ordre   = parseInt(document.getElementById('lieu-ordre').value) || 0;
+  const actif   = document.getElementById('lieu-actif').value === 'true';
+  if (!/^[a-z0-9-]{2,}$/.test(id)) { toast('Identifiant invalide (minuscules, chiffres, tirets)'); return; }
+  if (!nom) { toast('Le nom est obligatoire'); return; }
+  if (isNew && lieux.some(x => x.id === id)) { toast('Cet identifiant existe déjà'); return; }
+  try {
+    await setDoc(doc(db,'restos',id), { nom, commune, adresse, actif, ordre, updatedAt: serverTimestamp() }, { merge: true });
+    if (window.Admin._lieuOverlay) window.Admin._lieuOverlay.remove();
+    await loadData();
+    renderRestoSwitcher();
+    renderEtablissements(document.getElementById('page-content'));
+    toast('Établissement enregistré ✓');
+  } catch(e) { toast('Erreur : ' + e.message); }
+};
+
+window.Admin.toggleLieuActif = async function(id, currentActif) {
+  const next = !currentActif;
+  if (!confirm(next ? 'Activer cet établissement ?' : 'Désactiver cet établissement ? Il sera retiré du portail client (données conservées).')) return;
+  try {
+    await updateDoc(doc(db,'restos',id), { actif: next, updatedAt: serverTimestamp() });
+    await loadData();
+    renderRestoSwitcher();
+    renderEtablissements(document.getElementById('page-content'));
+    toast(next ? 'Établissement activé ✓' : 'Établissement désactivé');
+  } catch(e) { toast('Erreur : ' + e.message); }
+};
 
 
 window.Admin.togglePayment = async function(mode, enabled) {

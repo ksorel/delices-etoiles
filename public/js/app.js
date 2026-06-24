@@ -464,7 +464,7 @@ function updateHeader() {
       if (!mk) {
         mk = document.createElement('div');
         mk.id = 'resto-marker';
-        mk.style.cssText = 'font-size:12px;margin-top:1px;line-height:1.2';
+        mk.style.cssText = 'font-size:12px;margin-top:1px;line-height:1.2;display:flex;align-items:center;gap:5px;max-width:210px';
         parent.appendChild(mk);
       }
       // Même couleur que la tagline "Resto & Traiteur" (header sombre → texte clair)
@@ -472,9 +472,10 @@ function updateHeader() {
       if (State.mode === 'salle') {
         mk.innerHTML = `<strong>${t('mode_salle')} ${State.tableId}</strong>`;
       } else {
-        const nom = State.resto?.nom || State.resto?.commune || '';
-        mk.innerHTML = `📍 <strong>${nom}</strong>`
-          + ` · <span style="color:#F26522;font-weight:700">${t('picker_change')}</span>`;
+        // Nom court (commune de préférence) + ellipse ; « Changer » reste sur la même ligne.
+        const court = State.resto?.commune || State.resto?.nom || '';
+        mk.innerHTML = `<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0">📍 <strong>${court}</strong></span>`
+          + `<span style="color:#F26522;font-weight:700;white-space:nowrap;flex:0 0 auto">· ${t('picker_change_short')}</span>`;
       }
     } else if (mk) {
       mk.remove();
@@ -1963,7 +1964,7 @@ async function renderRestoPicker() {
   }).join('');
 
   view.innerHTML = `
-    <div class="resto-picker">
+    <div class="resto-picker" style="max-width:${lieux.length >= 5 ? 920 : lieux.length >= 3 ? 760 : 600}px">
       <div class="resto-picker-hero">
         <div class="resto-picker-brand">Délices Étoiles</div>
         <h2 class="resto-picker-title">${t('picker_title')}</h2>
@@ -1981,7 +1982,7 @@ async function renderRestoPicker() {
       </button>
     </div>
     <style>
-      .resto-picker{max-width:600px;margin:0 auto;padding:0 16px 40px;text-align:center}
+      .resto-picker{margin:0 auto;padding:0 16px 40px;text-align:center}
       .resto-pick-or{margin:18px 0 14px;font-size:12px;font-weight:700;letter-spacing:.1em;
         text-transform:uppercase;color:#b6a892}
       .resto-pick-traiteur:hover{border-color:#8B5CF6!important}
@@ -1991,7 +1992,7 @@ async function renderRestoPicker() {
         font-weight:700;color:#F26522;margin-bottom:10px}
       .resto-picker-title{font-size:24px;line-height:1.2;color:var(--brown-dk,#2B1D16);margin:0 0 8px;font-weight:800}
       .resto-picker-sub{font-size:14px;color:var(--brown-md,#7a6a55);margin:0}
-      .resto-pick-list{display:flex;flex-direction:column;gap:14px}
+      .resto-pick-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
       .resto-pick-card{display:flex;align-items:center;gap:14px;width:100%;text-align:left;
         background:#fff;border:1px solid var(--border,#ece3d6);border-radius:16px;padding:16px 18px;
         cursor:pointer;transition:transform .14s ease,box-shadow .14s ease,border-color .14s ease}

@@ -892,7 +892,7 @@ window.showFloorPlan = async function() {
   try {
     const snap = await getDocs(query(collection(db,'floor-plan')));
     const _lid = currentRestoId ? 'layout-' + currentRestoId : 'layout';
-    const layout = snap.docs.find(d => d.id === _lid) || snap.docs.find(d => d.id === 'layout');
+    const layout = snap.docs.find(d => d.id === _lid) || (currentRestoId === 'bassam' ? snap.docs.find(d => d.id === 'layout') : null);
     if (layout) tables = layout.data().tables || [];
   } catch(e) {}
 
@@ -909,7 +909,7 @@ async function renderFloorPlanModal(tables) {
   try {
     const snap = await getDocs(query(collection(db,'floor-plan')));
     const _lid = currentRestoId ? 'layout-' + currentRestoId : 'layout';
-    const layout = snap.docs.find(d => d.id === _lid) || snap.docs.find(d => d.id === 'layout');
+    const layout = snap.docs.find(d => d.id === _lid) || (currentRestoId === 'bassam' ? snap.docs.find(d => d.id === 'layout') : null);
     if (layout && layout.data().tables?.length) tables = layout.data().tables;
   } catch(e) {}
 
