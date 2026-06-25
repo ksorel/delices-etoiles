@@ -1394,7 +1394,12 @@ function toggleLang() {
   setLang(getLang() === 'fr' ? 'en' : 'fr');
   State.lang = getLang();
   updateHeader();
-  renderView(location.hash.replace('#', '') || 'menu');
+  // Sur l'accueil (sélecteur d'établissement), y rester au lieu de basculer sur le menu
+  if (State.mode !== 'salle' && !RESTO_FROM_URL && !_restoChosen) {
+    renderRestoPicker();
+  } else {
+    renderView(location.hash.replace('#', '') || 'menu');
+  }
 }
 // ─── Exposer l'API globale pour les onclick HTML ──────────
 // ─── Traiteur ─────────────────────────────────────────────
@@ -1988,8 +1993,9 @@ async function renderRestoPicker() {
       .resto-pick-traiteur:hover{border-color:#8B5CF6!important}
       .resto-pick-traiteur:hover .resto-pick-go{color:#8B5CF6}
       .resto-picker-hero{padding:40px 0 28px}
-      .resto-picker-brand{font-size:12px;letter-spacing:.18em;text-transform:uppercase;
-        font-weight:700;color:#F26522;margin-bottom:10px}
+      .resto-picker-brand{font-family:'Great Vibes','Segoe Script',cursive;font-size:46px;
+        line-height:1.05;letter-spacing:0;text-transform:none;
+        font-weight:400;color:#F26522;margin-bottom:6px}
       .resto-picker-title{font-size:24px;line-height:1.2;color:var(--brown-dk,#2B1D16);margin:0 0 8px;font-weight:800}
       .resto-picker-sub{font-size:14px;color:var(--brown-md,#7a6a55);margin:0}
       .resto-pick-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
