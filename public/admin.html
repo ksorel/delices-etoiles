@@ -540,6 +540,19 @@ function activeRestoForWrite() {
 // Documents uniques par établissement (plan de salle, carrousel plat du jour).
 function layoutDocId()   { return activeResto && activeResto !== 'ALL' ? 'layout-' + activeResto : 'layout'; }
 function platJourDocId() { return activeResto && activeResto !== 'ALL' ? 'menu-du-jour-' + activeResto : 'menu-du-jour'; }
+
+// Nom lisible d'un établissement à partir de son restoId.
+function lieuLabel(id) {
+  if (!id) return '— sans établissement —';
+  const l = lieux.find(x => x.id === id);
+  return l ? (l.nom || l.commune || id) : id;
+}
+// Petite puce « 📍 Lieu » à insérer dans les tableaux en mode « Tous ».
+function lieuChip(id) {
+  return '<span style="display:inline-block;font-size:11px;font-weight:700;color:#C2410C;'
+    + 'background:#FFF0E8;border:1px solid #F9C5A8;border-radius:10px;padding:1px 8px;white-space:nowrap">📍 '
+    + lieuLabel(id) + '</span>';
+}
 // Bandeau affiché quand une page exige un établissement précis (mode « Tous »).
 function pickEstablishmentNotice(label) {
   return '<div class="card"><div style="text-align:center;padding:30px 16px;color:#7A6356">'
@@ -861,6 +874,7 @@ function orderRow(o) {
   return `<tr>
     <td style="font-weight:700">#${o.id.slice(-6).toUpperCase()}</td>
     <td>${o.type==='salle'?'🪑 Salle':'🚴 Livraison'}</td>
+    ${activeResto==='ALL'?'<td>'+lieuChip(o.restoId)+'</td>':''}
     <td>${new Intl.NumberFormat('fr-FR').format(o.total||0)} FCFA</td>
     <td><span class="badge" style="background:${statusColor(o.status)};color:#fff">${statusLabel(o.status)}</span></td>
     <td>${time}</td>
@@ -879,7 +893,7 @@ function recentOrdersTable(list, tableId = 'orders-recent') {
     </div>
   </div>
   <table>
-    <tr><th>N°</th><th>Type</th><th>Total</th><th>Statut</th><th>Heure</th></tr>
+    <tr><th>N°</th><th>Type</th>${activeResto==='ALL'?'<th>Établissement</th>':''}<th>Total</th><th>Statut</th><th>Heure</th></tr>
     <tbody id="${tableId}-tbody"></tbody>
   </table>
   <div class="pagination">
@@ -924,7 +938,7 @@ function renderMenu(c, a) {
         </div>
       </div>
       <table>
-        <tr><th>Photo</th><th>Nom FR</th><th>Catégorie</th><th>Prix entier</th><th>Prix demi</th><th>Dispo</th><th>Actions</th></tr>
+        <tr><th>Photo</th><th>Nom FR</th><th>Catégorie</th>${activeResto==='ALL'?'<th>Établissement</th>':''}<th>Prix entier</th><th>Prix demi</th><th>Dispo</th><th>Actions</th></tr>
         <tbody id="menu-tbody"></tbody>
       </table>
       <div class="pagination">
@@ -945,6 +959,7 @@ function menuRow(item) {
     <td>${img}</td>
     <td><strong>${item.name_fr}</strong><br><span style="font-size:11px;color:var(--muted)">${item.name_en||''}</span></td>
     <td><span class="badge" style="background:var(--bg);color:var(--muted)">${item.category}</span></td>
+    ${activeResto==='ALL'?'<td>'+lieuChip(item.restoId)+'</td>':''}
     <td style="font-weight:700;color:var(--orange)">${prixLabel}</td>
     <td style="color:var(--muted)">${prixDemi}</td>
     <td>
@@ -986,7 +1001,7 @@ function renderZones(c, a) {
         </div>
       </div>
       <table>
-        <tr><th>Nom</th><th>Région</th><th>Frais (FCFA)</th><th>Active</th><th>Actions</th></tr>
+        <tr><th>Nom</th><th>Région</th>${activeResto==='ALL'?'<th>Établissement</th>':''}<th>Frais (FCFA)</th><th>Active</th><th>Actions</th></tr>
         <tbody id="zones-tbody"></tbody>
       </table>
       <div class="pagination">
@@ -1001,6 +1016,7 @@ function zoneRow(z) {
   return '<tr>'
     + '<td><strong>' + z.name + '</strong></td>'
     + '<td>' + (z.region||'—') + '</td>'
+    + (activeResto==='ALL' ? '<td>' + lieuChip(z.restoId) + '</td>' : '')
     + '<td><strong style="color:var(--orange)">' + new Intl.NumberFormat('fr-FR').format(z.frais) + ' FCFA</strong></td>'
     + '<td><label class="toggle"><input type="checkbox" ' + (z.active?'checked':'') + ' onchange="window.Admin.toggleZone(\'' + z.id + '\',this.checked)"><span class="slider"></span></label></td>'
     + '<td><button class="btn btn-sm btn-secondary" onclick="window.Admin.editZone(\'' + z.id + '\')">✏️ Modifier</button></td>'
@@ -1019,11 +1035,12 @@ function renderUpselling(c, a) {
       </p>
       <div class="card-title">Règles actives (${upsellRules.length})</div>
       <table>
-        <tr><th>Catégorie déclencheur</th><th>Type de suggestion</th><th>Articles suggérés</th><th>Actions</th></tr>
+        <tr><th>Catégorie déclencheur</th><th>Type de suggestion</th>${activeResto==='ALL'?'<th>Établissement</th>':''}<th>Articles suggérés</th><th>Actions</th></tr>
         ${upsellRules.map(r => `
         <tr>
           <td><span class="badge" style="background:var(--bg)">${r.triggerCategory}</span></td>
           <td>${r.type}</td>
+          ${activeResto==='ALL'?'<td>'+lieuChip(r.restoId)+'</td>':''}
           <td style="font-size:12px;color:var(--muted)">${(r.itemIds||[]).map(id=>menuItems.find(m=>m.id===id)?.name_fr||id).join(', ')}</td>
           <td><button class="btn btn-sm btn-danger" onclick="window.Admin.deleteRule('${r.id}')">🗑️</button></td>
         </tr>`).join('')}
@@ -1090,6 +1107,7 @@ function renderStocksTable() {
     return '<tr style="border-bottom:1px solid var(--border)">'
       + '<td style="padding:10px 14px">'
       +   '<div style="font-weight:700;color:var(--brown)">' + s.name + '</div>'
+      +   (activeResto==='ALL' ? '<div style="margin:3px 0">' + lieuChip(s.restoId) + '</div>' : '')
       +   '<div style="font-size:11px;color:var(--muted)">' + (s.category||'Boisson') + ' · Seuil alerte : ' + thr + ' ' + unit + '</div>'
       + '</td>'
       + '<td style="padding:10px 14px">' + qtyHtml + '</td>'
