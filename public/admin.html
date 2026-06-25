@@ -2701,10 +2701,10 @@ window.Admin = {
     });
     Paginator.filter('menu', filtered);
   },
-  openAddItem()  { showItemModal(null); },
+  openAddItem()  { if (activeResto === 'ALL') return toast('⚠️ Choisissez d\x27abord un établissement (menu en haut) pour créer un article'); showItemModal(null); },
   editItem(id)   { showItemModal(menuItems.find(m=>m.id===id)); },
-  openAddZone()  { showZoneModal(); },
-  openAddRule()  { showRuleModal(); },
+  openAddZone()  { if (activeResto === 'ALL') return toast('⚠️ Choisissez d\x27abord un établissement pour créer une zone'); showZoneModal(); },
+  openAddRule()  { if (activeResto === 'ALL') return toast('⚠️ Choisissez d\x27abord un établissement pour créer une règle'); showRuleModal(); },
 };
 window.Admin.updateDevisStatut = async function(devisId, newStatut) {
   try {
@@ -3696,6 +3696,7 @@ window.Admin.closeStockModal = function() {
 };
 
 window.Admin.addStockItem = function() {
+  if (activeResto === 'ALL') { toast('⚠️ Choisissez d\x27abord un établissement pour ajouter un stock'); return; }
   const modal = document.createElement('div');
   modal.id = 'stock-modal';
   modal.style.cssText = 'position:fixed;inset:0;background:rgba(43,29,22,.65);z-index:9000;display:flex;align-items:center;justify-content:center;padding:20px';

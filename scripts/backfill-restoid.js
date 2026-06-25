@@ -64,6 +64,33 @@ const db = getFirestore();
     }
   }
 
+  // ── Utilisateurs (employees) — cas particulier ──────────────
+  // Le PROPRIÉTAIRE (role 'admin') est GLOBAL : il ne doit JAMAIS recevoir de restoId.
+  // On n'estampille donc que le personnel non-propriétaire qui n'a pas encore de restoId.
+  {
+    const snap = await db.collection('employees').get();
+    const toFix = snap.docs.filter(d => {
+      const data = d.data();
+      const r = data.restoId;
+      const missing = (r === undefined || r === null || r === '');
+      return missing && data.role !== 'admin';   // on saute les propriétaires
+    });
+    const owners = snap.docs.filter(d => d.data().role === 'admin').length;
+    console.log(`• employees : ${snap.size} document(s), ${toFix.length} employé(s) non-propriétaire(s) sans restoId (${owners} propriétaire(s) laissé(s) globaux)`);
+    grandTotal += toFix.length;
+
+    if (APPLY && toFix.length) {
+      for (let i = 0; i < toFix.length; i += 400) {
+        const batch = db.batch();
+        for (const d of toFix.slice(i, i + 400)) {
+          batch.update(d.ref, { restoId: RESTO });
+        }
+        await batch.commit();
+      }
+      console.log(`    → ${toFix.length} employé(s) estampillé(s) restoId='${RESTO}'`);
+    }
+  }
+
   console.log(`\n=== Total : ${grandTotal} document(s) ${APPLY ? 'mis à jour' : 'à mettre à jour'} ===`);
   if (!APPLY && grandTotal) {
     console.log("Relance avec --apply pour écrire réellement : node .\\scripts\\backfill-restoid.js --apply\n");
