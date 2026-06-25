@@ -3499,29 +3499,78 @@ async function renderEtablissements(c) {
 function _openLieuModal(l) {
   const isNew = !l || !lieux.some(x => x.id === l.id);
   const cur = l || { actif: true, ordre: (lieux.length ? Math.max.apply(null, lieux.map(x=>x.ordre||0)) + 1 : 1) };
-  const overlay = document.createElement('div');
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:9999;padding:16px';
-  overlay.innerHTML =
-    '<div class="card" style="max-width:440px;width:100%;margin:0;max-height:90vh;overflow:auto">'
-    + '<div class="card-title">' + (isNew ? 'Nouvel établissement' : 'Modifier l\x27établissement') + '</div>'
-    + '<div style="display:flex;flex-direction:column;gap:12px">'
-    +   '<div><label class="form-label">Identifiant (technique) *</label>'
-    +     '<input class="form-input" id="lieu-id" value="' + (cur.id||'') + '" placeholder="ex: cocody" ' + (isNew?'':'readonly style="background:#F5F0EB"') + '>'
-    +     '<div style="font-size:11px;color:var(--muted);margin-top:3px">minuscules, chiffres et tirets. Non modifiable après création.</div></div>'
-    +   '<div><label class="form-label">Nom affiché *</label><input class="form-input" id="lieu-nom" value="' + (cur.nom||'') + '" placeholder="Délices Étoiles — Cocody"></div>'
-    +   '<div><label class="form-label">Commune</label><input class="form-input" id="lieu-commune" value="' + (cur.commune||'') + '" placeholder="Cocody"></div>'
-    +   '<div><label class="form-label">Adresse</label><input class="form-input" id="lieu-adresse" value="' + (cur.adresse||'') + '" placeholder="Rue, repère…"></div>'
-    +   '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'
-    +     '<div><label class="form-label">Ordre</label><input class="form-input" id="lieu-ordre" type="number" value="' + (cur.ordre != null ? cur.ordre : 1) + '"></div>'
-    +     '<div><label class="form-label">Statut</label><select class="form-select" id="lieu-actif"><option value="true"' + (cur.actif!==false?' selected':'') + '>Actif</option><option value="false"' + (cur.actif===false?' selected':'') + '>Désactivé</option></select></div>'
-    +   '</div>'
-    +   '<div style="display:flex;gap:8px;margin-top:4px">'
-    +     '<button class="btn btn-primary" onclick="window.Admin.saveLieu(' + (isNew?'true':'false') + ')">Enregistrer</button>'
-    +     '<button class="btn btn-secondary" onclick="this.closest(\x27[style*=fixed]\x27).remove()">Annuler</button>'
-    +   '</div>'
-    + '</div></div>';
-  document.body.appendChild(overlay);
-  window.Admin._lieuOverlay = overlay;
+  const LBL = 'font-size:12px;font-weight:700;color:#7A6356;text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:6px';
+  const INP = 'width:100%;padding:10px 14px;border:2px solid #E0D4C8;border-radius:10px;font-size:14px;outline:none;transition:border .15s';
+  const FOCUS = `onfocus="this.style.borderColor='#F26522'" onblur="this.style.borderColor='#E0D4C8'"`;
+
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.id = 'lieu-modal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(43,29,22,.65);z-index:9000;display:flex;align-items:center;justify-content:center;padding:20px';
+  modal.innerHTML = `
+    <div style="max-width:460px;width:100%;background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 20px 60px rgba(43,29,22,.3);max-height:92vh;display:flex;flex-direction:column">
+      <!-- Header -->
+      <div style="background:linear-gradient(135deg,#2B1D16,#4A3020);padding:24px 28px;position:relative;flex-shrink:0">
+        <div style="font-size:28px;margin-bottom:6px">🏢</div>
+        <div style="font-size:18px;font-weight:800;color:#fff">${isNew ? 'Ajouter un établissement' : "Modifier l'établissement"}</div>
+        <div style="font-size:13px;color:rgba(255,255,255,.6);margin-top:2px">${isNew ? 'Créer un nouveau lieu du réseau' : (cur.nom || cur.id)}</div>
+        <button onclick="document.getElementById('lieu-modal').remove()"
+          style="position:absolute;top:16px;right:16px;background:rgba(255,255,255,.15);border:none;
+                 border-radius:50%;width:32px;height:32px;color:#fff;font-size:18px;cursor:pointer;
+                 display:flex;align-items:center;justify-content:center">×</button>
+      </div>
+      <!-- Body -->
+      <div style="padding:24px 28px;display:flex;flex-direction:column;gap:16px;overflow-y:auto">
+        <div>
+          <label style="${LBL}">Identifiant technique <span style="color:#F26522">*</span></label>
+          <input class="form-input" id="lieu-id" value="${cur.id || ''}" placeholder="ex: cocody"
+            ${isNew ? `autocomplete="off" autocapitalize="off" spellcheck="false" oninput="this.value=this.value.toLowerCase().replace(/[^a-z0-9-]/g,'')"` : 'readonly'}
+            style="${INP}${isNew ? '' : ';background:#F5F0EB;color:#9A8576'}" ${isNew ? FOCUS : ''}>
+          <div style="font-size:11px;color:#9A8576;margin-top:6px">Minuscules, chiffres et tirets. ${isNew ? 'Non modifiable après création.' : 'Verrouillé (clé de l’établissement).'}</div>
+        </div>
+        <div>
+          <label style="${LBL}">Nom affiché <span style="color:#F26522">*</span></label>
+          <input class="form-input" id="lieu-nom" value="${cur.nom || ''}" placeholder="Délices Étoiles — Cocody" style="${INP}" ${FOCUS}>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div>
+            <label style="${LBL}">Commune</label>
+            <input class="form-input" id="lieu-commune" value="${cur.commune || ''}" placeholder="Cocody" style="${INP}" ${FOCUS}>
+          </div>
+          <div>
+            <label style="${LBL}">Adresse</label>
+            <input class="form-input" id="lieu-adresse" value="${cur.adresse || ''}" placeholder="Rue, repère…" style="${INP}" ${FOCUS}>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div>
+            <label style="${LBL}">Ordre d'affichage</label>
+            <input class="form-input" id="lieu-ordre" type="number" value="${cur.ordre != null ? cur.ordre : 1}" style="${INP}" ${FOCUS}>
+          </div>
+          <div>
+            <label style="${LBL}">Statut</label>
+            <select class="form-input" id="lieu-actif" style="${INP};cursor:pointer" ${FOCUS}>
+              <option value="true"${cur.actif !== false ? ' selected' : ''}>Actif</option>
+              <option value="false"${cur.actif === false ? ' selected' : ''}>Désactivé</option>
+            </select>
+          </div>
+        </div>
+        <div id="lieu-err" style="background:#FEE2E2;color:#991B1B;padding:10px 14px;border-radius:8px;font-size:13px;display:none;border-left:3px solid #EF4444"></div>
+      </div>
+      <!-- Footer -->
+      <div style="padding:16px 28px 24px;display:flex;gap:10px;justify-content:flex-end;flex-shrink:0">
+        <button onclick="document.getElementById('lieu-modal').remove()"
+          style="padding:10px 20px;border:2px solid #E0D4C8;border-radius:10px;background:#fff;
+                 color:#7A6356;font-size:14px;font-weight:600;cursor:pointer">Annuler</button>
+        <button id="lieu-save-btn" onclick="window.Admin.saveLieu(${isNew ? 'true' : 'false'})"
+          style="padding:10px 24px;background:#F26522;border:none;border-radius:10px;
+                 color:#fff;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:8px">
+          ✓ ${isNew ? 'Créer' : 'Enregistrer'}
+        </button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  window.Admin._lieuOverlay = modal;
 }
 
 window.Admin.showAddLieu = function() { _openLieuModal(null); };
@@ -3534,9 +3583,15 @@ window.Admin.saveLieu = async function(isNew) {
   const adresse = document.getElementById('lieu-adresse').value.trim();
   const ordre   = parseInt(document.getElementById('lieu-ordre').value) || 0;
   const actif   = document.getElementById('lieu-actif').value === 'true';
-  if (!/^[a-z0-9-]{2,}$/.test(id)) { toast('Identifiant invalide (minuscules, chiffres, tirets)'); return; }
-  if (!nom) { toast('Le nom est obligatoire'); return; }
-  if (isNew && lieux.some(x => x.id === id)) { toast('Cet identifiant existe déjà'); return; }
+  const err     = document.getElementById('lieu-err');
+  const btn     = document.getElementById('lieu-save-btn');
+  const fail = (m) => { if (err) { err.textContent = m; err.style.display = 'block'; } else { toast(m); } };
+
+  if (!/^[a-z0-9-]{2,}$/.test(id)) { fail('Identifiant invalide (minuscules, chiffres, tirets — min. 2 caractères)'); return; }
+  if (!nom) { fail('Le nom affiché est obligatoire'); return; }
+  if (isNew && lieux.some(x => x.id === id)) { fail('Cet identifiant existe déjà'); return; }
+  if (err) err.style.display = 'none';
+  if (btn) { btn.disabled = true; btn.style.opacity = '.6'; }
   try {
     await setDoc(doc(db,'restos',id), { nom, commune, adresse, actif, ordre, updatedAt: serverTimestamp() }, { merge: true });
     if (window.Admin._lieuOverlay) window.Admin._lieuOverlay.remove();
@@ -3544,7 +3599,10 @@ window.Admin.saveLieu = async function(isNew) {
     renderRestoSwitcher();
     renderEtablissements(document.getElementById('page-content'));
     toast('Établissement enregistré ✓');
-  } catch(e) { toast('Erreur : ' + e.message); }
+  } catch(e) {
+    if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
+    fail('Erreur : ' + e.message);
+  }
 };
 
 window.Admin.toggleLieuActif = async function(id, currentActif) {
