@@ -1986,9 +1986,6 @@ async function renderRestoPicker() {
       <div class="resto-hero" id="resto-hero">
         ${heroHTML}
         <div class="resto-hero-dots">${dotsHTML}</div>
-        <div class="resto-hero-cap">
-          <div class="resto-picker-brand">${t('picker_accroche')}</div>
-        </div>
       </div>
       <p class="resto-picker-sub">${t('picker_subtitle')}</p>
       <div class="resto-pick-list">${cards}</div>
