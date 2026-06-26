@@ -1968,13 +1968,31 @@ async function renderRestoPicker() {
     </button>`;
   }).join('');
 
+  // Bandeau d'accueil : fondu lent entre quelques visuels (resto / plats / traiteur).
+  // Le propriétaire dépose ses photos dans public/img/ (accueil-1.jpg, etc.).
+  // Tant qu'elles sont absentes, un dégradé aux couleurs de la marque s'affiche.
+  const heroSlides = [
+    { img:'/img/accueil-1.jpg', base:'#2B1D16', grad:'linear-gradient(135deg,rgba(43,29,22,.25),rgba(43,29,22,.55))' },
+    { img:'/img/accueil-2.jpg', base:'#7c3a12', grad:'linear-gradient(135deg,rgba(194,65,12,.28),rgba(43,29,22,.55))' },
+    { img:'/img/accueil-3.jpg', base:'#5b3a22', grad:'linear-gradient(135deg,rgba(139,92,46,.30),rgba(43,29,22,.58))' },
+  ];
+  const heroHTML = heroSlides.map((s,i) =>
+    `<div class="resto-hero-slide${i===0?' active':''}" style="background-color:${s.base};background-image:${s.grad},url('${s.img}')"></div>`
+  ).join('');
+  const dotsHTML = heroSlides.map((_,i) => `<span class="resto-hero-dot${i===0?' on':''}"></span>`).join('');
+
   view.innerHTML = `
     <div class="resto-picker" style="max-width:${lieux.length >= 5 ? 920 : lieux.length >= 3 ? 760 : 600}px">
-      <div class="resto-picker-hero">
-        <div class="resto-picker-brand">Délices Étoiles</div>
-        <h2 class="resto-picker-title">${t('picker_title')}</h2>
-        <p class="resto-picker-sub">${t('picker_subtitle')}</p>
+      <div class="resto-hero" id="resto-hero">
+        ${heroHTML}
+        <div class="resto-hero-dots">${dotsHTML}</div>
+        <div class="resto-hero-cap">
+          <div class="resto-picker-brand">Délices Étoiles</div>
+          <div class="resto-hero-tag">${t('picker_tagline')}</div>
+        </div>
       </div>
+      <h2 class="resto-picker-title">${t('picker_title')}</h2>
+      <p class="resto-picker-sub">${t('picker_subtitle')}</p>
       <div class="resto-pick-list">${cards}</div>
       <div class="resto-pick-or">— ${t('picker_or') || 'ou'} —</div>
       <button class="resto-pick-card resto-pick-traiteur" onclick="window.App.navigate('traiteur')">
@@ -1993,9 +2011,23 @@ async function renderRestoPicker() {
       .resto-pick-traiteur:hover{border-color:#8B5CF6!important}
       .resto-pick-traiteur:hover .resto-pick-go{color:#8B5CF6}
       .resto-picker-hero{padding:40px 0 28px}
+      .resto-hero{position:relative;height:min(34vh,240px);border-radius:20px;overflow:hidden;
+        margin:14px 0 22px;box-shadow:0 10px 30px rgba(43,29,22,.18)}
+      .resto-hero-slide{position:absolute;inset:0;background-size:cover;background-position:center;
+        opacity:0;transition:opacity 1.2s ease}
+      .resto-hero-slide.active{opacity:1}
+      .resto-hero-cap{position:absolute;left:0;right:0;bottom:0;z-index:2;padding:20px 18px 16px;
+        text-align:center;background:linear-gradient(to top,rgba(43,29,22,.78),rgba(43,29,22,0))}
+      .resto-hero-cap .resto-picker-brand{color:#fff;margin:0;font-size:40px;line-height:1;
+        text-shadow:0 2px 14px rgba(0,0,0,.45)}
+      .resto-hero-tag{color:rgba(255,255,255,.92);font-size:13px;font-weight:600;
+        letter-spacing:.04em;margin-top:2px}
+      .resto-hero-dots{position:absolute;top:12px;right:12px;z-index:2;display:flex;gap:6px}
+      .resto-hero-dot{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.45);
+        transition:background .3s}
+      .resto-hero-dot.on{background:#fff}
       .resto-picker-brand{font-family:'Great Vibes','Segoe Script',cursive;font-size:46px;
-        line-height:1.05;letter-spacing:0;text-transform:none;
-        font-weight:400;color:#F26522;margin-bottom:6px}
+        line-height:1.05;letter-spacing:0;text-transform:none;font-weight:400;color:#F26522;margin-bottom:6px}
       .resto-picker-title{font-size:24px;line-height:1.2;color:var(--brown-dk,#2B1D16);margin:0 0 8px;font-weight:800}
       .resto-picker-sub{font-size:14px;color:var(--brown-md,#7a6a55);margin:0}
       .resto-pick-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
@@ -2012,6 +2044,27 @@ async function renderRestoPicker() {
       .resto-pick-go{flex:0 0 auto;font-size:20px;font-weight:700;color:#F26522;opacity:.5;transition:opacity .14s,transform .14s}
       .resto-pick-card:hover .resto-pick-go{opacity:1;transform:translateX(3px)}
     </style>`;
+
+  _startHeroCarousel();
+}
+
+// Fondu lent du bandeau d'accueil (nettoie l'intervalle précédent pour éviter les fuites).
+function _startHeroCarousel() {
+  if (window._heroTimer) { clearInterval(window._heroTimer); window._heroTimer = null; }
+  const hero = document.getElementById('resto-hero');
+  if (!hero) return;
+  const slides = hero.querySelectorAll('.resto-hero-slide');
+  const dots   = hero.querySelectorAll('.resto-hero-dot');
+  if (slides.length < 2) return;
+  let idx = 0;
+  window._heroTimer = setInterval(() => {
+    if (!document.getElementById('resto-hero')) { clearInterval(window._heroTimer); window._heroTimer = null; return; }
+    slides[idx].classList.remove('active');
+    if (dots[idx]) dots[idx].classList.remove('on');
+    idx = (idx + 1) % slides.length;
+    slides[idx].classList.add('active');
+    if (dots[idx]) dots[idx].classList.add('on');
+  }, 5000);
 }
 
 // Revenir au sélecteur d'établissement (hors salle). Le panier d'un autre
