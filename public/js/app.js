@@ -1987,11 +1987,9 @@ async function renderRestoPicker() {
         ${heroHTML}
         <div class="resto-hero-dots">${dotsHTML}</div>
         <div class="resto-hero-cap">
-          <div class="resto-picker-brand">Délices Étoiles</div>
-          <div class="resto-hero-tag">${t('picker_tagline')}</div>
+          <div class="resto-picker-brand">Bienvenue chez Délices Étoiles</div>
         </div>
       </div>
-      <h2 class="resto-picker-title">${t('picker_title')}</h2>
       <p class="resto-picker-sub">${t('picker_subtitle')}</p>
       <div class="resto-pick-list">${cards}</div>
       <div class="resto-pick-or">— ${t('picker_or') || 'ou'} —</div>
@@ -2011,17 +2009,15 @@ async function renderRestoPicker() {
       .resto-pick-traiteur:hover{border-color:#8B5CF6!important}
       .resto-pick-traiteur:hover .resto-pick-go{color:#8B5CF6}
       .resto-picker-hero{padding:40px 0 28px}
-      .resto-hero{position:relative;height:min(34vh,240px);border-radius:20px;overflow:hidden;
-        margin:14px 0 22px;box-shadow:0 10px 30px rgba(43,29,22,.18)}
+      .resto-hero{position:relative;height:min(26vh,180px);border-radius:20px;overflow:hidden;
+        margin:14px 0 18px;box-shadow:0 10px 30px rgba(43,29,22,.18)}
       .resto-hero-slide{position:absolute;inset:0;background-size:cover;background-position:center;
         opacity:0;transition:opacity 1.2s ease}
       .resto-hero-slide.active{opacity:1}
-      .resto-hero-cap{position:absolute;left:0;right:0;bottom:0;z-index:2;padding:20px 18px 16px;
-        text-align:center;background:linear-gradient(to top,rgba(43,29,22,.78),rgba(43,29,22,0))}
-      .resto-hero-cap .resto-picker-brand{color:#fff;margin:0;font-size:40px;line-height:1;
-        text-shadow:0 2px 14px rgba(0,0,0,.45)}
-      .resto-hero-tag{color:rgba(255,255,255,.92);font-size:13px;font-weight:600;
-        letter-spacing:.04em;margin-top:2px}
+      .resto-hero-cap{position:absolute;left:0;right:0;bottom:0;z-index:2;padding:16px 14px 14px;
+        text-align:center;background:linear-gradient(to top,rgba(43,29,22,.80),rgba(43,29,22,0))}
+      .resto-hero-cap .resto-picker-brand{color:#fff;margin:0;font-size:clamp(20px,6vw,34px);
+        line-height:1.05;white-space:nowrap;text-shadow:0 2px 14px rgba(0,0,0,.45)}
       .resto-hero-dots{position:absolute;top:12px;right:12px;z-index:2;display:flex;gap:6px}
       .resto-hero-dot{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.45);
         transition:background .3s}
@@ -2029,7 +2025,7 @@ async function renderRestoPicker() {
       .resto-picker-brand{font-family:'Great Vibes','Segoe Script',cursive;font-size:46px;
         line-height:1.05;letter-spacing:0;text-transform:none;font-weight:400;color:#F26522;margin-bottom:6px}
       .resto-picker-title{font-size:24px;line-height:1.2;color:var(--brown-dk,#2B1D16);margin:0 0 8px;font-weight:800}
-      .resto-picker-sub{font-size:14px;color:var(--brown-md,#7a6a55);margin:0}
+      .resto-picker-sub{font-size:14px;color:var(--brown-md,#7a6a55);margin:0 0 16px}
       .resto-pick-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
       .resto-pick-card{display:flex;align-items:center;gap:14px;width:100%;text-align:left;
         background:#fff;border:1px solid var(--border,#ece3d6);border-radius:16px;padding:16px 18px;
