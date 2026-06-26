@@ -643,8 +643,13 @@ function renderMenu(container) {
   const bannerText = State.mode === 'salle'
     ? `<span class="mode-badge salle">${t('mode_salle')}</span> ${t('banner_salle')} <strong>${t('banner_table')} ${State.tableId}</strong>`
     : `<span class="mode-badge livraison">${t('mode_livraison')}</span> ${t('banner_livraison')}`;
-  // Catégories uniques
-  const cats = ['all', ...new Set(State.menu.map(m => m.category))];
+  // Items visibles : indisponibles masqués ; en LIVRAISON on retire en plus les
+  // articles « sur place uniquement » (boissons en emballage consigné).
+  const availableMenu = State.menu.filter(m =>
+    m.available !== false && !(State.mode === 'livraison' && m.salleOnly === true)
+  );
+  // Catégories uniques (basées sur les items réellement visibles)
+  const cats = ['all', ...new Set(availableMenu.map(m => m.category))];
   const getCatLabel = c => {
     if (c === 'all') return t('all');
     const key = 'cat_' + c;
@@ -657,11 +662,12 @@ function renderMenu(container) {
             onclick="window.App.setCategory('${c}')">
       ${getCatLabel(c)}
     </button>`).join('');
-  // Items filtrés — les articles indisponibles sont masqués côté client
-  const availableMenu = State.menu.filter(m => m.available !== false);
-  const items = State.activeCategory === 'all'
+  // Items filtrés par catégorie (repli sur « tout » si la catégorie n'est plus visible)
+  const activeCat = (State.activeCategory !== 'all' && !cats.includes(State.activeCategory))
+    ? 'all' : State.activeCategory;
+  const items = activeCat === 'all'
     ? availableMenu
-    : availableMenu.filter(m => m.category === State.activeCategory);
+    : availableMenu.filter(m => m.category === activeCat);
   const cardsHtml = items.map(item => `
     <div class="menu-card" onclick="window.App.openItem('${item.id}')">
       <div class="card-img">
@@ -696,6 +702,11 @@ function openItem(itemId) {
   const item = State.menu.find(m => m.id === itemId);
   if (!item) return;
   const upsells  = getUpsells(item);
+  // En livraison, ne pas suggérer d'articles « sur place uniquement » (emballage consigné)
+  if (State.mode === 'livraison') {
+    upsells.accompagnements = (upsells.accompagnements || []).filter(u => !u.salleOnly);
+    upsells.boissons        = (upsells.boissons || []).filter(u => !u.salleOnly);
+  }
   const boisson  = isBoisson(item);
   const formats  = hasFormats(item);
   // Options glaçons (boissons)

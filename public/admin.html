@@ -957,7 +957,7 @@ function menuRow(item) {
     : '<span style="font-size:24px">🍽️</span>';
   return `<tr data-name="${(item.name_fr||'').toLowerCase()}" data-cat="${item.category}" data-dispo="${item.available!==false?'on':'off'}">
     <td>${img}</td>
-    <td><strong>${item.name_fr}</strong><br><span style="font-size:11px;color:var(--muted)">${item.name_en||''}</span></td>
+    <td><strong>${item.name_fr}</strong>${item.salleOnly ? ' <span class="badge" style="background:#FEF3C7;color:#92400E;font-size:10px">🍶 sur place</span>' : ''}<br><span style="font-size:11px;color:var(--muted)">${item.name_en||''}</span></td>
     <td><span class="badge" style="background:var(--bg);color:var(--muted)">${item.category}</span></td>
     ${activeResto==='ALL'?'<td>'+lieuChip(item.restoId)+'</td>':''}
     <td style="font-weight:700;color:var(--orange)">${prixLabel}</td>
@@ -4214,6 +4214,15 @@ function showItemModal(item) {
         </div>
       </div>
 
+      <!-- DISPONIBILITÉ LIVRAISON -->
+      <div class="form-group" style="margin-top:4px">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:13px;color:#2B1D16">
+          <input type="checkbox" id="m-salle-only" ${item?.salleOnly ? 'checked' : ''} style="width:18px;height:18px;accent-color:#F26522;flex-shrink:0">
+          <span><strong>Sur place uniquement</strong> — emballage consigné, exclu de la livraison</span>
+        </label>
+        <p style="font-size:11px;color:var(--muted);margin:4px 0 0 28px">À cocher pour les boissons en bouteille consignée. Les canettes / emballages jetables restent livrables.</p>
+      </div>
+
       <!-- IMAGE -->
       <div class="form-group" style="margin-top:4px">
         <label style="display:block;font-size:11px;font-weight:700;color:#7A6356;text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">Photo article</label>
@@ -4377,6 +4386,7 @@ function showItemModal(item) {
       prixVariable:   priceVal === 0,
       category:       cat,
       order:          parseInt(document.getElementById('m-order').value) || 0,
+      salleOnly:      document.getElementById('m-salle-only')?.checked || false,
       // Boissons : indisponible par défaut jusqu'à entrée de stock
       available:      id ? (document.getElementById('m-save-btn') ? true : !isDrinkNew) : !isDrinkNew,
       ...(isDrinkNew && !id ? { stockStatus: 'rupture' } : {}),
