@@ -1987,7 +1987,7 @@ async function renderRestoPicker() {
         ${heroHTML}
         <div class="resto-hero-dots">${dotsHTML}</div>
         <div class="resto-hero-cap">
-          <div class="resto-picker-brand">Bienvenue chez Délices Étoiles</div>
+          <div class="resto-picker-brand">${t('picker_accroche')}</div>
         </div>
       </div>
       <p class="resto-picker-sub">${t('picker_subtitle')}</p>
