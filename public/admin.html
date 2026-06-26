@@ -3560,6 +3560,11 @@ function _openLieuModal(l) {
             <input class="form-input" id="lieu-adresse" value="${cur.adresse || ''}" placeholder="Rue, repère…" style="${INP}" ${FOCUS}>
           </div>
         </div>
+        <div>
+          <label style="${LBL}">Lien Google Maps</label>
+          <input class="form-input" id="lieu-map" value="${(cur.mapUrl || '').replace(/"/g,'&quot;')}" placeholder="https://maps.app.goo.gl/…" style="${INP}" ${FOCUS}>
+          <div style="font-size:11px;color:#9A8576;margin-top:6px">Colle le lien du point Google Maps. Le client touche le 📍 pour ouvrir l'itinéraire. Si vide, une recherche par adresse est utilisée.</div>
+        </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
           <div>
             <label style="${LBL}">Ordre d'affichage</label>
@@ -3599,6 +3604,7 @@ window.Admin.saveLieu = async function(isNew) {
   const nom     = document.getElementById('lieu-nom').value.trim();
   const commune = document.getElementById('lieu-commune').value.trim();
   const adresse = document.getElementById('lieu-adresse').value.trim();
+  const mapUrl  = (document.getElementById('lieu-map').value || '').trim();
   const ordre   = parseInt(document.getElementById('lieu-ordre').value) || 0;
   const actif   = document.getElementById('lieu-actif').value === 'true';
   const err     = document.getElementById('lieu-err');
@@ -3611,7 +3617,7 @@ window.Admin.saveLieu = async function(isNew) {
   if (err) err.style.display = 'none';
   if (btn) { btn.disabled = true; btn.style.opacity = '.6'; }
   try {
-    await setDoc(doc(db,'restos',id), { nom, commune, adresse, actif, ordre, updatedAt: serverTimestamp() }, { merge: true });
+    await setDoc(doc(db,'restos',id), { nom, commune, adresse, mapUrl, actif, ordre, updatedAt: serverTimestamp() }, { merge: true });
     if (window.Admin._lieuOverlay) window.Admin._lieuOverlay.remove();
     await loadData();
     renderRestoSwitcher();

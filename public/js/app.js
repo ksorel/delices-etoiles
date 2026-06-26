@@ -474,7 +474,8 @@ function updateHeader() {
       } else {
         // Nom court (commune de préférence) + ellipse ; « Changer » reste sur la même ligne.
         const court = State.resto?.commune || State.resto?.nom || '';
-        mk.innerHTML = `<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0">📍 <strong>${court}</strong></span>`
+        const mapU = lieuMapUrl(State.resto);
+        mk.innerHTML = `<a href="${mapU}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="Voir sur Google Maps" style="color:inherit;text-decoration:none;display:inline-flex;align-items:center;overflow:hidden;min-width:0"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">📍 <strong>${court}</strong></span></a>`
           + `<span style="color:#F26522;font-weight:700;white-space:nowrap;flex:0 0 auto">· ${t('picker_change_short')}</span>`;
       }
     } else if (mk) {
@@ -1957,15 +1958,18 @@ async function renderRestoPicker() {
 
   const cards = lieux.map(l => {
     const initiale = (l.commune || l.nom || l.id).trim().charAt(0).toUpperCase();
+    const loc = l.commune ? `${l.commune}${l.adresse ? ' · ' + l.adresse : ''}` : '';
     return `
-    <button class="resto-pick-card" onclick="window.App.chooseResto('${l.id}')">
+    <div class="resto-pick-card" role="button" tabindex="0"
+         onclick="window.App.chooseResto('${l.id}')"
+         onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();window.App.chooseResto('${l.id}')}">
       <span class="resto-pick-avatar">${initiale}</span>
       <span class="resto-pick-body">
         <span class="resto-pick-name">${l.nom || l.id}</span>
-        ${l.commune ? `<span class="resto-pick-commune">📍 ${l.commune}${l.adresse ? ' · ' + l.adresse : ''}</span>` : ''}
+        ${loc ? `<a class="resto-pick-map" href="${lieuMapUrl(l)}" target="_blank" rel="noopener" title="Voir sur Google Maps" onclick="event.stopPropagation()"><span class="resto-pick-maptext">📍 ${loc}</span><span class="resto-pick-maparrow">↗</span></a>` : ''}
       </span>
       <span class="resto-pick-go">→</span>
-    </button>`;
+    </div>`;
   }).join('');
 
   // Bandeau d'accueil : fondu lent entre quelques visuels (resto / plats / traiteur).
@@ -2034,11 +2038,25 @@ async function renderRestoPicker() {
       .resto-pick-body{flex:1 1 auto;display:flex;flex-direction:column;min-width:0}
       .resto-pick-name{font-size:16px;font-weight:700;color:#2B1D16}
       .resto-pick-commune{font-size:13px;color:#7a6a55;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .resto-pick-map{display:flex;align-items:center;gap:5px;margin-top:3px;min-width:0;
+        font-size:13px;color:#7a6a55;text-decoration:none;width:fit-content;max-width:100%}
+      .resto-pick-maptext{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .resto-pick-maparrow{flex:0 0 auto;color:#F26522;font-weight:800;font-size:12px}
+      .resto-pick-map:hover{color:#F26522}
+      .resto-pick-map:hover .resto-pick-maptext{text-decoration:underline}
       .resto-pick-go{flex:0 0 auto;font-size:20px;font-weight:700;color:#F26522;opacity:.5;transition:opacity .14s,transform .14s}
       .resto-pick-card:hover .resto-pick-go{opacity:1;transform:translateX(3px)}
     </style>`;
 
   _startHeroCarousel();
+}
+
+// Lien Google Maps d'un établissement : son lien enregistré, sinon une recherche par adresse.
+function lieuMapUrl(l) {
+  if (!l) return '#';
+  if (l.mapUrl) return l.mapUrl;
+  const q = [l.nom, l.commune, l.adresse].filter(Boolean).join(' ') || 'Abidjan';
+  return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(q);
 }
 
 // Fondu lent du bandeau d'accueil (nettoie l'intervalle précédent pour éviter les fuites).
