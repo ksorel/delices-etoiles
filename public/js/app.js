@@ -2002,7 +2002,6 @@ async function renderRestoPicker() {
         ${heroHTML}
         <div class="resto-hero-dots">${dotsHTML}</div>
       </div>
-      <p class="resto-picker-sub">${t('picker_subtitle')}</p>
       <div class="resto-pick-list">${cards}</div>
       <div class="resto-pick-or">— ${t('picker_or') || 'ou'} —</div>
       <button class="resto-pick-card resto-pick-traiteur" onclick="window.App.navigate('traiteur')">
