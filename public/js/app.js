@@ -934,42 +934,39 @@ function buildPaymentOptions(mode) {
   const tel = (State.contacts?.tel1 && State.contacts.tel1_show !== false)
               ? State.contacts.tel1
               : (State.contacts?.tel2 || '');
-  const descEspeces = mode === 'salle' ? t('pay_cash_table') || 'Paiement en liquide à la table'
-                                       : t('pay_cash_delivery') || 'Paiement à la livraison';
-  // Déterminer le mode sélectionné par défaut
-  const defaultMode = pm.wave !== false ? 'especes'
-                    : pm.orange ? 'orange'
-                    : pm.mtn ? 'mtn' : 'especes';
-  let html = '<div class="payment-options">';
-  html += `<label class="payment-option selected" id="pay-especes" onclick="window.App.selectPayment('especes')">
-    <input type="radio" name="payment" value="especes" checked>
-    <span class="payment-logo">💵</span>
-    <div><div class="payment-name">Espèces</div><div class="payment-desc">${descEspeces}</div></div>
-  </label>`;
-  if (pm.wave !== false) {
-    html += `<label class="payment-option" id="pay-wave" onclick="window.App.selectPayment('wave')">
-      <input type="radio" name="payment" value="wave">
-      <span class="payment-logo">🌊</span>
-      <div><div class="payment-name">Wave</div>
-      <div class="payment-desc">Wave CI${tel ? ' · ' + tel : ''}</div></div>
-    </label>`;
+  const isLivraison = mode !== 'salle';
+
+  const opts = [];
+  // Espèces : UNIQUEMENT en salle. En livraison, paiement mobile confirmé à l'avance.
+  if (!isLivraison) {
+    opts.push({ id: 'especes', logo: '💵', name: 'Espèces',
+                desc: t('pay_cash_table') || 'Paiement en liquide à la table' });
   }
-  if (pm.orange) {
-    html += `<label class="payment-option" id="pay-orange" onclick="window.App.selectPayment('orange')">
-      <input type="radio" name="payment" value="orange">
-      <span class="payment-logo">🟠</span>
-      <div><div class="payment-name">Orange Money</div>
-      <div class="payment-desc">Orange Money${tel ? ' · ' + tel : ''}</div></div>
-    </label>`;
+  if (pm.wave !== false) opts.push({ id: 'wave',   logo: '🌊', name: 'Wave',            desc: `Wave CI${tel ? ' · ' + tel : ''}` });
+  if (pm.orange)         opts.push({ id: 'orange', logo: '🟠', name: 'Orange Money',     desc: `Orange Money${tel ? ' · ' + tel : ''}` });
+  if (pm.mtn)            opts.push({ id: 'mtn',    logo: '💛', name: 'MTN Mobile Money', desc: 'Paiement MTN MoMo' });
+  // Filet de sécurité : si aucun paiement mobile n'est configuré, on autorise l'espèce
+  if (!opts.length) opts.push({ id: 'especes', logo: '💵', name: 'Espèces',
+                desc: t('pay_cash_delivery') || 'Paiement à la livraison' });
+
+  let html = '';
+  if (isLivraison) {
+    const note = t('pay_note_livraison')
+      || "En livraison, le paiement mobile se règle à l'avance : c'est sa confirmation qui valide et déclenche votre commande.";
+    html += `<div style="background:#FFF7ED;border:1px solid #FED7AA;color:#9A3412;border-radius:10px;
+      padding:10px 12px;font-size:13px;line-height:1.5;margin-bottom:12px;display:flex;gap:8px;align-items:flex-start">
+      <span>ℹ️</span><span>${note}</span></div>`;
   }
-  if (pm.mtn) {
-    html += `<label class="payment-option" id="pay-mtn" onclick="window.App.selectPayment('mtn')">
-      <input type="radio" name="payment" value="mtn">
-      <span class="payment-logo">💛</span>
-      <div><div class="payment-name">MTN Mobile Money</div>
-      <div class="payment-desc">Paiement MTN MoMo</div></div>
+  html += '<div class="payment-options">';
+  opts.forEach((o, i) => {
+    const sel = i === 0 ? ' selected' : '';
+    const chk = i === 0 ? ' checked' : '';
+    html += `<label class="payment-option${sel}" id="pay-${o.id}" onclick="window.App.selectPayment('${o.id}')">
+      <input type="radio" name="payment" value="${o.id}"${chk}>
+      <span class="payment-logo">${o.logo}</span>
+      <div><div class="payment-name">${o.name}</div><div class="payment-desc">${o.desc}</div></div>
     </label>`;
-  }
+  });
   html += '</div>';
   return html;
 }
@@ -1063,7 +1060,8 @@ function renderCheckout(container) {
         ${t('confirm_liv')} 💳
       </button>
     </div>`;
-  window._selectedPayment = 'wave';
+  const _pm = State.payments || {};
+  window._selectedPayment = _pm.wave !== false ? 'wave' : _pm.orange ? 'orange' : _pm.mtn ? 'mtn' : 'especes';
   window._selectedZone    = null;
 }
 function onZoneChange(sel) {
@@ -1081,7 +1079,7 @@ function onZoneChange(sel) {
 }
 function selectPayment(op) {
   window._selectedPayment = op;
-  ['wave','orange','mtn'].forEach(o => {
+  ['especes','wave','orange','mtn'].forEach(o => {
     document.getElementById(`pay-${o}`)?.classList.toggle('selected', o === op);
   });
 }
