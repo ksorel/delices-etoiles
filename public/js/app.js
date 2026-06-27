@@ -2007,7 +2007,7 @@ async function renderRestoPicker() {
       <button class="resto-pick-card resto-pick-traiteur" onclick="window.App.navigate('traiteur')">
         <span class="resto-pick-avatar" style="background:linear-gradient(135deg,#8B5CF6,#6D28D9)">👨‍🍳</span>
         <span class="resto-pick-body">
-          <span class="resto-pick-name">${t('tab_traiteur')}</span>
+          <span class="resto-pick-name">${t('picker_traiteur')}</span>
           <span class="resto-pick-commune">${t('traiteur_subtitle')}</span>
         </span>
         <span class="resto-pick-go">→</span>
