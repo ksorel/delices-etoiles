@@ -1966,13 +1966,12 @@ async function renderRestoPicker() {
   }
 
   const cards = lieux.map(l => {
-    const initiale = (l.commune || l.nom || l.id).trim().charAt(0).toUpperCase();
     const loc = l.commune ? `${l.commune}${l.adresse ? ' · ' + l.adresse : ''}` : '';
     return `
     <div class="resto-pick-card" role="button" tabindex="0"
          onclick="window.App.chooseResto('${l.id}')"
          onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();window.App.chooseResto('${l.id}')}">
-      <span class="resto-pick-avatar">${initiale}</span>
+      <span class="resto-pick-avatar">🍽️</span>
       <span class="resto-pick-body">
         <span class="resto-pick-name">${l.nom || l.id}</span>
         ${loc ? `<a class="resto-pick-map" href="${lieuMapUrl(l)}" target="_blank" rel="noopener" title="Voir sur Google Maps" onclick="event.stopPropagation()"><span class="resto-pick-maptext">📍 ${loc}</span><span class="resto-pick-maparrow">↗</span></a>` : ''}
@@ -2001,7 +2000,6 @@ async function renderRestoPicker() {
         <div class="resto-hero-dots">${dotsHTML}</div>
       </div>
       <div class="resto-pick-list">${cards}</div>
-      <div class="resto-pick-or">— ${t('picker_or') || 'ou'} —</div>
       <button class="resto-pick-card resto-pick-traiteur" onclick="window.App.navigate('traiteur')">
         <span class="resto-pick-avatar" style="background:linear-gradient(135deg,#8B5CF6,#6D28D9)">👨‍🍳</span>
         <span class="resto-pick-body">
@@ -2013,8 +2011,7 @@ async function renderRestoPicker() {
     </div>
     <style>
       .resto-picker{margin:0 auto;padding:0 16px 40px;text-align:center}
-      .resto-pick-or{margin:18px 0 14px;font-size:12px;font-weight:700;letter-spacing:.1em;
-        text-transform:uppercase;color:#b6a892}
+      .resto-pick-traiteur{margin-top:14px}
       .resto-pick-traiteur:hover{border-color:#8B5CF6!important}
       .resto-pick-traiteur:hover .resto-pick-go{color:#8B5CF6}
       .resto-picker-hero{padding:40px 0 28px}
