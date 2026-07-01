@@ -4,8 +4,10 @@ service cloud.firestore {
 
     // ─── Helpers ───────────────────────────────────────────────
     function isAuth()    { return request.auth != null; }
-    function isStaff()   { return isAuth() && request.auth.token.role in ['admin','serveur','bar','cuisine','livreur','caissier']; }
+    function isStaff()   { return isAuth() && request.auth.token.role in ['admin','manager','serveur','bar','cuisine','livreur','caissier']; }
     function isAdmin()   { return isAuth() && request.auth.token.role == 'admin'; }
+    function isOwner()   { return isAdmin(); }                                   // admin = propriétaire (global)
+    function isManager() { return isAuth() && request.auth.token.role == 'manager'; }
     function isAnon()    { return isAuth() && request.auth.token.firebase.sign_in_provider == 'anonymous'; }
     function isCaissier() { return isAuth() && request.auth.token.role == 'caissier'; }
     function canEncaisser(){ return isAdmin() || isCaissier(); }
@@ -123,7 +125,11 @@ service cloud.firestore {
 
     // ─── Configuration restaurant ────────────────────────────
     match /config/{docId} {
-      allow read:  if isAuth(); // Clients anonymes lisent le numéro du gérant
+      // Le carrousel d'accueil (doc 'accueil') est lu AVANT l'auth anonyme,
+      // comme le sélecteur d'établissement → lecture publique. Contenu non
+      // sensible (URLs d'images + booléen actif). Les autres docs config
+      // (paiements, contacts du gérant) restent réservés aux utilisateurs authentifiés.
+      allow read:  if docId == 'accueil' || isAuth();
       allow write: if isAdmin();
     }
 

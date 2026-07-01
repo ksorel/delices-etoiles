@@ -7,7 +7,7 @@ import { signInAnonymously }       from 'https://www.gstatic.com/firebasejs/10.1
 import { t, initLang, getLang, setLang, itemName, itemDesc } from './i18n.js';
 import { fetchMenu, fetchZones, fetchUpsellRules, getOrCreateTable, fetchPlatDuJour, listenOrder,
          createSession, getOpenSessions, updateSessionStatus, getSessionOrders,
-         getRestoId, setRestoId, fetchLieux, fetchLieu } from './db.js';
+         getRestoId, setRestoId, fetchLieux, fetchLieu, fetchAccueilCarousel } from './db.js';
 import { getDoc, doc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { requestNotificationPermission, listenForegroundMessages } from './fcm.js';
 // ─── Panier inline (cart.js supprimé) ───────────────────────
@@ -1939,6 +1939,7 @@ window.App = {
 
 // ─── Sélecteur d'établissement (portail client, hors QR) ──
 let _restoChosen = false;
+let _accueilCfg;   // undefined = pas encore chargé ; null = pas de doc ; sinon {actif, slides}
 
 async function renderRestoPicker() {
   const view = document.getElementById('view');
@@ -1980,25 +1981,41 @@ async function renderRestoPicker() {
     </div>`;
   }).join('');
 
-  // Bandeau d'accueil : fondu lent entre quelques visuels (resto / plats / traiteur).
-  // Le propriétaire dépose ses photos dans public/img/ (accueil-1.jpg, etc.).
-  // Tant qu'elles sont absentes, un dégradé aux couleurs de la marque s'affiche.
-  const heroSlides = [
-    { img:'/img/accueil-1.jpg', base:'#2B1D16', grad:'linear-gradient(135deg,rgba(43,29,22,.25),rgba(43,29,22,.55))' },
-    { img:'/img/accueil-2.jpg', base:'#7c3a12', grad:'linear-gradient(135deg,rgba(194,65,12,.28),rgba(43,29,22,.55))' },
-    { img:'/img/accueil-3.jpg', base:'#5b3a22', grad:'linear-gradient(135deg,rgba(139,92,46,.30),rgba(43,29,22,.58))' },
-  ];
-  const heroHTML = heroSlides.map((s,i) =>
-    `<div class="resto-hero-slide${i===0?' active':''}" style="background-color:${s.base};background-image:${s.grad},url('${s.img}')"></div>`
+  // Bandeau d'accueil paramétrable (Admin → Carrousel) : doc global config/accueil.
+  // - non configuré → images de démonstration par défaut
+  // - actif=false → pas de bandeau
+  // - actif + images → images chargées
+  if (_accueilCfg === undefined) {
+    try { _accueilCfg = await fetchAccueilCarousel(); } catch (_) { _accueilCfg = null; }
+  }
+  const DEMO_IMGS = ['/img/accueil-1.jpg', '/img/accueil-2.jpg', '/img/accueil-3.jpg'];
+  let heroImgs;
+  if (_accueilCfg) {
+    if (_accueilCfg.actif === false) {
+      heroImgs = [];
+    } else {
+      const sl = Array.isArray(_accueilCfg.slides) ? _accueilCfg.slides.slice() : [];
+      heroImgs = sl.length
+        ? sl.sort((a, b) => (a.ordre || 0) - (b.ordre || 0)).map(s => s.url).filter(Boolean)
+        : DEMO_IMGS;
+    }
+  } else {
+    heroImgs = DEMO_IMGS;
+  }
+  const HERO_GRAD = 'linear-gradient(135deg,rgba(43,29,22,.22),rgba(43,29,22,.55))';
+  const heroHTML = heroImgs.map((url, i) =>
+    `<div class="resto-hero-slide${i === 0 ? ' active' : ''}" style="background-color:#2B1D16;background-image:${HERO_GRAD},url('${url}')"></div>`
   ).join('');
-  const dotsHTML = heroSlides.map((_,i) => `<span class="resto-hero-dot${i===0?' on':''}"></span>`).join('');
+  const dotsHTML = heroImgs.length > 1
+    ? heroImgs.map((_, i) => `<span class="resto-hero-dot${i === 0 ? ' on' : ''}"></span>`).join('')
+    : '';
+  const heroBlock = heroImgs.length
+    ? `<div class="resto-hero" id="resto-hero">${heroHTML}<div class="resto-hero-dots">${dotsHTML}</div></div>`
+    : '';
 
   view.innerHTML = `
     <div class="resto-picker" style="max-width:${lieux.length >= 5 ? 920 : lieux.length >= 3 ? 760 : 600}px">
-      <div class="resto-hero" id="resto-hero">
-        ${heroHTML}
-        <div class="resto-hero-dots">${dotsHTML}</div>
-      </div>
+      ${heroBlock}
       <div class="resto-pick-list">${cards}</div>
       <button class="resto-pick-card resto-pick-traiteur" onclick="window.App.navigate('traiteur')">
         <span class="resto-pick-avatar" style="background:linear-gradient(135deg,#8B5CF6,#6D28D9)">👨‍🍳</span>

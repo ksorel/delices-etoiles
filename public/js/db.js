@@ -268,6 +268,16 @@ export async function updateZone(zoneId, data) {
 // ─── Plat du jour (par lieu) ─────────────────────────────
 // Le carrousel "menu-du-jour" était un doc à ID FIXE → collision entre
 // lieux. On namespace l'ID par restoId.
+// Carrousel d'accueil (global, transverse aux établissements).
+// Retourne { actif, slides:[{url,...}] } ou null si le document n'existe pas.
+export async function fetchAccueilCarousel() {
+  try {
+    const snap = await getDoc(doc(db, 'config', 'accueil'));
+    if (!snap.exists()) return null;
+    return snap.data();
+  } catch (e) { console.warn('Carrousel accueil:', e); return null; }
+}
+
 export async function fetchPlatDuJour(restoId) {
   const r = rid(restoId);
   try {
