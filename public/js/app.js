@@ -301,16 +301,23 @@ async function bootApp() {
   if (State.mode === 'salle' && State.tableId) {
     await initSalleSession();
   } else if (lastOrder && !State.tableId) {
-    // Proposer de reprendre le suivi
-    navigate('menu'); // charger le menu d'abord
-    setTimeout(function() {
-      const resume = confirm('Vous avez une commande en cours. Voulez-vous suivre son état ?');
-      if (resume) {
-        window.App.openTrackingModal(lastOrder.orderId);
-      } else {
-        localStorage.removeItem('de_last_order');
-      }
-    }, 1000);
+    if (lastOrder.operateur && lastOrder.operateur !== 'especes') {
+      // Commande en attente de paiement mobile : réafficher l'écran de confirmation
+      // (boutons « Revoir le paiement » et « Suivre ma commande »).
+      if (lastOrder.mode) State.mode = lastOrder.mode;
+      renderView('confirm', { orderId: lastOrder.orderId, operateur: lastOrder.operateur });
+    } else {
+      // Proposer de reprendre le suivi
+      navigate('menu'); // charger le menu d'abord
+      setTimeout(function() {
+        const resume = confirm('Vous avez une commande en cours. Voulez-vous suivre son état ?');
+        if (resume) {
+          window.App.openTrackingModal(lastOrder.orderId);
+        } else {
+          localStorage.removeItem('de_last_order');
+        }
+      }, 1000);
+    }
   } else {
     navigate('menu');
   }
@@ -1118,8 +1125,9 @@ function showPaymentInstructions(operateur, amount, orderId) {
   overlay.id = 'payment-instructions';
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(43,29,22,.8);z-index:9999;display:flex;align-items:flex-end;justify-content:center';
   const sheet = document.createElement('div');
-  sheet.style.cssText = 'background:#fff;border-radius:24px 24px 0 0;width:100%;max-width:480px;padding:28px 24px 40px';
-  sheet.innerHTML = '<div style="text-align:center;margin-bottom:24px">'
+  sheet.style.cssText = 'background:#fff;border-radius:24px 24px 0 0;width:100%;max-width:480px;padding:28px 24px 40px;position:relative';
+  sheet.innerHTML = '<button id="pay-close" title="Fermer" style="position:absolute;top:14px;right:16px;background:#F5F0EB;border:none;border-radius:50%;width:32px;height:32px;font-size:18px;color:#7A6356;cursor:pointer;display:flex;align-items:center;justify-content:center">×</button>'
+    + '<div style="text-align:center;margin-bottom:24px">'
     + '<div style="font-size:48px;margin-bottom:8px">' + (icons[operateur]||'📱') + '</div>'
     + '<div style="font-size:20px;font-weight:800;color:#2B1D16">Paiement ' + (names[operateur]||operateur) + '</div>'
     + '<div style="font-size:28px;font-weight:800;color:#F26522;margin:8px 0">' + amt + ' FCFA</div>'
@@ -1141,10 +1149,33 @@ function showPaymentInstructions(operateur, amount, orderId) {
   doneBtn.textContent = "J'ai effectué le paiement";
   doneBtn.style.cssText = 'width:100%;padding:14px;background:#2B1D16;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer';
   doneBtn.addEventListener('click', function() { overlay.remove(); });
+  const laterBtn = document.createElement('button');
+  laterBtn.textContent = 'Payer plus tard';
+  laterBtn.style.cssText = 'width:100%;padding:12px;background:none;color:#7A6356;border:none;font-size:14px;font-weight:600;cursor:pointer;margin-top:6px';
+  laterBtn.addEventListener('click', function() { overlay.remove(); });
+  const note = document.createElement('div');
+  note.style.cssText = 'text-align:center;font-size:12px;color:#9A8576;margin-top:12px;line-height:1.5';
+  note.textContent = 'Votre commande est enregistrée. Vous pouvez fermer cette fenêtre : retrouvez le paiement et le suivi depuis l\u2019écran de confirmation.';
   sheet.appendChild(openBtn);
   sheet.appendChild(doneBtn);
+  sheet.appendChild(laterBtn);
+  sheet.appendChild(note);
   overlay.appendChild(sheet);
   document.body.appendChild(overlay);
+  const closeX = sheet.querySelector('#pay-close');
+  if (closeX) closeX.addEventListener('click', function() { overlay.remove(); });
+}
+
+// Rouvre les instructions de paiement d'une commande mobile en attente.
+function reopenPayment() {
+  try {
+    const d = JSON.parse(localStorage.getItem('de_last_order') || 'null');
+    if (d && d.orderId && d.operateur && d.operateur !== 'especes') {
+      showPaymentInstructions(d.operateur, d.total || 0, d.orderId);
+    } else {
+      showToast('Aucun paiement en attente.');
+    }
+  } catch { showToast('Aucun paiement en attente.'); }
 }
 async function confirmSalle() {
   const btn = document.getElementById('confirm-btn');
@@ -1162,14 +1193,14 @@ async function confirmSalle() {
     if (!State.uid) throw new Error('Authentification impossible. Vérifiez votre connexion.');
     const operateur  = window._selectedPayment || 'especes';
     const cartItems  = getItems();
+    const totalCart  = cartItems.reduce(function(s,i){return s+i.price*i.qty;},0);
     const orderId    = await submitSalleOrder(State.tableId, State.uid, operateur, State.sessionId, cartItems);
     clearCart();
     updateCartBadge();
-    localStorage.setItem('de_last_order', JSON.stringify({ orderId, operateur, ts: Date.now() }));
+    localStorage.setItem('de_last_order', JSON.stringify({ orderId, operateur, total: totalCart, mode: 'salle', ts: Date.now() }));
     renderView('confirm', { orderId, operateur });
     // Afficher les instructions de paiement Mobile Money
     if (operateur !== 'especes') {
-      const totalCart = getItems().reduce(function(s,i){return s+i.price*i.qty;},0);
       showPaymentInstructions(operateur, totalCart, orderId);
     }
   } catch (e) {
@@ -1213,6 +1244,7 @@ async function confirmLivraison() {
     }
     if (!State.uid) throw new Error('Authentification impossible. Vérifiez votre connexion.');
     const cartItems = getItems();
+    const sousTotal = cartItems.reduce(function(s,i){return s+i.price*i.qty;},0);
     const orderId = await submitLivraisonOrder({
       nom, telephone: tel, adresse,
       zoneId:          zone.id,
@@ -1224,9 +1256,8 @@ async function confirmLivraison() {
     clearCart();
     updateCartBadge();
     const operateur  = window._selectedPayment || 'wave';
-    const sousTotal  = getItems().reduce(function(s,i){return s+i.price*i.qty;},0);
     const totalOrder = sousTotal + (zone.frais || 0);
-    localStorage.setItem('de_last_order', JSON.stringify({ orderId, operateur, ts: Date.now() }));
+    localStorage.setItem('de_last_order', JSON.stringify({ orderId, operateur, total: totalOrder, mode: 'livraison', ts: Date.now() }));
     renderView('confirm', { orderId, operateur });
     // Afficher les instructions de paiement Mobile Money
     if (operateur !== 'especes') {
@@ -1259,7 +1290,9 @@ function renderConfirm(container, orderId, operateur) {
       <div class="confirm-sub">${sub}</div>
       ${payBadge}
       <div class="order-id">${t('order_number')}${orderId?.slice(-6).toUpperCase()}</div>
-      <button class="btn btn-brown" style="margin-top:16px;width:100%;max-width:280px;padding:14px 28px;font-size:16px"
+      ${(operateur && operateur !== 'especes') ? `<button class="btn btn-primary" style="margin-top:16px;width:100%;max-width:280px;padding:14px 28px;font-size:16px"
+              onclick="window.App.reopenPayment()">💳 Revoir le paiement</button>` : ''}
+      <button class="btn btn-brown" style="margin-top:${(operateur && operateur !== 'especes') ? '8px' : '16px'};width:100%;max-width:280px;padding:14px 28px;font-size:16px"
               onclick="window.App.openTrackingModal('${orderId}')">
         📍 Suivre ma commande
       </button>
@@ -1948,7 +1981,7 @@ window.App = {
   openItem, setOption, changeQty, toggleUpsell,
   addToCart, closeModal, setCategory,
   updateQty: doUpdateQty, removeItem: doRemoveItem, goCheckout,
-  confirmSalle, confirmLivraison, onZoneChange, selectPayment,
+  confirmSalle, confirmLivraison, onZoneChange, selectPayment, reopenPayment,
   toggleLang,
 };
 
