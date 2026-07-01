@@ -1009,6 +1009,7 @@ function renderCheckout(container) {
   }
 
   // Mode livraison
+  const noZones = !State.zones.length;
   const zonesOptions = State.zones.map(z =>
     `<option value="${z.id}" data-frais="${z.frais}">${z.name} — ${formatFCFA(z.frais)}</option>`
   ).join('');
@@ -1032,11 +1033,12 @@ function renderCheckout(container) {
       </div>
       <div class="form-group">
         <label class="form-label">${t('zone')} *</label>
-        <select class="form-select" id="liv-zone" onchange="window.App.onZoneChange(this)">
+        <select class="form-select" id="liv-zone" onchange="window.App.onZoneChange(this)" ${noZones ? 'disabled' : ''}>
           <option value="">${t('select_zone')}</option>
           ${zonesOptions}
         </select>
       </div>
+      ${noZones ? `<div style="background:#FEF3C7;color:#92400E;border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.5;margin-top:4px">⚠️ Aucune zone de livraison n'est disponible pour cet établissement pour le moment. La livraison n'est pas possible ici — vous pouvez commander sur place.</div>` : ''}
       <div id="frais-display" style="display:none;padding:10px 14px;background:var(--orange-light);border-radius:var(--r);font-size:13px;color:var(--orange-dark);font-weight:700;margin-top:4px"></div>
     </div>
     <div class="checkout-section" style="margin-top:12px">
@@ -1056,7 +1058,7 @@ function renderCheckout(container) {
         <span>${t('total')}</span>
         <span id="total-final" style="color:var(--orange)">${formatFCFA(sous_total)}</span>
       </div>
-      <button class="btn btn-primary" id="confirm-btn" onclick="window.App.confirmLivraison()">
+      <button class="btn btn-primary" id="confirm-btn" onclick="window.App.confirmLivraison()" ${noZones ? 'disabled style="opacity:.5"' : ''}>
         ${t('confirm_liv')} 💳
       </button>
     </div>`;
@@ -2027,13 +2029,13 @@ async function renderRestoPicker() {
       </button>
     </div>
     <style>
-      .resto-picker{margin:0 auto;padding:0 16px 40px;text-align:center}
+      .resto-picker{margin:0 auto;padding:18px 16px 40px;text-align:center}
       .resto-pick-traiteur{margin-top:14px}
       .resto-pick-traiteur:hover{border-color:#8B5CF6!important}
       .resto-pick-traiteur:hover .resto-pick-go{color:#8B5CF6}
       .resto-picker-hero{padding:40px 0 28px}
       .resto-hero{position:relative;height:min(26vh,180px);border-radius:20px;overflow:hidden;
-        margin:14px 0 18px;box-shadow:0 10px 30px rgba(43,29,22,.18)}
+        margin:0 0 18px;box-shadow:0 10px 30px rgba(43,29,22,.18)}
       .resto-hero-slide{position:absolute;inset:0;background-size:cover;background-position:center;
         opacity:0;transition:opacity 1.2s ease}
       .resto-hero-slide.active{opacity:1}
