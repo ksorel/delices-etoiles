@@ -1182,9 +1182,22 @@ async function confirmLivraison() {
   const nom     = document.getElementById('liv-nom')?.value.trim();
   const tel     = document.getElementById('liv-tel')?.value.trim();
   const adresse = document.getElementById('liv-adresse')?.value.trim();
-  const zone    = window._selectedZone;
-  if (!nom || !tel || !adresse || !zone?.id) {
-    showToast(t('err_required')); return;
+  // Zone : lire directement le <select> (robuste même si onZoneChange n'a pas tourné)
+  const zoneSel = document.getElementById('liv-zone');
+  let zone = window._selectedZone;
+  if ((!zone || !zone.id) && zoneSel && zoneSel.value) {
+    const opt = zoneSel.options[zoneSel.selectedIndex];
+    zone = { id: zoneSel.value, name: opt ? opt.text : '', frais: parseInt((opt && opt.dataset.frais) || '0') };
+    window._selectedZone = zone;
+  }
+  const missing = [];
+  if (!nom)          missing.push('votre nom');
+  if (!tel)          missing.push('votre numéro de téléphone');
+  if (!adresse)      missing.push('votre adresse');
+  if (!zone || !zone.id) missing.push('une zone de livraison');
+  if (missing.length) {
+    showToast('Veuillez renseigner : ' + missing.join(', '));
+    return;
   }
   const btn = document.getElementById('confirm-btn');
   if (btn) { btn.disabled = true; btn.textContent = 'Traitement…'; }
