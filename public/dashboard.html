@@ -358,7 +358,7 @@ import { signInWithEmailAndPassword, signOut, onAuthStateChanged,
                                   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import {
   collection, query, where, orderBy, onSnapshot, doc, updateDoc,
-  getDocs, addDoc, setDoc, serverTimestamp, disableNetwork
+  getDoc, getDocs, addDoc, setDoc, serverTimestamp, disableNetwork
 } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
 // ── État ──────────────────────────────────────────────────
@@ -667,6 +667,22 @@ async function showEstablishmentName() {
       chip.textContent = '📍 ' + nom;
       titleEl.after(chip);
     }
+    // Contact du responsable, propre à l'établissement de l'employé (config/{restoId}).
+    try {
+      const cfg = await getDoc(doc(db, 'config', currentRestoId));
+      const c   = cfg.exists() ? (cfg.data().contacts || {}) : {};
+      const tel = c.tel1 || c.tel2;
+      if (tel && titleEl && !document.getElementById('dash-contact')) {
+        const link = document.createElement('a');
+        link.id = 'dash-contact';
+        link.href = 'tel:' + tel.replace(/\s/g, '');
+        link.style.cssText = 'display:inline-flex;align-items:center;gap:5px;margin-top:4px;'
+          + 'background:rgba(255,255,255,.12);color:#fff;padding:3px 10px;border-radius:14px;'
+          + 'font-size:11px;font-weight:700;text-decoration:none;width:fit-content';
+        link.innerHTML = '📞 ' + (c.tel1_label || 'Responsable') + ' · ' + tel;
+        (document.getElementById('dash-resto') || titleEl).after(link);
+      }
+    } catch (_) {}
   } catch (e) { console.warn('Resto name:', e); }
 }
 
@@ -723,7 +739,8 @@ function buildCard(o) {
         hour:'2-digit', minute:'2-digit' 
       }).replace(',', ' à')
     : '—';
-  const num = o.id.slice(-6).toUpperCase();
+  const _code = (o.restoId || '').slice(0, 3).toUpperCase();
+  const num = (_code ? _code + '-' : '') + o.id.slice(-6).toUpperCase();
   // Chercher le nom de table à jour depuis le plan de salle
   const fpTable = (window._floorPlanTables || []).find(t => String(t.id) === String(o.tableId));
   const tableDisplayName = fpTable ? fpTable.label : (o.tableId || '');
