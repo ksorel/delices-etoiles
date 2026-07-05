@@ -2016,6 +2016,13 @@ async function renderRestoPicker() {
 
   const cards = lieux.map(l => {
     const loc = l.commune ? `${l.commune}${l.adresse ? ' · ' + l.adresse : ''}` : '';
+    const wa = (l.whatsapp || '').replace(/[^0-9]/g, '');
+    const social = (l.facebookUrl || wa)
+      ? `<span style="display:flex;gap:8px;margin-top:7px">`
+        + (l.facebookUrl ? `<a href="${l.facebookUrl}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="Facebook" style="width:28px;height:28px;border-radius:50%;background:#1877F2;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;text-decoration:none;font-family:Georgia,serif">f</a>` : '')
+        + (wa ? `<a href="https://wa.me/${wa}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="WhatsApp" style="width:28px;height:28px;border-radius:50%;background:#25D366;color:#fff;display:flex;align-items:center;justify-content:center;font-size:15px;text-decoration:none">💬</a>` : '')
+        + `</span>`
+      : '';
     return `
     <div class="resto-pick-card" role="button" tabindex="0"
          onclick="window.App.chooseResto('${l.id}')"
@@ -2026,6 +2033,7 @@ async function renderRestoPicker() {
       <span class="resto-pick-body">
         <span class="resto-pick-name">${l.nom || l.id}</span>
         ${loc ? `<a class="resto-pick-map" href="${lieuMapUrl(l)}" target="_blank" rel="noopener" title="Voir sur Google Maps" onclick="event.stopPropagation()"><span class="resto-pick-maptext">📍 ${loc}</span><span class="resto-pick-maparrow">↗</span></a>` : ''}
+        ${social}
       </span>
       <span class="resto-pick-go">→</span>
     </div>`;

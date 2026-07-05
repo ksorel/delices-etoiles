@@ -326,15 +326,15 @@
 
   <!-- Filters -->
   <div class="filters">
-    <button class="filter-btn active" onclick="setFilter('all', this)">Toutes</button>
+    <button class="filter-btn active" data-filter="all" onclick="setFilter('all', this)">Toutes</button>
     <button class="filter-btn" onclick="showFloorPlan()" id="fp-btn" style="margin-left:auto;background:var(--brown);color:#fff;border-color:var(--brown)">🗺️ Plan de salle</button>
-    <button class="filter-btn" onclick="setFilter('pending', this)">⏳ En attente</button>
-    <button class="filter-btn" onclick="setFilter('preparing', this)">🔥 En préparation</button>
-    <button class="filter-btn" onclick="setFilter('ready', this)">✅ Prêtes</button>
-    <button class="filter-btn" onclick="setFilter('salle', this)">🪑 Salle</button>
-    <button class="filter-btn" onclick="setFilter('livraison', this)">🚴 Livraison</button>
-    <button class="filter-btn" onclick="setFilter('done', this)">✓ Servies</button>
-    <button class="filter-btn" onclick="setFilter('expired', this)">⏰ Expirées</button>
+    <button class="filter-btn" data-filter="pending" onclick="setFilter('pending', this)">⏳ En attente</button>
+    <button class="filter-btn" data-filter="preparing" onclick="setFilter('preparing', this)">🔥 En préparation</button>
+    <button class="filter-btn" data-filter="ready" onclick="setFilter('ready', this)">✅ Prêtes</button>
+    <button class="filter-btn" data-filter="salle" onclick="setFilter('salle', this)">🪑 Salle</button>
+    <button class="filter-btn" data-filter="livraison" onclick="setFilter('livraison', this)">🚴 Livraison</button>
+    <button class="filter-btn" data-filter="done" onclick="setFilter('done', this)">✓ Servies</button>
+    <button class="filter-btn" data-filter="expired" onclick="setFilter('expired', this)">⏰ Expirées</button>
   </div>
 
   <!-- Orders -->
@@ -537,13 +537,13 @@ onAuthStateChanged(auth, async user => {
     // Afficher le bouton "Commande" uniquement pour admin, serveur, bar
     // ── Matrice des permissions par rôle ──────────────────
     const ROLES_CONFIG = {
-      admin:    { canOrder: true,  canPay: true,  canStatus: true,  canPlan: true,  filterAuto: null,         masquePlan: false },
-      manager:  { canOrder: true,  canPay: true,  canStatus: true,  canPlan: true,  filterAuto: null,         masquePlan: false },
-      serveur:  { canOrder: true,  canPay: false, canStatus: true,  canPlan: true,  filterAuto: null,         masquePlan: false },
-      bar:      { canOrder: true,  canPay: false, canStatus: true,  canPlan: true,  filterAuto: null,         masquePlan: false },
-      cuisine:  { canOrder: false, canPay: false, canStatus: true,  canPlan: false, filterAuto: 'preparing',  masquePlan: true  },
-      livreur:  { canOrder: false, canPay: false, canStatus: true,  canPlan: false, filterAuto: 'livraison',  masquePlan: true  },
-      caissier: { canOrder: false, canPay: true,  canStatus: false, canPlan: true,  filterAuto: null,         masquePlan: false },
+      admin:    { canOrder: true,  canPay: true,  canStatus: true,  canPlan: true,  filterAuto: null,         masquePlan: false, tabs: null },
+      manager:  { canOrder: true,  canPay: true,  canStatus: true,  canPlan: true,  filterAuto: null,         masquePlan: false, tabs: null },
+      serveur:  { canOrder: true,  canPay: false, canStatus: true,  canPlan: true,  filterAuto: null,         masquePlan: false, tabs: ['all','pending','preparing','ready','salle','done','expired'] },
+      bar:      { canOrder: true,  canPay: false, canStatus: true,  canPlan: true,  filterAuto: null,         masquePlan: true,  tabs: ['all','pending','preparing','ready','expired'] },
+      cuisine:  { canOrder: false, canPay: false, canStatus: true,  canPlan: false, filterAuto: 'preparing',  masquePlan: true,  tabs: ['pending','preparing','ready'] },
+      livreur:  { canOrder: false, canPay: false, canStatus: true,  canPlan: false, filterAuto: 'livraison',  masquePlan: true,  tabs: ['livraison','preparing','ready','done'] },
+      caissier: { canOrder: false, canPay: true,  canStatus: false, canPlan: true,  filterAuto: null,         masquePlan: false, tabs: ['all','salle','livraison','done','expired'] },
     };
     const roleConfig   = ROLES_CONFIG[currentRole] || ROLES_CONFIG.serveur;
     const canOrder     = roleConfig.canOrder;
@@ -583,6 +583,19 @@ onAuthStateChanged(auth, async user => {
     // Masquer bouton plan de salle pour certains rôles
     const planBtn = document.getElementById('fp-btn');
     if (planBtn) planBtn.style.display = roleConfig.masquePlan ? 'none' : '';
+
+    // Onglets (filtres) visibles selon le rôle
+    if (roleConfig.tabs) {
+      document.querySelectorAll('.filter-btn[data-filter]').forEach(b => {
+        b.style.display = roleConfig.tabs.includes(b.dataset.filter) ? '' : 'none';
+      });
+      // Si l'onglet actuellement actif est masqué pour ce rôle, basculer sur un onglet autorisé
+      if (typeof activeFilter !== 'undefined' && !roleConfig.tabs.includes(activeFilter)) {
+        const firstKey = roleConfig.filterAuto || roleConfig.tabs[0];
+        const b = document.querySelector('.filter-btn[data-filter="' + firstKey + '"]');
+        if (b) setFilter(firstKey, b);
+      }
+    }
 
     // Filtre automatique selon le rôle
     if (roleConfig.filterAuto) {
