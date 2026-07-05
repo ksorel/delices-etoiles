@@ -1334,6 +1334,15 @@ async function renderConfig(c) {
     +   '<div style="background:var(--bg);border-radius:10px;padding:0 14px">' + payRows + '</div>'
     + '</div>'
 
+    + '<div><label class="form-label" style="margin-bottom:8px">⏰ Expiration des commandes non traitées</label>'
+    +   '<div style="background:var(--bg);border-radius:10px;padding:14px">'
+    +     '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">'
+    +       '<input class="form-input" id="cfg-expiry" type="number" min="0" step="1" value="' + (cfg.orderExpiryHours != null ? cfg.orderExpiryHours : 2) + '" style="max-width:110px">'
+    +       '<span style="font-size:13px;color:var(--muted);flex:1;min-width:180px">heures — au-delà, une commande restée « en attente » sort de la vue active du dashboard (elle reste dans le filtre « Expirées »). 0 = jamais.</span>'
+    +     '</div>'
+    +   '</div>'
+    + '</div>'
+
     + '<button onclick="window.Admin.saveConfig()" class="btn btn-primary" style="align-self:flex-start">💾 Enregistrer</button>'
     + '<div id="cfg-msg" style="font-size:13px;display:none"></div>'
     + '</div></div>';
@@ -3815,6 +3824,7 @@ window.Admin.saveConfig = async function() {
       restaurantName: name,
       restoId:        activeResto,
       managerPhone:   phone,
+      orderExpiryHours: Math.max(0, parseInt(document.getElementById('cfg-expiry')?.value) || 0),
       contacts: {
         tel1:        document.getElementById('cfg-tel1')?.value.trim()       || '',
         tel1_label:  document.getElementById('cfg-tel1-label')?.value.trim() || 'Fixe',

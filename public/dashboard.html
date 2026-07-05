@@ -334,6 +334,7 @@
     <button class="filter-btn" onclick="setFilter('salle', this)">🪑 Salle</button>
     <button class="filter-btn" onclick="setFilter('livraison', this)">🚴 Livraison</button>
     <button class="filter-btn" onclick="setFilter('done', this)">✓ Servies</button>
+    <button class="filter-btn" onclick="setFilter('expired', this)">⏰ Expirées</button>
   </div>
 
   <!-- Orders -->
@@ -363,6 +364,20 @@ import {
 
 // ── État ──────────────────────────────────────────────────
 let allOrders   = [];
+let ORDER_EXPIRY_MS = 2 * 3600 * 1000;   // délai avant expiration (défaut 2h, surchargé par config)
+
+// Date de création d'une commande en ms.
+function orderCreatedMs(o) {
+  try { return o.createdAt?.toDate ? o.createdAt.toDate().getTime() : (o.createdAt?.seconds ? o.createdAt.seconds * 1000 : 0); }
+  catch (_) { return 0; }
+}
+// Une commande est « expirée » si elle est restée EN ATTENTE au-delà du délai
+// (jamais traitée/confirmée). Les commandes prises en charge ne expirent pas.
+function isExpired(o) {
+  if (o.status !== 'pending') return false;
+  const ms = orderCreatedMs(o);
+  return ms > 0 && (Date.now() - ms) > ORDER_EXPIRY_MS;
+}
 let dashMenu    = [];   // Menu chargé pour la commande serveur
 let staffCart   = [];   // Panier de commande serveur
 let currentRole = '';   // Rôle de l'utilisateur connecté
@@ -649,6 +664,13 @@ async function initDashboard() {
   },
   err => { if (err.code !== 'permission-denied') console.error(err); }
   );
+  // Rafraîchir périodiquement pour que les commandes franchissant le délai
+  // basculent en « expirées » même sans nouvelle donnée.
+  if (!window._expiryTimer) {
+    window._expiryTimer = setInterval(() => {
+      if (allOrders.length) { updateStats(); renderOrders(); }
+    }, 5 * 60 * 1000);
+  }
 }
 
 // ── Stats ─────────────────────────────────────────────────
@@ -671,6 +693,8 @@ async function showEstablishmentName() {
     try {
       const cfg = await getDoc(doc(db, 'config', currentRestoId));
       const c   = cfg.exists() ? (cfg.data().contacts || {}) : {};
+      const hrs = cfg.exists() ? Number(cfg.data().orderExpiryHours) : NaN;
+      if (!isNaN(hrs)) { ORDER_EXPIRY_MS = hrs > 0 ? hrs * 3600 * 1000 : Infinity; updateStats(); renderOrders(); }
       const tel = c.tel1 || c.tel2;
       if (tel && titleEl && !document.getElementById('dash-contact')) {
         const link = document.createElement('a');
@@ -690,6 +714,7 @@ function updateStats() {
   const counts = { pending:0, preparing:0, ready:0, done:0 };
   let ca = 0;
   for (const o of allOrders) {
+    if (isExpired(o)) continue;   // les expirées ne comptent pas dans les stats actives
     counts[o.status] = (counts[o.status] || 0) + 1;
     if (o.status === 'done') ca += o.total || 0;
   }
@@ -713,10 +738,16 @@ function renderOrders() {
   const grid = document.getElementById('orders-grid');
   let filtered = allOrders;
 
-  if (activeFilter === 'salle')     filtered = filtered.filter(o => o.type === 'salle');
-  else if (activeFilter === 'livraison') filtered = filtered.filter(o => o.type === 'livraison');
-  else if (['pending','preparing','ready','done'].includes(activeFilter))
-    filtered = filtered.filter(o => o.status === activeFilter);
+  if (activeFilter === 'expired') {
+    filtered = filtered.filter(isExpired);
+  } else {
+    // Les commandes expirées sortent de toutes les vues actives.
+    filtered = filtered.filter(o => !isExpired(o));
+    if (activeFilter === 'salle')     filtered = filtered.filter(o => o.type === 'salle');
+    else if (activeFilter === 'livraison') filtered = filtered.filter(o => o.type === 'livraison');
+    else if (['pending','preparing','ready','done'].includes(activeFilter))
+      filtered = filtered.filter(o => o.status === activeFilter);
+  }
 
   if (!filtered.length) {
     grid.innerHTML = `
@@ -884,7 +915,7 @@ function buildCard(o) {
     <div class="order-card status-${o.status}" id="card-${o.id}">
       <div class="order-head">
         <div>
-          <div class="order-id">#${num} ${sessionBadge}${staffBadge}</div>
+          <div class="order-id">#${num} ${sessionBadge}${staffBadge}${isExpired(o) ? ' <span style="background:#F3E8E2;color:#8A6D5B;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px">⏰ expirée</span>' : ''}</div>
           <div class="order-time">${time}</div>
         </div>
         <span class="order-type ${o.type}">${o.type === 'salle' ? `🪑 Table ${o.tableId || ''}` : '🚴 Livraison'}</span>
