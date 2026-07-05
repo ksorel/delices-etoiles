@@ -611,7 +611,14 @@ onAuthStateChanged(auth, async user => {
       await new Promise(r => setTimeout(r, 2000));
       token = await user.getIdToken(true).then(() => user.getIdTokenResult());
     }
-    if (token.claims.role !== 'admin') { await signOut(auth); return; }
+    if (token.claims.role !== 'admin') {
+      // Session non-propriétaire (ex. connexion au dashboard dans un autre onglet,
+      // session partagée) : on masque l'admin SANS déconnecter — sinon on tuerait
+      // la session du dashboard. La déconnexion reste manuelle (bouton) ou au login admin.
+      document.getElementById('login-screen').style.display = 'flex';
+      document.getElementById('admin-app').style.display    = 'none';
+      return;
+    }
 
     // Rafraîchir le token toutes les 55min
     if (window._tokenRefreshInterval) clearInterval(window._tokenRefreshInterval);

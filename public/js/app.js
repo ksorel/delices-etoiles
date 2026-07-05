@@ -2014,13 +2014,15 @@ async function renderRestoPicker() {
     return window.App.chooseResto(lieux[0].id);
   }
 
+  const FB_SVG = '<svg viewBox="0 0 24 24" width="26" height="26" style="display:block"><path fill="#1877F2" d="M24 12.07C24 5.4 18.63 0 12 0S0 5.4 0 12.07C0 18.1 4.39 23.1 10.13 24v-8.44H7.08v-3.49h3.05V9.41c0-3.02 1.79-4.69 4.53-4.69 1.31 0 2.68.24 2.68.24v2.97h-1.51c-1.49 0-1.96.93-1.96 1.89v2.25h3.33l-.53 3.49h-2.8V24C19.61 23.1 24 18.1 24 12.07z"/></svg>';
+  const WA_SVG = '<svg viewBox="0 0 24 24" width="26" height="26" style="display:block"><path fill="#25D366" d="M.06 24l1.68-6.15a11.87 11.87 0 01-1.59-5.95C.15 5.34 5.5 0 12.07 0a11.82 11.82 0 018.41 3.49 11.82 11.82 0 013.49 8.41c0 6.57-5.35 11.91-11.92 11.91a11.9 11.9 0 01-5.7-1.45L.06 24z"/><path fill="#FFF" d="M8.53 7.33c-.16-.36-.33-.37-.48-.38l-.42-.01c-.14 0-.38.05-.58.27-.2.22-.76.75-.76 1.82 0 1.07.78 2.11.89 2.26.11.14 1.51 2.42 3.72 3.3 1.84.72 2.21.58 2.61.54.4-.04 1.29-.53 1.47-1.03.18-.51.18-.94.13-1.03-.05-.09-.2-.14-.42-.25-.22-.11-1.29-.64-1.49-.71-.2-.07-.35-.11-.5.11-.14.22-.57.71-.7.86-.13.14-.26.16-.48.05-.22-.11-.93-.34-1.77-1.09-.65-.58-1.09-1.3-1.22-1.52-.13-.22-.01-.34.1-.45.1-.1.22-.26.33-.38.11-.13.14-.22.22-.37.07-.14.04-.27-.02-.38-.05-.11-.48-1.2-.68-1.63z"/></svg>';
   const cards = lieux.map(l => {
     const loc = l.commune ? `${l.commune}${l.adresse ? ' · ' + l.adresse : ''}` : '';
     const wa = (l.whatsapp || '').replace(/[^0-9]/g, '');
     const social = (l.facebookUrl || wa)
-      ? `<span style="display:flex;gap:8px;margin-top:7px">`
-        + (l.facebookUrl ? `<a href="${l.facebookUrl}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="Facebook" style="width:28px;height:28px;border-radius:50%;background:#1877F2;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;text-decoration:none;font-family:Georgia,serif">f</a>` : '')
-        + (wa ? `<a href="https://wa.me/${wa}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="WhatsApp" style="width:28px;height:28px;border-radius:50%;background:#25D366;color:#fff;display:flex;align-items:center;justify-content:center;font-size:15px;text-decoration:none">💬</a>` : '')
+      ? `<span style="display:flex;gap:10px;margin-top:8px;align-items:center">`
+        + (l.facebookUrl ? `<a href="${l.facebookUrl}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="Facebook" style="line-height:0">${FB_SVG}</a>` : '')
+        + (wa ? `<a href="https://wa.me/${wa}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="WhatsApp" style="line-height:0">${WA_SVG}</a>` : '')
         + `</span>`
       : '';
     return `

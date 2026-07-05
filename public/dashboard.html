@@ -317,11 +317,11 @@
 
   <!-- Stats -->
   <div class="stats-bar" id="stats-bar">
-    <div class="stat-card"><div class="stat-num" id="s-pending">0</div><div class="stat-lbl">En attente</div></div>
-    <div class="stat-card"><div class="stat-num" id="s-prep">0</div><div class="stat-lbl">En cours</div></div>
-    <div class="stat-card"><div class="stat-num" id="s-ready">0</div><div class="stat-lbl">Prêts</div></div>
-    <div class="stat-card"><div class="stat-num" id="s-done">0</div><div class="stat-lbl">Servis</div></div>
-    <div class="stat-card"><div class="stat-num" id="s-ca">0</div><div class="stat-lbl">CA (FCFA)</div></div>
+    <div class="stat-card" data-stat="pending"><div class="stat-num" id="s-pending">0</div><div class="stat-lbl">En attente</div></div>
+    <div class="stat-card" data-stat="prep"><div class="stat-num" id="s-prep">0</div><div class="stat-lbl">En cours</div></div>
+    <div class="stat-card" data-stat="ready"><div class="stat-num" id="s-ready">0</div><div class="stat-lbl">Prêts</div></div>
+    <div class="stat-card" data-stat="done"><div class="stat-num" id="s-done">0</div><div class="stat-lbl">Servis</div></div>
+    <div class="stat-card" data-stat="ca"><div class="stat-num" id="s-ca">0</div><div class="stat-lbl">CA (FCFA)</div></div>
   </div>
 
   <!-- Filters -->
@@ -537,13 +537,13 @@ onAuthStateChanged(auth, async user => {
     // Afficher le bouton "Commande" uniquement pour admin, serveur, bar
     // ── Matrice des permissions par rôle ──────────────────
     const ROLES_CONFIG = {
-      admin:    { canOrder: true,  canPay: true,  canStatus: true,  canPlan: true,  filterAuto: null,         masquePlan: false, tabs: null },
-      manager:  { canOrder: true,  canPay: true,  canStatus: true,  canPlan: true,  filterAuto: null,         masquePlan: false, tabs: null },
-      serveur:  { canOrder: true,  canPay: false, canStatus: true,  canPlan: true,  filterAuto: null,         masquePlan: false, tabs: ['all','pending','preparing','ready','salle','done','expired'] },
-      bar:      { canOrder: true,  canPay: false, canStatus: true,  canPlan: true,  filterAuto: null,         masquePlan: true,  tabs: ['all','pending','preparing','ready','expired'] },
-      cuisine:  { canOrder: false, canPay: false, canStatus: true,  canPlan: false, filterAuto: 'preparing',  masquePlan: true,  tabs: ['pending','preparing','ready'] },
-      livreur:  { canOrder: false, canPay: false, canStatus: true,  canPlan: false, filterAuto: 'livraison',  masquePlan: true,  tabs: ['livraison','preparing','ready','done'] },
-      caissier: { canOrder: false, canPay: true,  canStatus: false, canPlan: true,  filterAuto: null,         masquePlan: false, tabs: ['all','salle','livraison','done','expired'] },
+      admin:    { canOrder: true,  canPay: true,  canStatus: true,  canPlan: true,  filterAuto: null,         masquePlan: false, tabs: null, stats: null },
+      manager:  { canOrder: true,  canPay: true,  canStatus: true,  canPlan: true,  filterAuto: null,         masquePlan: false, tabs: null, stats: null },
+      serveur:  { canOrder: true,  canPay: false, canStatus: true,  canPlan: true,  filterAuto: null,         masquePlan: false, tabs: ['all','pending','preparing','ready','salle','done','expired'], stats: ['pending','prep','ready','done'] },
+      bar:      { canOrder: true,  canPay: false, canStatus: true,  canPlan: true,  filterAuto: null,         masquePlan: true,  tabs: ['all','pending','preparing','ready','expired'], stats: ['pending','prep','ready'] },
+      cuisine:  { canOrder: false, canPay: false, canStatus: true,  canPlan: false, filterAuto: 'preparing',  masquePlan: true,  tabs: ['pending','preparing','ready'], stats: ['pending','prep','ready'] },
+      livreur:  { canOrder: false, canPay: false, canStatus: true,  canPlan: false, filterAuto: 'livraison',  masquePlan: true,  tabs: ['livraison','preparing','ready','done'], stats: ['prep','ready','done'] },
+      caissier: { canOrder: false, canPay: true,  canStatus: false, canPlan: true,  filterAuto: null,         masquePlan: false, tabs: ['all','salle','livraison','done','expired'], stats: ['pending','done','ca'] },
     };
     const roleConfig   = ROLES_CONFIG[currentRole] || ROLES_CONFIG.serveur;
     const canOrder     = roleConfig.canOrder;
@@ -595,6 +595,13 @@ onAuthStateChanged(auth, async user => {
         const b = document.querySelector('.filter-btn[data-filter="' + firstKey + '"]');
         if (b) setFilter(firstKey, b);
       }
+    }
+
+    // Cases de synthèse visibles selon le rôle
+    if (roleConfig.stats) {
+      document.querySelectorAll('.stat-card[data-stat]').forEach(c => {
+        c.style.display = roleConfig.stats.includes(c.dataset.stat) ? '' : 'none';
+      });
     }
 
     // Filtre automatique selon le rôle
