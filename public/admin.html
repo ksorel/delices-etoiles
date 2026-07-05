@@ -3583,6 +3583,25 @@ function _openLieuModal(l) {
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
           <div>
+            <label style="${LBL}">Facebook</label>
+            <input class="form-input" id="lieu-fb" value="${(cur.facebookUrl || '').replace(/"/g,'&quot;')}" placeholder="https://facebook.com/…" style="${INP}" ${FOCUS}>
+          </div>
+          <div>
+            <label style="${LBL}">WhatsApp</label>
+            <input class="form-input" id="lieu-wa" value="${(cur.whatsapp || '').replace(/"/g,'&quot;')}" placeholder="+225 07 00 00 00 00" style="${INP}" ${FOCUS}>
+          </div>
+        </div>
+        <div>
+          <label style="${LBL}">Logo de l'établissement</label>
+          <div style="display:flex;align-items:center;gap:12px">
+            <div id="lieu-logo-preview" style="width:56px;height:56px;border-radius:50%;flex-shrink:0;border:2px solid #E0D4C8;background:#F5F0EB;background-size:cover;background-position:center;${cur.logoUrl ? `background-image:url('${cur.logoUrl}')` : ''}"></div>
+            <input type="file" id="lieu-logo-file" accept="image/*" style="font-size:13px;flex:1;min-width:0">
+            <input type="hidden" id="lieu-logo-url" value="${(cur.logoUrl || '').replace(/"/g,'&quot;')}">
+          </div>
+          <div style="font-size:11px;color:#9A8576;margin-top:6px">Affiché sur l'accueil du portail client (à la place de l'icône). Image carrée de préférence.</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div>
             <label style="${LBL}">Ordre d'affichage</label>
             <input class="form-input" id="lieu-ordre" type="number" value="${cur.ordre != null ? cur.ordre : 1}" style="${INP}" ${FOCUS}>
           </div>
@@ -3622,6 +3641,8 @@ window.Admin.saveLieu = async function(isNew) {
   const commune = document.getElementById('lieu-commune').value.trim();
   const adresse = document.getElementById('lieu-adresse').value.trim();
   const mapUrl  = (document.getElementById('lieu-map').value || '').trim();
+  const facebookUrl = (document.getElementById('lieu-fb').value || '').trim();
+  const whatsapp    = (document.getElementById('lieu-wa').value || '').trim();
   const ordre   = parseInt(document.getElementById('lieu-ordre').value) || 0;
   const actif   = document.getElementById('lieu-actif').value === 'true';
   const err     = document.getElementById('lieu-err');
@@ -3634,7 +3655,16 @@ window.Admin.saveLieu = async function(isNew) {
   if (err) err.style.display = 'none';
   if (btn) { btn.disabled = true; btn.style.opacity = '.6'; }
   try {
-    await setDoc(doc(db,'restos',id), { nom, nomCourt, commune, adresse, mapUrl, actif, ordre, updatedAt: serverTimestamp() }, { merge: true });
+    // Logo : upload si un nouveau fichier est choisi, sinon on garde l'existant.
+    let logoUrl = document.getElementById('lieu-logo-url')?.value || '';
+    const logoFile = document.getElementById('lieu-logo-file')?.files?.[0];
+    if (logoFile) {
+      const blob = await _processLogo(logoFile);
+      const fileRef = ref(storage, 'restos/' + id + '/logo-' + Date.now() + '.jpg');
+      await uploadBytes(fileRef, blob, { contentType: 'image/jpeg' });
+      logoUrl = await getDownloadURL(fileRef);
+    }
+    await setDoc(doc(db,'restos',id), { nom, nomCourt, commune, adresse, mapUrl, facebookUrl, whatsapp, logoUrl, actif, ordre, updatedAt: serverTimestamp() }, { merge: true });
     if (window.Admin._lieuOverlay) window.Admin._lieuOverlay.remove();
     await loadData();
     renderRestoSwitcher();
@@ -3745,6 +3775,21 @@ async function _processCarrouselImage(file) {
   let blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.82));
   if (blob && blob.size > 240 * 1024) blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.68));
   return blob || file;
+}
+
+async function _processLogo(file) {
+  let img;
+  try { img = await _loadImg(file); } catch(_) { return file; }
+  const S = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = S; canvas.height = S;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return file;
+  ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, S, S);
+  const fs = Math.min(S / img.width, S / img.height);
+  const w = img.width * fs, h = img.height * fs;
+  ctx.drawImage(img, (S - w) / 2, (S - h) / 2, w, h);
+  return (await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.85))) || file;
 }
 
 window.Admin.addCarrouselImage = async function(input) {

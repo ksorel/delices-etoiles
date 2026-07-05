@@ -359,7 +359,7 @@ import { signInWithEmailAndPassword, signOut, onAuthStateChanged,
                                   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import {
   collection, query, where, orderBy, onSnapshot, doc, updateDoc,
-  getDoc, getDocs, addDoc, setDoc, serverTimestamp, disableNetwork
+  getDoc, getDocs, addDoc, setDoc, serverTimestamp, disableNetwork, enableNetwork
 } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
 // ── État ──────────────────────────────────────────────────
@@ -403,6 +403,7 @@ window.doLogin = async function() {
   // Identifiant simple → email interne fictif ; un email complet reste accepté tel quel.
   const email = raw.includes('@') ? raw : raw + '@delices-etoiles.staff';
   try {
+    try { await enableNetwork(db); } catch (_) {}   // au cas où une déconnexion précédente l'a coupé
     await signInWithEmailAndPassword(auth, email, pass);
   } catch (e) {
     err.textContent = 'Identifiant ou mot de passe incorrect.';
@@ -420,6 +421,7 @@ window.doLogout = async function() {
 onAuthStateChanged(auth, async user => {
   if (user) {
     currentUser = user;
+    try { await enableNetwork(db); } catch (_) {}
 
     // Lire le rôle — avec retry si custom claim pas encore propagé
     let token = await user.getIdTokenResult();

@@ -2020,7 +2020,9 @@ async function renderRestoPicker() {
     <div class="resto-pick-card" role="button" tabindex="0"
          onclick="window.App.chooseResto('${l.id}')"
          onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();window.App.chooseResto('${l.id}')}">
-      <span class="resto-pick-avatar">🍽️</span>
+      ${l.logoUrl
+        ? `<span class="resto-pick-avatar" style="background:#fff;background-image:url('${l.logoUrl}');background-size:cover;background-position:center"></span>`
+        : `<span class="resto-pick-avatar">🍽️</span>`}
       <span class="resto-pick-body">
         <span class="resto-pick-name">${l.nom || l.id}</span>
         ${loc ? `<a class="resto-pick-map" href="${lieuMapUrl(l)}" target="_blank" rel="noopener" title="Voir sur Google Maps" onclick="event.stopPropagation()"><span class="resto-pick-maptext">📍 ${loc}</span><span class="resto-pick-maparrow">↗</span></a>` : ''}
