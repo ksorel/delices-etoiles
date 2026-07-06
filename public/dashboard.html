@@ -380,7 +380,8 @@ function isExpired(o) {
 }
 let dashMenu    = [];   // Menu chargé pour la commande serveur
 let staffCart   = [];   // Panier de commande serveur
-let currentRole = '';   // Rôle de l'utilisateur connecté
+let currentRole = '';   // Rôle principal de l'utilisateur connecté
+let currentRoles = [];  // Tous les rôles de l'utilisateur (pour l'union des vues)
 let currentRestoId = null; // Établissement de l'employé (null = propriétaire, voit tout)
 let currentUser = null; // Utilisateur Firebase courant
 let activeFilter = 'all';
@@ -443,6 +444,10 @@ onAuthStateChanged(auth, async user => {
     // Établissement de rattachement (les rôles ≠ admin sont liés à un lieu)
     currentRestoId = token.claims.restoId || null;
 
+    // Rôles multiples (fallback sur le rôle unique pour les comptes anciens)
+    currentRoles = (Array.isArray(token.claims.roles) && token.claims.roles.length)
+      ? token.claims.roles : [currentRole];
+
     // Rafraîchir le token toutes les 55min pour éviter l'expiration silencieuse
     if (window._tokenRefreshInterval) clearInterval(window._tokenRefreshInterval);
     window._tokenRefreshInterval = setInterval(async () => {
@@ -462,7 +467,7 @@ onAuthStateChanged(auth, async user => {
         = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
 
       // Le Traiteur est central (transverse aux établissements) : réservé au propriétaire et au gérant.
-      if (currentRole !== 'admin' && currentRole !== 'manager') {
+      if (!currentRoles.includes('admin') && !currentRoles.includes('manager')) {
         const bar = document.getElementById('traiteur-alert-bar');
         if (bar) bar.style.display = 'none';
         return;
@@ -545,7 +550,23 @@ onAuthStateChanged(auth, async user => {
       livreur:  { canOrder: false, canPay: false, canStatus: true,  canPlan: false, filterAuto: 'livraison',  masquePlan: true,  tabs: ['livraison','preparing','ready','done'], stats: ['prep','ready','done'] },
       caissier: { canOrder: false, canPay: true,  canStatus: false, canPlan: true,  filterAuto: null,         masquePlan: false, tabs: ['all','salle','livraison','done','expired'], stats: ['pending','done','ca'] },
     };
-    const roleConfig   = ROLES_CONFIG[currentRole] || ROLES_CONFIG.serveur;
+    // Fusion des rôles : union des onglets/stats/permissions
+    function mergeRoleConfigs(roles) {
+      const cfgs = (roles || []).map(r => ROLES_CONFIG[r]).filter(Boolean);
+      if (!cfgs.length) cfgs.push(ROLES_CONFIG.serveur);
+      const merged = {
+        canOrder:   cfgs.some(c => c.canOrder),
+        canPay:     cfgs.some(c => c.canPay),
+        canStatus:  cfgs.some(c => c.canStatus),
+        canPlan:    cfgs.some(c => c.canPlan),
+        masquePlan: cfgs.every(c => c.masquePlan),   // masquer le plan seulement si TOUS les rôles le masquent
+        filterAuto: (cfgs.length === 1 && cfgs[0].filterAuto) ? cfgs[0].filterAuto : null,
+        tabs:  cfgs.some(c => c.tabs  === null) ? null : [...new Set(cfgs.flatMap(c => c.tabs))],
+        stats: cfgs.some(c => c.stats === null) ? null : [...new Set(cfgs.flatMap(c => c.stats))],
+      };
+      return merged;
+    }
+    const roleConfig   = mergeRoleConfigs(currentRoles);
     const canOrder     = roleConfig.canOrder;
     const canEncaisser = roleConfig.canPay;
     const canChangeStatus = roleConfig.canStatus;
@@ -560,20 +581,17 @@ onAuthStateChanged(auth, async user => {
       livreur:  { label: 'LIVREUR',        color: '#F59E0B', bg: 'rgba(245,158,11,.2)', icon: '🚴' },
       caissier: { label: 'CAISSIER',       color: '#EC4899', bg: 'rgba(236,72,153,.2)', icon: '💳' },
     };
-    const roleInfo = roleLabels[currentRole] || { label: currentRole.toUpperCase(), color:'#fff', bg:'rgba(255,255,255,.1)', icon:'👤' };
-
     // Supprimer l'ancien badge si existant
     document.getElementById('role-badge')?.remove();
     const roleBadge = document.createElement('div');
     roleBadge.id = 'role-badge';
-    roleBadge.style.cssText = [
-      'display:flex;align-items:center;gap:6px',
-      'padding:5px 12px;border-radius:20px',
-      'background:' + roleInfo.bg + ';border:1px solid ' + roleInfo.color,
-      'font-size:12px;font-weight:800;color:' + roleInfo.color,
-      'letter-spacing:.05em;flex-shrink:0'
-    ].join(';');
-    roleBadge.textContent = roleInfo.icon + ' ' + roleInfo.label;
+    roleBadge.style.cssText = 'display:flex;align-items:center;gap:6px;flex-wrap:wrap;flex-shrink:0';
+    roleBadge.innerHTML = currentRoles.map(function(r) {
+      var info = roleLabels[r] || { label: String(r).toUpperCase(), color:'#fff', bg:'rgba(255,255,255,.1)', icon:'👤' };
+      return '<span style="display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:20px;'
+        + 'background:' + info.bg + ';border:1px solid ' + info.color + ';font-size:12px;font-weight:800;'
+        + 'color:' + info.color + ';letter-spacing:.05em">' + info.icon + ' ' + info.label + '</span>';
+    }).join('');
     // Insérer après le live-dot
     const liveDot = document.querySelector('.live-dot');
     if (liveDot) liveDot.after(roleBadge);
@@ -617,7 +635,7 @@ onAuthStateChanged(auth, async user => {
       document.documentElement.style.setProperty('--status-btns-display', 'none');
     }
     // Caissier badge dans le header
-    if (currentRole === 'caissier') {
+    if (currentRoles.includes('caissier')) {
       const badge = document.createElement('span');
       badge.style.cssText = 'background:#F26522;color:#fff;font-size:10px;font-weight:700;padding:3px 8px;border-radius:10px;';
       badge.textContent = '💳 CAISSIER';

@@ -4014,7 +4014,45 @@ const ROLE_INFO = {
   caissier: { label:'CAISSIER',     icon:'💳', color:'#EC4899' },
 };
 
-// Options <option> des établissements (collection 'restos'), pour les formulaires employés.
+// ── Puces de rôles multi-sélection (Propriétaire exclusif) ──
+function _roleChipsHTML(selected) {
+  selected = selected || [];
+  return Object.entries(ROLE_INFO).map(function(e) {
+    const id = e[0], info = e[1], on = selected.includes(id);
+    return '<label data-role="' + id + '" onclick="window.Admin._onRoleChip(this)" '
+      + 'style="cursor:pointer;display:flex;align-items:center;gap:6px;padding:8px 12px;border-radius:10px;font-size:13px;font-weight:700;'
+      + 'border:2px solid ' + (on ? info.color : '#E0D4C8') + ';background:' + (on ? info.color + '22' : '#fff') + ';color:' + (on ? info.color : '#7A6356') + '">'
+      + '<input type="checkbox" value="' + id + '"' + (on ? ' checked' : '') + ' style="display:none">'
+      + '<span>' + info.icon + ' ' + info.label + '</span></label>';
+  }).join('');
+}
+window.Admin._onRoleChip = function(el) {
+  const cb = el.querySelector('input');
+  const id = cb.value;
+  cb.checked = !cb.checked;
+  const container = el.parentElement;
+  if (id === 'admin' && cb.checked) {
+    container.querySelectorAll('input').forEach(function(x){ if (x.value !== 'admin') x.checked = false; });
+  } else if (id !== 'admin' && cb.checked) {
+    const a = container.querySelector('input[value="admin"]'); if (a) a.checked = false;
+  }
+  _refreshRoleChips(container);
+};
+function _refreshRoleChips(container) {
+  container.querySelectorAll('label[data-role]').forEach(function(lab) {
+    const info = ROLE_INFO[lab.dataset.role], on = lab.querySelector('input').checked;
+    lab.style.borderColor = on ? info.color : '#E0D4C8';
+    lab.style.background   = on ? info.color + '22' : '#fff';
+    lab.style.color        = on ? info.color : '#7A6356';
+  });
+  const roles = _getSelectedRoles(container);
+  const needResto = roles.length > 0 && !roles.includes('admin');
+  const wrap = document.getElementById('emp-resto-wrap') || document.getElementById('edit-resto-wrap');
+  if (wrap) wrap.style.display = needResto ? '' : 'none';
+}
+function _getSelectedRoles(container) {
+  return Array.from(container.querySelectorAll('input:checked')).map(function(x){ return x.value; });
+}
 async function _restoOptionsHTML(selectedId) {
   try {
     const snap = await getDocs(query(collection(db, 'restos'), orderBy('ordre')));
@@ -4048,7 +4086,12 @@ async function renderUsers(c) {
   }
 
   const rows = employees.map(function(emp) {
-    const ri = ROLE_INFO[emp.role] || { label: emp.role, icon: '👤', color: '#666' };
+    const empRoles = (Array.isArray(emp.roles) && emp.roles.length) ? emp.roles : (emp.role ? [emp.role] : []);
+    const isOwner  = empRoles.includes('admin');
+    const rolesBadges = empRoles.map(function(rid){
+      var ri = ROLE_INFO[rid] || { label: rid, icon:'👤', color:'#666' };
+      return '<span style="background:' + ri.color + '20;color:' + ri.color + ';padding:3px 10px;border-radius:12px;font-size:12px;font-weight:700;display:inline-block;margin:2px 2px 0 0">' + ri.icon + ' ' + ri.label + '</span>';
+    }).join('');
     const statusBadge = emp.active
       ? '<span style="color:#10B981;font-weight:700;font-size:12px">● Actif</span>'
       : '<span style="color:#EF4444;font-weight:700;font-size:12px">● Désactivé</span>';
@@ -4056,18 +4099,14 @@ async function renderUsers(c) {
       + '<td style="padding:10px 12px">'
       +   '<div style="font-weight:700;color:var(--brown)">' + (emp.displayName || '—') + '</div>'
       +   '<div style="font-size:12px;color:var(--muted)">' + (emp.username || emp.email.replace('@delices-etoiles.staff','')) + '</div>'
-      +   (emp.role !== 'admin' && emp.restoId
+      +   (!isOwner && emp.restoId
             ? '<div style="font-size:11px;color:#F26522;font-weight:700">📍 ' + ((lieux.find(l=>l.id===emp.restoId)||{}).nom || (lieux.find(l=>l.id===emp.restoId)||{}).commune || emp.restoId) + '</div>'
-            : (emp.role === 'admin' ? '<div style="font-size:11px;color:#7A6356;font-weight:700">🏢 Tous les établissements</div>' : ''))
+            : (isOwner ? '<div style="font-size:11px;color:#7A6356;font-weight:700">🏢 Tous les établissements</div>' : ''))
       + '</td>'
-      + '<td style="padding:10px 12px">'
-      +   '<span style="background:' + ri.color + '20;color:' + ri.color + ';padding:3px 10px;border-radius:12px;font-size:12px;font-weight:700">'
-      +     ri.icon + ' ' + ri.label
-      +   '</span>'
-      + '</td>'
+      + '<td style="padding:10px 12px">' + rolesBadges + '</td>'
       + '<td style="padding:10px 12px">' + statusBadge + '</td>'
       + '<td style="padding:10px 12px;text-align:right">'
-      +   '<button class="btn btn-sm btn-secondary" style="margin-right:4px" onclick="window.Admin.editEmployee(\'' + emp.uid + '\',\'' + emp.role + '\',\'' + (emp.displayName||'') + '\',\'' + (emp.restoId||'') + '\')">✏️ Rôle</button>'
+      +   '<button class="btn btn-sm btn-secondary" style="margin-right:4px" onclick="window.Admin.editEmployee(\'' + emp.uid + '\',\'' + empRoles.join(',') + '\',\'' + (emp.displayName||'') + '\',\'' + (emp.restoId||'') + '\')">✏️ Rôle</button>'
       +   '<button class="btn btn-sm btn-secondary" style="margin-right:4px;background:#EFF6FF;color:#1D4ED8" onclick="window.Admin.resetPassword(\'' + emp.uid + '\',\'' + (emp.username||'') + '\')">🔑 MDP</button>'
       +   '<button class="btn btn-sm" style="background:' + (emp.active ? '#FEE2E2' : '#ECFDF5') + ';color:' + (emp.active ? '#991B1B' : '#065F46') + '" onclick="window.Admin.toggleEmployee(\'' + emp.uid + '\',' + !emp.active + ')">'
       +     (emp.active ? '🔒 Désactiver' : '🔓 Activer')
@@ -4120,22 +4159,16 @@ window.Admin.showAddEmployee = async function() {
       </div>
       <!-- Body -->
       <div style="padding:24px 28px;display:flex;flex-direction:column;gap:16px;overflow-y:auto">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-          <div>
-            <label style="font-size:12px;font-weight:700;color:#7A6356;text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:6px">Nom complet</label>
-            <input class="form-input" id="emp-name" placeholder="Ex: Kouadio Jean"
-              style="width:100%;padding:10px 14px;border:2px solid #E0D4C8;border-radius:10px;font-size:14px;outline:none;transition:border .15s"
-              onfocus="this.style.borderColor='#F26522'" onblur="this.style.borderColor='#E0D4C8'">
-          </div>
-          <div>
-            <label style="font-size:12px;font-weight:700;color:#7A6356;text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:6px">Rôle <span style="color:#F26522">*</span></label>
-            <select class="form-input" id="emp-role"
-              style="width:100%;padding:10px 14px;border:2px solid #E0D4C8;border-radius:10px;font-size:14px;outline:none;cursor:pointer;transition:border .15s"
-              onchange="window.Admin._toggleEmpResto(this.value)"
-              onfocus="this.style.borderColor='#F26522'" onblur="this.style.borderColor='#E0D4C8'">
-              ${roleOpts}
-            </select>
-          </div>
+        <div>
+          <label style="font-size:12px;font-weight:700;color:#7A6356;text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:6px">Nom complet</label>
+          <input class="form-input" id="emp-name" placeholder="Ex: Kouadio Jean"
+            style="width:100%;padding:10px 14px;border:2px solid #E0D4C8;border-radius:10px;font-size:14px;outline:none;transition:border .15s"
+            onfocus="this.style.borderColor='#F26522'" onblur="this.style.borderColor='#E0D4C8'">
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:700;color:#7A6356;text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:6px">Rôles <span style="color:#F26522">*</span></label>
+          <div id="emp-roles" style="display:flex;flex-wrap:wrap;gap:8px">${_roleChipsHTML([])}</div>
+          <div style="font-size:11px;color:#9A8576;margin-top:6px">Le PROPRIÉTAIRE a accès à tous les établissements (exclusif). Les autres rôles peuvent se <strong>cumuler</strong> et sont rattachés à un seul lieu.</div>
         </div>
         <div id="emp-resto-wrap" style="display:none">
           <label style="font-size:12px;font-weight:700;color:#7A6356;text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:6px">Établissement <span style="color:#F26522">*</span></label>
@@ -4183,7 +4216,7 @@ window.Admin.showAddEmployee = async function() {
       </div>
     </div>`;
   document.body.appendChild(modal);
-  window.Admin._toggleEmpResto(document.getElementById('emp-role').value);
+  _refreshRoleChips(document.getElementById('emp-roles'));
 };
 
 // Affiche/masque le champ Établissement selon le rôle (propriétaire = global, pas de lieu)
@@ -4196,13 +4229,14 @@ window.Admin.saveEmployee = async function() {
   const name     = document.getElementById('emp-name')?.value.trim();
   const username = document.getElementById('emp-username')?.value.trim().toLowerCase();
   const pass     = document.getElementById('emp-pass')?.value;
-  const role     = document.getElementById('emp-role')?.value;
+  const roles    = _getSelectedRoles(document.getElementById('emp-roles'));
+  const isOwner  = roles.includes('admin');
   const restoId  = document.getElementById('emp-resto')?.value || '';
   const err      = document.getElementById('emp-err');
   const btn      = document.getElementById('emp-save-btn');
 
-  if (!username || !pass || !role) {
-    err.textContent = 'Identifiant, mot de passe et rôle sont obligatoires';
+  if (!username || !pass || !roles.length) {
+    err.textContent = 'Identifiant, mot de passe et au moins un rôle sont obligatoires';
     err.style.display = 'block'; return;
   }
   if (!/^[a-z0-9_-]{3,}$/.test(username)) {
@@ -4213,8 +4247,8 @@ window.Admin.saveEmployee = async function() {
     err.textContent = 'Le mot de passe doit contenir au moins 6 caractères';
     err.style.display = 'block'; return;
   }
-  if (role !== 'admin' && !restoId) {
-    err.textContent = 'Sélectionnez un établissement pour ce rôle';
+  if (!isOwner && !restoId) {
+    err.textContent = 'Sélectionnez un établissement pour ce(s) rôle(s)';
     err.style.display = 'block'; return;
   }
 
@@ -4225,9 +4259,9 @@ window.Admin.saveEmployee = async function() {
   try {
     const fn  = httpsCallable(functions, 'createEmployee');
     await fn({
-      email, password: pass, role,
+      email, password: pass, roles,
       displayName: name || username, username,
-      restoId: role === 'admin' ? null : restoId,
+      restoId: isOwner ? null : restoId,
     });
     document.getElementById('emp-modal')?.remove();
     toast('✅ Employé créé avec succès');
@@ -4245,18 +4279,8 @@ window.Admin.editEmployee = async function(uid, currentRole, name, currentResto)
   modal.id = 'edit-modal';
   modal.style.cssText = 'position:fixed;inset:0;background:rgba(43,29,22,.65);z-index:9000;display:flex;align-items:center;justify-content:center;padding:20px';
 
-  // Build role cards HTML
-  const roleCards = Object.entries(ROLE_INFO).map(function(entry) {
-    var key = entry[0], ri = entry[1];
-    var isSelected = key === currentRole;
-    return '<div onclick="selectRoleCard(\'' + key + '\')" id="rcard-' + key + '"'
-      + ' style="padding:10px 12px;border-radius:10px;cursor:pointer;'
-      + 'border:2px solid ' + (isSelected ? ri.color : '#E0D4C8') + ';'
-      + 'background:' + (isSelected ? ri.color + '15' : '#fff') + ';transition:all .15s">'
-      + '<div style="font-size:20px;margin-bottom:4px">' + ri.icon + '</div>'
-      + '<div style="font-size:12px;font-weight:700;color:' + (isSelected ? ri.color : '#2B1D16') + '">' + ri.label + '</div>'
-      + '</div>';
-  }).join('');
+  // Rôles actuels (le paramètre currentRole peut être une liste séparée par des virgules)
+  const currentRoles = String(currentRole || '').split(',').map(function(s){return s.trim();}).filter(Boolean);
 
   const restoOpts = await _restoOptionsHTML(currentResto);
 
@@ -4272,11 +4296,10 @@ window.Admin.editEmployee = async function(uid, currentRole, name, currentResto)
     +   '</div>'
     +   '<div style="padding:24px;overflow-y:auto">'
     +     '<label style="display:block;font-size:11px;font-weight:700;color:#7A6356;'
-    +       'text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Nouveau rôle</label>'
-    +     '<div id="role-cards" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'
-    +       roleCards
+    +       'text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Rôles</label>'
+    +     '<div id="edit-roles" style="display:flex;flex-wrap:wrap;gap:8px">'
+    +       _roleChipsHTML(currentRoles)
     +     '</div>'
-    +     '<input type="hidden" id="edit-role" value="' + currentRole + '">'
     +     '<div id="edit-resto-wrap" style="margin-top:16px;display:' + (currentRole === 'admin' ? 'none' : 'block') + '">'
     +       '<label style="display:block;font-size:11px;font-weight:700;color:#7A6356;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Établissement</label>'
     +       '<select id="edit-resto" class="form-input" style="width:100%;padding:10px 14px;border:2px solid #E0D4C8;border-radius:10px;font-size:14px;outline:none;cursor:pointer">' + restoOpts + '</select>'
@@ -4293,31 +4316,11 @@ window.Admin.editEmployee = async function(uid, currentRole, name, currentResto)
     + '</div>';
 
   document.body.appendChild(modal);
+  _refreshRoleChips(document.getElementById('edit-roles'));
 
   // Bind save button via addEventListener (évite les problèmes d'échappement)
   var saveBtn = document.getElementById('save-role-btn');
   if (saveBtn) saveBtn.addEventListener('click', function() { window.Admin.saveRole(uid); });
-
-  window.selectRoleCard = function(role) {
-    document.getElementById('edit-role').value = role;
-    var w = document.getElementById('edit-resto-wrap');
-    if (w) w.style.display = (role === 'admin') ? 'none' : 'block';
-    Object.entries(ROLE_INFO).forEach(function(entry) {
-      var key = entry[0], ri = entry[1];
-      var card = document.getElementById('rcard-' + key);
-      if (!card) return;
-      var label = card.querySelector('div:last-child');
-      if (key === role) {
-        card.style.borderColor = ri.color;
-        card.style.background  = ri.color + '15';
-        if (label) label.style.color = ri.color;
-      } else {
-        card.style.borderColor = '#E0D4C8';
-        card.style.background  = '#fff';
-        if (label) label.style.color = '#2B1D16';
-      }
-    });
-  };
 };
 
 
@@ -4335,17 +4338,19 @@ window.Admin.resetPassword = async function(uid, username) {
 };
 
 window.Admin.saveRole = async function(uid) {
-  const role    = document.getElementById('edit-role')?.value;
+  const roles   = _getSelectedRoles(document.getElementById('edit-roles'));
+  const isOwner = roles.includes('admin');
   const restoId = document.getElementById('edit-resto')?.value || '';
-  if (role !== 'admin' && !restoId) {
-    toast('⚠️ Sélectionnez un établissement pour ce rôle');
+  if (!roles.length) { toast('⚠️ Sélectionnez au moins un rôle'); return; }
+  if (!isOwner && !restoId) {
+    toast('⚠️ Sélectionnez un établissement pour ce(s) rôle(s)');
     return;
   }
   try {
     const fn = httpsCallable(functions, 'updateEmployeeRole');
-    await fn({ uid, role, restoId: role === 'admin' ? null : restoId });
+    await fn({ uid, roles, restoId: isOwner ? null : restoId });
     document.getElementById('edit-modal')?.remove();
-    toast('✅ Rôle mis à jour');
+    toast('✅ Rôle(s) mis à jour');
     renderPage(currentPage);
   } catch(e) { toast('Erreur : ' + e.message); }
 };

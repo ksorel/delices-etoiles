@@ -34,16 +34,31 @@ async function checkAdmin(context) {
 const STAFF_ROLES = ['manager', 'serveur', 'bar', 'cuisine', 'livreur', 'caissier'];
 const ALL_ROLES   = ['admin', ...STAFF_ROLES];
 
-function buildRoleClaims(role, restoId) {
-  if (!ALL_ROLES.includes(role)) {
-    throw new functions.https.HttpsError('invalid-argument', 'Rôle invalide');
+// Normalise l'entrée (string unique ou tableau) en tableau de rôles valide.
+function normalizeRoles(input) {
+  const arr = Array.isArray(input) ? input : (input ? [input] : []);
+  const roles = [...new Set(arr.filter(r => ALL_ROLES.includes(r)))];
+  if (!roles.length) {
+    throw new functions.https.HttpsError('invalid-argument', 'Au moins un rôle valide est requis');
   }
-  if (role === 'admin') return { role };               // propriétaire : global
+  return roles;
+}
+
+// Construit les custom claims.
+//  - claim `role` (principal) : conservé pour la sécurité (règles Firestore, checkAdmin).
+//    = 'admin' si propriétaire, sinon le 1er rôle.
+//  - claim `roles` (tableau)  : pour l'affichage/permissions du dashboard.
+//  - 'admin' (PROPRIÉTAIRE) = global, exclusif, aucun restoId.
+function buildRoleClaims(input, restoId) {
+  let roles = normalizeRoles(input);
+  if (roles.includes('admin')) {
+    return { role: 'admin', roles: ['admin'] };            // propriétaire : global, exclusif
+  }
   if (!restoId) {
     throw new functions.https.HttpsError('invalid-argument',
-      "Un établissement (restoId) est requis pour ce rôle");
+      "Un établissement (restoId) est requis pour ces rôles");
   }
-  return { role, restoId };                              // manager + staff : lié au lieu
+  return { role: roles[0], roles, restoId };
 }
 
 // ─────────────────────────────────────────────────────────
@@ -287,11 +302,11 @@ exports.onStockUpdate = region.firestore
 
 exports.createEmployee = region.https.onCall(async (data, context) => {
   await checkAdmin(context);
-  const { email, password, role, displayName, username, restoId } = data;
-  if (!email || !password || !role) {
-    throw new functions.https.HttpsError('invalid-argument', 'Email, mot de passe et rôle requis');
+  const { email, password, role, roles, displayName, username, restoId } = data;
+  if (!email || !password || (!role && !(Array.isArray(roles) && roles.length))) {
+    throw new functions.https.HttpsError('invalid-argument', 'Email, mot de passe et rôle(s) requis');
   }
-  const claims = buildRoleClaims(role, restoId);   // valide le rôle + restoId
+  const claims = buildRoleClaims(roles || role, restoId);   // valide les rôles + restoId
   try {
     const userRecord = await admin.auth().createUser({
       email, password,
@@ -303,7 +318,8 @@ exports.createEmployee = region.https.onCall(async (data, context) => {
       uid: userRecord.uid, email,
       username: username || email.replace('@delices-etoiles.staff', ''),
       displayName: displayName || username || email.split('@')[0],
-      role, restoId: claims.restoId || null, active: true,
+      roles: claims.roles, role: claims.role,
+      restoId: claims.restoId || null, active: true,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       createdBy: context.auth.uid,
     });
@@ -318,12 +334,15 @@ exports.createEmployee = region.https.onCall(async (data, context) => {
 
 exports.updateEmployeeRole = region.https.onCall(async (data, context) => {
   await checkAdmin(context);
-  const { uid, role, restoId } = data;
-  if (!uid || !role) throw new functions.https.HttpsError('invalid-argument', 'UID et rôle requis');
-  const claims = buildRoleClaims(role, restoId);
+  const { uid, role, roles, restoId } = data;
+  if (!uid || (!role && !(Array.isArray(roles) && roles.length))) {
+    throw new functions.https.HttpsError('invalid-argument', 'UID et rôle(s) requis');
+  }
+  const claims = buildRoleClaims(roles || role, restoId);
   await admin.auth().setCustomUserClaims(uid, claims);
   await db.collection('employees').doc(uid).update({
-    role, restoId: claims.restoId || null,
+    roles: claims.roles, role: claims.role,
+    restoId: claims.restoId || null,
     updatedAt: admin.firestore.FieldValue.serverTimestamp(), updatedBy: context.auth.uid,
   });
   return { success: true };
