@@ -7,7 +7,8 @@ import { signInAnonymously }       from 'https://www.gstatic.com/firebasejs/10.1
 import { t, initLang, getLang, setLang, itemName, itemDesc } from './i18n.js';
 import { fetchMenu, fetchZones, fetchUpsellRules, getOrCreateTable, fetchPlatDuJour, listenOrder,
          createSession, getOpenSessions, updateSessionStatus, getSessionOrders,
-         getRestoId, setRestoId, fetchLieux, fetchLieu, fetchAccueilCarousel } from './db.js';
+         getRestoId, setRestoId, fetchLieux, fetchLieu, fetchAccueilCarousel,
+         submitReservation, createOrder } from './db.js';
 import { getDoc, doc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { requestNotificationPermission, listenForegroundMessages } from './fcm.js';
 // ─── Panier inline (cart.js supprimé) ───────────────────────
@@ -318,6 +319,8 @@ async function bootApp() {
         }
       }, 1000);
     }
+  } else if (State.mode !== 'salle' && !_serviceChosen) {
+    renderServiceChoice();
   } else {
     navigate('menu');
   }
@@ -649,6 +652,8 @@ function renderMenu(container) {
   // Banner
   const bannerText = State.mode === 'salle'
     ? `<span class="mode-badge salle">${t('mode_salle')}</span> ${t('banner_salle')} <strong>${t('banner_table')} ${State.tableId}</strong>`
+    : State.mode === 'surplace'
+    ? `<span class="mode-badge salle">🍽️ Sur place</span> Commande à récupérer au restaurant`
     : `<span class="mode-badge livraison">${t('mode_livraison')}</span> ${t('banner_livraison')}`;
   // Items visibles : indisponibles masqués ; en LIVRAISON on retire en plus les
   // articles « sur place uniquement » (boissons en emballage consigné).
@@ -1012,6 +1017,42 @@ function renderCheckout(container) {
         </button>
       </div>`;
     window._selectedPayment = 'especes';
+    return;
+  }
+
+  if (State.mode === 'surplace') {
+    const itemsHtml = getItems().map(i => `
+      <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">
+        <span style="font-size:13px;color:var(--brown)">${itemName(i)} ×${i.qty}</span>
+        <span style="font-size:13px;font-weight:700;color:var(--orange)">${formatFCFA(i.price * i.qty)}</span>
+      </div>`).join('');
+    const today = new Date().toISOString().split('T')[0];
+    const L = 'display:block;font-size:12px;font-weight:700;color:#7a6a55;margin-bottom:6px';
+    const I = 'width:100%;padding:12px 14px;border:2px solid #E0D4C8;border-radius:12px;font-size:15px;outline:none;font-family:inherit;box-sizing:border-box';
+    container.innerHTML = `
+      <div style="padding:16px;max-width:520px;margin:0 auto">
+        <button onclick="window.App.navigate('menu')" style="background:none;border:none;color:#7a6a55;font-size:14px;font-weight:600;cursor:pointer;padding:0 0 12px">← ${t('cart_back')||'Retour au menu'}</button>
+        <h2 style="font-size:19px;font-weight:800;color:#2B1D16;margin:0 0 12px">🍽️ Commander pour sur place</h2>
+        <div class="card" style="padding:14px;margin-bottom:16px">
+          ${itemsHtml}
+          <div style="display:flex;justify-content:space-between;padding-top:10px;font-size:16px;font-weight:800;color:#2B1D16">
+            <span>${t('total')||'Total'}</span><span style="color:var(--orange)">${formatFCFA(sous_total)}</span>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div><label style="${L}">Votre nom *</label><input id="sp-nom" style="${I}" placeholder="Nom complet"></div>
+          <div><label style="${L}">Téléphone *</label><input id="sp-tel" type="tel" style="${I}" placeholder="+225 07 00 00 00 00"></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div><label style="${L}">Jour de passage *</label><input id="sp-date" type="date" min="${today}" value="${today}" style="${I}"></div>
+            <div><label style="${L}">Heure *</label><input id="sp-heure" type="time" style="${I}"></div>
+          </div>
+          <div><label style="${L}">Nombre de personnes</label><input id="sp-pers" type="number" min="1" value="1" style="${I}"></div>
+          <div><label style="${L}">Note (facultatif)</label><textarea id="sp-note" rows="2" style="${I};resize:vertical" placeholder="Précision…"></textarea></div>
+          <div style="background:#FFF7ED;border:1px solid #FED7AA;color:#9A3412;border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.5;display:flex;gap:8px;align-items:flex-start"><span>ℹ️</span><span>Paiement <strong>à l'arrivée</strong> au restaurant. Votre commande est préparée pour l'heure choisie.</span></div>
+          <div id="sp-err" style="display:none;background:#FEE2E2;color:#991B1B;padding:10px 14px;border-radius:10px;font-size:13px"></div>
+          <button id="sp-submit" onclick="window.App.confirmSurplace()" style="width:100%;padding:14px;background:#0EA5E9;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer">Valider ma commande →</button>
+        </div>
+      </div>`;
     return;
   }
 
@@ -1987,6 +2028,7 @@ window.App = {
 
 // ─── Sélecteur d'établissement (portail client, hors QR) ──
 let _restoChosen = false;
+let _serviceChosen = false;   // livraison / sur place / réservation choisi après l'établissement
 let _accueilCfg;   // undefined = pas encore chargé ; null = pas de doc ; sinon {actif, slides}
 
 async function renderRestoPicker() {
@@ -2165,7 +2207,7 @@ function _startHeroCarousel() {
 window.App.changeResto = function () {
   if (State.mode === 'salle') return;
   clearCart();
-  _restoChosen = false;
+  _restoChosen = false; _serviceChosen = false;
   State.resto = null;
   updateHeader();   // efface le nom du lieu et le bouton "Changer" du header
   try {
@@ -2180,7 +2222,7 @@ window.App.changeResto = function () {
 // Retour depuis le Traiteur : vers le menu si un établissement est choisi, sinon vers l'accueil.
 window.App.backFromTraiteur = function () {
   if (State.resto) { window.App.navigate('menu'); }
-  else { _restoChosen = false; renderRestoPicker(); }
+  else { _restoChosen = false; _serviceChosen = false; renderRestoPicker(); }
 };
 
 // Clic sur le logo : en livraison → retour au sélecteur ; en salle → accueil menu.
@@ -2201,6 +2243,138 @@ window.App.chooseResto = function (id) {
     window.history.replaceState(null, '', u);
   } catch (_) {}
   bootApp();
+};
+
+// ─── Choix du service (livraison / sur place / réservation) ──
+const _SVC_INPUT = 'width:100%;padding:12px 14px;border:2px solid #E0D4C8;border-radius:12px;font-size:15px;outline:none;font-family:inherit;box-sizing:border-box';
+function _svcCard(id, icon, title, sub, color) {
+  return `<div role="button" tabindex="0" onclick="window.App.chooseService('${id}')"
+    onkeydown="if(event.key==='Enter'){window.App.chooseService('${id}')}"
+    style="display:flex;align-items:center;gap:14px;background:#fff;border:1.5px solid #E9DED2;border-radius:18px;padding:18px 16px;cursor:pointer;box-shadow:0 4px 14px rgba(43,29,22,.06);transition:border-color .15s"
+    onmouseover="this.style.borderColor='${color}'" onmouseout="this.style.borderColor='#E9DED2'">
+    <span style="width:52px;height:52px;border-radius:50%;background:${color}1a;display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0">${icon}</span>
+    <span style="flex:1;min-width:0">
+      <span style="display:block;font-size:16px;font-weight:800;color:#2B1D16">${title}</span>
+      <span style="display:block;font-size:13px;color:#7a6a55;margin-top:2px">${sub}</span>
+    </span>
+    <span style="color:${color};font-size:20px;flex-shrink:0">→</span>
+  </div>`;
+}
+function renderServiceChoice() {
+  const view = document.getElementById('view');
+  if (!view) return;
+  updateHeader();
+  const nom = State.resto?.nom || State.resto?.commune || '';
+  view.innerHTML = `
+    <div style="max-width:520px;margin:0 auto;padding:22px 16px 40px">
+      <h2 style="text-align:center;font-size:20px;font-weight:800;color:#2B1D16;margin:6px 0 2px">${nom}</h2>
+      <p style="text-align:center;font-size:14px;color:#7a6a55;margin:0 0 22px">${t('svc_question') || 'Que souhaitez-vous faire ?'}</p>
+      <div style="display:flex;flex-direction:column;gap:14px">
+        ${_svcCard('livraison','🚴', t('svc_livraison')||'Se faire livrer', t('svc_livraison_sub')||'Commande livrée à votre adresse', '#F26522')}
+        ${_svcCard('surplace','🍽️', t('svc_surplace')||'Commander pour sur place', t('svc_surplace_sub')||'À déguster au restaurant, à l\\'heure choisie', '#0EA5E9')}
+        ${_svcCard('reserver','📅', t('svc_reserver')||'Réserver une table', t('svc_reserver_sub')||'Le restaurant vous confirme', '#8B5CF6')}
+      </div>
+      <button onclick="window.App.backToPicker()" style="display:block;margin:22px auto 0;background:none;border:none;color:#7a6a55;font-size:13px;font-weight:600;cursor:pointer">← ${t('svc_change')||"Changer d'établissement"}</button>
+    </div>`;
+}
+window.App.chooseService = function(s) {
+  _serviceChosen = true;
+  if (s === 'livraison') { State.mode = 'livraison'; navigate('menu'); }
+  else if (s === 'surplace') { State.mode = 'surplace'; navigate('menu'); }
+  else if (s === 'reserver') { renderReservation(); }
+};
+window.App.backToPicker = function() {
+  _restoChosen = false; _serviceChosen = false;
+  renderRestoPicker();
+};
+window.App.backToService = function() { _serviceChosen = false; renderServiceChoice(); };
+
+// ─── Réservation de table ────────────────────────────────
+function renderReservation() {
+  const view = document.getElementById('view');
+  if (!view) return;
+  updateHeader();
+  const today = new Date().toISOString().split('T')[0];
+  const L = 'display:block;font-size:12px;font-weight:700;color:#7a6a55;margin-bottom:6px';
+  view.innerHTML = `
+    <div style="max-width:480px;margin:0 auto;padding:18px 16px 40px">
+      <button onclick="window.App.backToService()" style="background:none;border:none;color:#7a6a55;font-size:14px;font-weight:600;cursor:pointer;padding:0 0 12px">← ${t('back')||'Retour'}</button>
+      <h2 style="font-size:20px;font-weight:800;color:#2B1D16;margin:0 0 2px">📅 ${t('svc_reserver')||'Réserver une table'}</h2>
+      <p style="font-size:13px;color:#7a6a55;margin:0 0 18px">${State.resto?.nom || ''}</p>
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div><label style="${L}">Votre nom *</label><input id="rv-nom" style="${_SVC_INPUT}" placeholder="Nom complet"></div>
+        <div><label style="${L}">Téléphone *</label><input id="rv-tel" type="tel" style="${_SVC_INPUT}" placeholder="+225 07 00 00 00 00"></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div><label style="${L}">Date *</label><input id="rv-date" type="date" min="${today}" style="${_SVC_INPUT}"></div>
+          <div><label style="${L}">Heure *</label><input id="rv-heure" type="time" style="${_SVC_INPUT}"></div>
+        </div>
+        <div><label style="${L}">Nombre de personnes</label><input id="rv-pers" type="number" min="1" value="2" style="${_SVC_INPUT}"></div>
+        <div><label style="${L}">Note (facultatif)</label><textarea id="rv-note" rows="2" style="${_SVC_INPUT};resize:vertical" placeholder="Occasion, préférence de table…"></textarea></div>
+        <div id="rv-err" style="display:none;background:#FEE2E2;color:#991B1B;padding:10px 14px;border-radius:10px;font-size:13px"></div>
+        <button id="rv-submit" onclick="window.App.submitReservation()" style="width:100%;padding:14px;background:#8B5CF6;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer">📅 Envoyer la demande</button>
+        <p style="font-size:12px;color:#9a8576;text-align:center;line-height:1.5;margin:0">Votre demande est envoyée au restaurant, qui vous confirmera par téléphone.</p>
+      </div>
+    </div>`;
+}
+window.App.submitReservation = async function() {
+  const v = (id) => (document.getElementById(id)?.value || '').trim();
+  const nom = v('rv-nom'), tel = v('rv-tel'), date = v('rv-date'), heure = v('rv-heure'), pers = v('rv-pers'), note = v('rv-note');
+  const errEl = document.getElementById('rv-err');
+  const missing = [];
+  if (!nom) missing.push('votre nom');
+  if (!tel) missing.push('votre téléphone');
+  if (!date) missing.push('la date');
+  if (!heure) missing.push("l'heure");
+  if (missing.length) { errEl.textContent = 'Veuillez renseigner : ' + missing.join(', '); errEl.style.display = 'block'; return; }
+  const btn = document.getElementById('rv-submit');
+  if (btn) { btn.disabled = true; btn.textContent = 'Envoi…'; }
+  try {
+    await submitReservation({ nom, telephone: tel, date, heure, personnes: parseInt(pers) || null, note }, State.resto?.id);
+    renderReservationDone(nom, date, heure);
+  } catch(e) {
+    errEl.textContent = 'Erreur : ' + (e.message || 'envoi impossible'); errEl.style.display = 'block';
+    if (btn) { btn.disabled = false; btn.textContent = '📅 Envoyer la demande'; }
+  }
+};
+function renderReservationDone(nom, date, heure) {
+  const view = document.getElementById('view');
+  view.innerHTML = `
+    <div style="max-width:440px;margin:0 auto;padding:48px 20px;text-align:center">
+      <div style="font-size:56px;margin-bottom:12px">📅</div>
+      <h2 style="font-size:22px;font-weight:800;color:#2B1D16;margin:0 0 8px">Demande envoyée !</h2>
+      <p style="font-size:15px;color:#7a6a55;line-height:1.6;margin:0 0 24px">Merci ${nom || ''}. Votre demande de réservation pour le <strong>${date}</strong> à <strong>${heure}</strong> a bien été transmise. Le restaurant vous contactera pour la confirmer.</p>
+      <button onclick="window.App.backToService()" style="padding:13px 28px;background:#2B1D16;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer">Retour</button>
+    </div>`;
+}
+
+window.App.confirmSurplace = async function() {
+  const v = (id) => (document.getElementById(id)?.value || '').trim();
+  const nom = v('sp-nom'), tel = v('sp-tel'), date = v('sp-date'), heure = v('sp-heure'), pers = v('sp-pers'), note = v('sp-note');
+  const errEl = document.getElementById('sp-err');
+  const missing = [];
+  if (!nom) missing.push('votre nom');
+  if (!tel) missing.push('votre téléphone');
+  if (!date) missing.push('le jour');
+  if (!heure) missing.push("l'heure");
+  if (missing.length) { errEl.textContent = 'Veuillez renseigner : ' + missing.join(', '); errEl.style.display = 'block'; return; }
+  const btn = document.getElementById('sp-submit');
+  if (btn) { btn.disabled = true; btn.textContent = 'Envoi…'; }
+  try {
+    const items = getItems().map(i => ({ name: itemName(i), qty: i.qty, subtotal: i.price * i.qty, comment: i.comment || '' }));
+    const personnes = parseInt(pers) || 1;
+    const orderId = await createOrder({
+      type: 'surplace', restoId: State.resto?.id || getRestoId(),
+      nom, telephone: tel, personnes, note,
+      surplace: { date, heure, personnes },
+      items, total: getTotal(), operateur: 'especes',
+    });
+    clearCart(); updateCartBadge();
+    localStorage.setItem('de_last_order', JSON.stringify({ orderId, operateur: 'especes', mode: 'surplace', ts: Date.now() }));
+    renderView('confirm', { orderId, operateur: 'especes' });
+  } catch(e) {
+    errEl.textContent = 'Erreur : ' + (e.message || 'commande impossible'); errEl.style.display = 'block';
+    if (btn) { btn.disabled = false; btn.textContent = 'Valider ma commande →'; }
+  }
 };
 
 window.App.loadTraiteurZones = async function() {

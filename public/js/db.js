@@ -227,6 +227,29 @@ export async function createOrder(orderData) {
   return ref.id;
 }
 
+// ─── Réservations de table ───────────────────────────────
+export async function submitReservation(data, restoId) {
+  const ref = await addDoc(collection(db, 'reservations'), {
+    ...data,
+    restoId:   rid(restoId),
+    tenantId:  'delices-etoiles',
+    status:    'pending',
+    createdAt: serverTimestamp(),
+  });
+  return ref.id;
+}
+// Dashboard : écoute des réservations d'un établissement.
+export function listenReservations(callback, restoId) {
+  const conds = [orderBy('createdAt', 'desc')];
+  if (restoId) conds.unshift(where('restoId', '==', rid(restoId)));
+  const q = query(collection(db, 'reservations'), ...conds);
+  return onSnapshot(q, snap => callback(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
+    err => { if (err.code !== 'permission-denied') console.error('reservations:', err); });
+}
+export async function updateReservationStatus(id, status) {
+  await updateDoc(doc(db, 'reservations', id), { status, updatedAt: serverTimestamp() });
+}
+
 // ─── Dashboard staff : écoute temps réel (par lieu) ──────
 // ⚠️ Index composites requis (restoId en 1re position) :
 //    restoId+createdAt, restoId+status+createdAt, restoId+type+createdAt

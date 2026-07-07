@@ -41,6 +41,14 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // ─── Réservations de table ───────────────────────────────
+    match /reservations/{resaId} {
+      allow create: if isAuth();     // client (anonyme) ou staff
+      allow read:   if isAuth();
+      allow update: if isStaff();    // confirmer / refuser
+      allow delete: if isAdmin();
+    }
+
     // ─── Zones de livraison (lecture publique, écriture admin) ─
     match /zones-livraison/{zoneId} {
       allow read: if true;

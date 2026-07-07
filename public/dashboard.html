@@ -335,6 +335,7 @@
     <button class="filter-btn" data-filter="livraison" onclick="setFilter('livraison', this)">🚴 Livraison</button>
     <button class="filter-btn" data-filter="done" onclick="setFilter('done', this)">✓ Servies</button>
     <button class="filter-btn" data-filter="expired" onclick="setFilter('expired', this)">⏰ Expirées</button>
+    <button class="filter-btn" data-filter="reservations" onclick="setFilter('reservations', this)">📅 Réservations<span id="resa-count" style="display:none;margin-left:5px;background:#8B5CF6;color:#fff;font-size:10px;font-weight:800;padding:1px 6px;border-radius:9px"></span></button>
   </div>
 
   <!-- Orders -->
@@ -387,6 +388,8 @@ let currentUser = null; // Utilisateur Firebase courant
 let activeFilter = 'all';
 let soundEnabled = true;
 let unsubOrders  = null;
+let allReservations = [];
+let unsubReservations = null;
 const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAA' +
   'EAAQAAgD4AAAB9AAACABAAZGF0YUoGAACBhYqFbF1fdJiVkHBcWGiVkIl' +
   'uYVhijpOLeGdcaIuPjH5sYWx/jI2Bf25la3yLjYiBdWpseo6Phn9yam5+' +
@@ -544,7 +547,7 @@ onAuthStateChanged(auth, async user => {
     const ROLES_CONFIG = {
       admin:    { canOrder: true,  canPay: true,  canStatus: true,  canPlan: true,  filterAuto: null,         masquePlan: false, tabs: null, stats: null },
       manager:  { canOrder: true,  canPay: true,  canStatus: true,  canPlan: true,  filterAuto: null,         masquePlan: false, tabs: null, stats: null },
-      serveur:  { canOrder: true,  canPay: false, canStatus: true,  canPlan: true,  filterAuto: null,         masquePlan: false, tabs: ['all','pending','preparing','ready','salle','done','expired'], stats: ['pending','prep','ready','done'] },
+      serveur:  { canOrder: true,  canPay: false, canStatus: true,  canPlan: true,  filterAuto: null,         masquePlan: false, tabs: ['all','pending','preparing','ready','salle','done','expired','reservations'], stats: ['pending','prep','ready','done'] },
       bar:      { canOrder: true,  canPay: false, canStatus: true,  canPlan: true,  filterAuto: null,         masquePlan: true,  tabs: ['all','pending','preparing','ready','expired'], stats: ['pending','prep','ready'] },
       cuisine:  { canOrder: false, canPay: false, canStatus: true,  canPlan: false, filterAuto: 'preparing',  masquePlan: true,  tabs: ['pending','preparing','ready'], stats: ['pending','prep','ready'] },
       livreur:  { canOrder: false, canPay: false, canStatus: true,  canPlan: false, filterAuto: 'livraison',  masquePlan: true,  tabs: ['livraison','preparing','ready','done'], stats: ['prep','ready','done'] },
@@ -704,6 +707,21 @@ async function initDashboard() {
   },
   err => { if (err.code !== 'permission-denied') console.error(err); }
   );
+
+  // Écoute Firestore — réservations de table de l'établissement
+  if (unsubReservations) { try { unsubReservations(); } catch(e) {} }
+  const rCons = [orderBy('createdAt', 'desc')];
+  if (currentRestoId) rCons.unshift(where('restoId', '==', currentRestoId));
+  const rq = query(collection(db, 'reservations'), ...rCons);
+  unsubReservations = onSnapshot(rq, snap => {
+    const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const nP = list.filter(r => r.status === 'pending').length;
+    const oP = allReservations.filter(r => r.status === 'pending').length;
+    if (soundEnabled && nP > oP) audio.play().catch(() => {});
+    allReservations = list;
+    updateReservationBadge();
+    if (activeFilter === 'reservations') renderOrders();
+  }, err => { if (err.code !== 'permission-denied') console.error(err); });
   // Rafraîchir périodiquement pour que les commandes franchissant le délai
   // basculent en « expirées » même sans nouvelle donnée.
   if (!window._expiryTimer) {
@@ -776,6 +794,10 @@ window.setFilter = function(filter, btn) {
 // ── Rendu commandes ───────────────────────────────────────
 function renderOrders() {
   const grid = document.getElementById('orders-grid');
+
+  // Vue Réservations (données distinctes des commandes)
+  if (activeFilter === 'reservations') { renderReservations(grid); return; }
+
   let filtered = allOrders;
 
   if (activeFilter === 'expired') {
@@ -801,6 +823,61 @@ function renderOrders() {
 
   grid.innerHTML = filtered.map(order => buildCard(order)).join('');
 }
+
+// ── Réservations de table ─────────────────────────────────
+function showToast(msg) {
+  let el = document.getElementById('toast');
+  if (!el) { el = document.createElement('div'); el.id = 'toast'; document.body.appendChild(el); }
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(window._toastT); window._toastT = setTimeout(() => el.classList.remove('show'), 2500);
+}
+function updateReservationBadge() {
+  const n = allReservations.filter(r => r.status === 'pending').length;
+  const el = document.getElementById('resa-count');
+  if (el) { el.textContent = n; el.style.display = n ? 'inline-block' : 'none'; }
+}
+function renderReservations(grid) {
+  const list = allReservations.slice().sort((a, b) =>
+    (a.status === 'pending' ? 0 : 1) - (b.status === 'pending' ? 0 : 1));
+  if (!list.length) {
+    grid.innerHTML = '<div class="empty-state"><div class="empty-icon">📅</div><h3>Aucune réservation</h3><p>Les demandes de réservation apparaîtront ici.</p></div>';
+    return;
+  }
+  grid.innerHTML = list.map(renderReservationCard).join('');
+}
+function renderReservationCard(r) {
+  const stMap = {
+    pending:  { label:'⏳ En attente', color:'#D97706', bg:'#FEF3C7' },
+    confirmed:{ label:'✅ Confirmée',  color:'#059669', bg:'#ECFDF5' },
+    refused:  { label:'✕ Refusée',    color:'#991B1B', bg:'#FEE2E2' },
+  };
+  const st = stMap[r.status] || stMap.pending;
+  const when = (r.date || '') + (r.heure ? ' à ' + r.heure : '');
+  const actions = r.status === 'pending'
+    ? '<div style="display:flex;gap:8px;padding:10px 14px;border-top:1px solid var(--bg)">'
+      + '<button onclick="confirmReservation(\'' + r.id + '\')" style="flex:1;padding:9px;border:none;border-radius:8px;background:#ECFDF5;color:#059669;font-weight:700;font-size:13px;cursor:pointer">✅ Confirmer</button>'
+      + '<button onclick="refuseReservation(\'' + r.id + '\')" style="flex:1;padding:9px;border:none;border-radius:8px;background:#FEE2E2;color:#991B1B;font-weight:700;font-size:13px;cursor:pointer">✕ Refuser</button>'
+      + '</div>' : '';
+  return '<div class="order-card">'
+    + '<div class="order-card-head">'
+    +   '<div><div class="order-id">📅 ' + (r.nom || '—') + '</div>'
+    +   '<div class="order-time">' + when + (r.personnes ? ' · ' + r.personnes + ' pers.' : '') + '</div></div>'
+    +   '<span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:12px;background:' + st.bg + ';color:' + st.color + '">' + st.label + '</span>'
+    + '</div>'
+    + '<div style="padding:10px 14px;font-size:13px;color:#2B1D16">'
+    +   '📞 <a href="tel:' + String(r.telephone || '').replace(/\s/g, '') + '" style="color:#F26522;font-weight:700;text-decoration:none">' + (r.telephone || '—') + '</a>'
+    +   (r.note ? '<div style="margin-top:6px;font-size:12px;color:#7A6356">💬 ' + r.note + '</div>' : '')
+    + '</div>' + actions + '</div>';
+}
+window.confirmReservation = async function(id) {
+  try { await updateDoc(doc(db, 'reservations', id), { status: 'confirmed', updatedAt: serverTimestamp() }); showToast('Réservation confirmée ✓'); }
+  catch(e) { showToast('Erreur : ' + e.message); }
+};
+window.refuseReservation = async function(id) {
+  if (!confirm('Refuser cette réservation ?')) return;
+  try { await updateDoc(doc(db, 'reservations', id), { status: 'refused', updatedAt: serverTimestamp() }); showToast('Réservation refusée'); }
+  catch(e) { showToast('Erreur : ' + e.message); }
+};
 
 function buildCard(o) {
   const timeObj = o.createdAt?.toDate ? o.createdAt.toDate() : null;
@@ -958,7 +1035,7 @@ function buildCard(o) {
           <div class="order-id">#${num} ${sessionBadge}${staffBadge}${isExpired(o) ? ' <span style="background:#F3E8E2;color:#8A6D5B;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px">⏰ expirée</span>' : ''}</div>
           <div class="order-time">${time}</div>
         </div>
-        <span class="order-type ${o.type}">${o.type === 'salle' ? `🪑 Table ${o.tableId || ''}` : '🚴 Livraison'}</span>
+        <span class="order-type ${o.type}">${o.type === 'salle' ? `🪑 Table ${o.tableId || ''}` : o.type === 'surplace' ? `🍽️ Sur place${o.surplace ? ' · ' + (o.surplace.date || '') + ' ' + (o.surplace.heure || '') : ''}` : '🚴 Livraison'}</span>
       </div>
       <div class="order-items">${itemsHtml}</div>
       <div class="order-footer">
