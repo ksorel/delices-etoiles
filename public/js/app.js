@@ -2271,7 +2271,7 @@ function renderServiceChoice() {
       <p style="text-align:center;font-size:14px;color:#7a6a55;margin:0 0 22px">${t('svc_question') || 'Que souhaitez-vous faire ?'}</p>
       <div style="display:flex;flex-direction:column;gap:14px">
         ${_svcCard('livraison','🚴', t('svc_livraison')||'Se faire livrer', t('svc_livraison_sub')||'Commande livrée à votre adresse', '#F26522')}
-        ${_svcCard('surplace','🍽️', t('svc_surplace')||'Commander pour sur place', t('svc_surplace_sub')||'À déguster au restaurant, à l\\'heure choisie', '#0EA5E9')}
+        ${_svcCard('surplace','🍽️', t('svc_surplace')||'Commander pour sur place', t('svc_surplace_sub')||'À déguster au restaurant, à l’heure choisie', '#0EA5E9')}
         ${_svcCard('reserver','📅', t('svc_reserver')||'Réserver une table', t('svc_reserver_sub')||'Le restaurant vous confirme', '#8B5CF6')}
       </div>
       <button onclick="window.App.backToPicker()" style="display:block;margin:22px auto 0;background:none;border:none;color:#7a6a55;font-size:13px;font-weight:600;cursor:pointer">← ${t('svc_change')||"Changer d'établissement"}</button>
