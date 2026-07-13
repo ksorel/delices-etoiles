@@ -482,11 +482,11 @@ function updateHeader() {
       if (State.mode === 'salle') {
         mk.innerHTML = `<strong>${t('mode_salle')} ${State.tableId}</strong>`;
       } else {
-        // Nom court (commune de préférence) + ellipse ; « Changer » reste sur la même ligne.
+        // Nom court (commune de préférence) + ellipse ; « ← Retour » reste sur la même ligne.
         const court = State.resto?.commune || State.resto?.nom || '';
         const mapU = lieuMapUrl(State.resto);
         mk.innerHTML = `<a href="${mapU}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="Voir sur Google Maps" style="color:inherit;text-decoration:none;display:inline-flex;align-items:center;overflow:hidden;min-width:0"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">📍 <strong>${court}</strong></span></a>`
-          + `<span style="color:#F26522;font-weight:700;white-space:nowrap;flex:0 0 auto">· ${t('picker_change_short')}</span>`;
+          + `<span style="color:#F26522;font-weight:700;white-space:nowrap;flex:0 0 auto">· ← ${t('back')}</span>`;
       }
     } else if (mk) {
       mk.remove();
@@ -699,7 +699,6 @@ function renderMenu(container) {
     ${pdjHtml}
     <div class="cat-tabs">${catTabsHtml}</div>
     <div class="menu-grid">${cardsHtml}</div>
-    ${buildContactBlock()}
   `;
   // Initialiser le carrousel si présent
   const pdj = State.platDuJour;
@@ -2280,7 +2279,8 @@ function renderServiceChoice() {
         ${_svcCard('reserver','📅', t('service_reserver'), t('service_reserver_sub'), '#8B5CF6')}
       </div>
       <button onclick="window.App.backToPicker()" style="display:block;margin:22px auto 0;background:none;border:none;color:#7a6a55;font-size:13px;font-weight:600;cursor:pointer">← ${t('service_change')}</button>
-    </div>`;
+    </div>
+    ${buildContactBlock()}`;
 }
 window.App.chooseService = function(s) {
   _serviceChosen = true;
