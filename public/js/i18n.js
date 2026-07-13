@@ -6,6 +6,7 @@
 const translations = {
   fr: {
     // Header
+    back:               'Retour',
     mode_salle:        'Table',
     mode_livraison:    'Livraison',
     brand_tagline:     'Resto & Traiteur',
@@ -25,6 +26,17 @@ const translations = {
     picker_tagline:    'Restaurant & Traiteur',
     picker_accroche:   'Le goût qui vous rassemble',
     picker_traiteur:   'Service Traiteur',
+
+    // Choix du service (après l'établissement)
+    service_question:      'Que souhaitez-vous faire ?',
+    service_livraison:     'Se faire livrer',
+    service_livraison_sub: 'Commande livrée à votre adresse',
+    service_surplace:      'Commander pour sur place',
+    service_surplace_sub:  "À déguster au restaurant, à l'heure choisie",
+    service_reserver:      'Réserver une table',
+    service_reserver_sub:  'Le restaurant vous confirme',
+    service_change:        "Changer d'établissement",
+
     pay_note_livraison: "En livraison, le paiement mobile (Wave, Orange Money, MTN) se règle à l'avance : c'est sa confirmation qui valide et déclenche votre commande.",
     menu_empty_title:  'Aucun plat disponible',
     menu_empty_sub:    "Cet établissement n'a pas encore de menu en ligne.",
@@ -181,6 +193,7 @@ const translations = {
   },
 
   en: {
+    back:               'Back',
     mode_salle:        'Table',
     mode_livraison:    'Delivery',
     brand_tagline:     'Restaurant & Catering',
@@ -199,6 +212,17 @@ const translations = {
     picker_tagline:    'Restaurant & Catering',
     picker_accroche:   'The taste that brings us together',
     picker_traiteur:   'Catering Service',
+
+    // Service choice (after location)
+    service_question:      'What would you like to do?',
+    service_livraison:     'Get delivered',
+    service_livraison_sub: 'Order delivered to your address',
+    service_surplace:      'Order for dine-in',
+    service_surplace_sub:  'Enjoy at the restaurant, at your chosen time',
+    service_reserver:      'Reserve a table',
+    service_reserver_sub:  'The restaurant confirms your booking',
+    service_change:        'Change location',
+
     pay_note_livraison: 'For delivery, mobile payment (Wave, Orange Money, MTN) is made in advance: its confirmation validates and starts your order.',
     menu_empty_title:  'No dishes available',
     menu_empty_sub:    'This location has no online menu yet.',

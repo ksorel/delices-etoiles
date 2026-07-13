@@ -1496,6 +1496,9 @@ function toggleLang() {
   // Sur l'accueil (sélecteur d'établissement), y rester au lieu de basculer sur le menu
   if (State.mode !== 'salle' && !RESTO_FROM_URL && !_restoChosen) {
     renderRestoPicker();
+  } else if (State.mode !== 'salle' && !_serviceChosen) {
+    // Sur la page de choix du service, y rester également
+    renderServiceChoice();
   } else {
     renderView(location.hash.replace('#', '') || 'menu');
   }
@@ -2225,9 +2228,11 @@ window.App.backFromTraiteur = function () {
   else { _restoChosen = false; _serviceChosen = false; renderRestoPicker(); }
 };
 
-// Clic sur le logo : en livraison → retour au sélecteur ; en salle → accueil menu.
+// Clic sur le logo : en salle → accueil menu ; sinon → un cran en arrière
+// (page de service si un service est déjà choisi, sinon sélecteur d'établissement).
 window.App.logoClick = function () {
   if (State.mode === 'salle') { window.App.navigate('menu'); return; }
+  if (_serviceChosen) { _serviceChosen = false; renderServiceChoice(); return; }
   window.App.changeResto();
 };
 
@@ -2268,13 +2273,13 @@ function renderServiceChoice() {
   view.innerHTML = `
     <div style="max-width:520px;margin:0 auto;padding:22px 16px 40px">
       <h2 style="text-align:center;font-size:20px;font-weight:800;color:#2B1D16;margin:6px 0 2px">${nom}</h2>
-      <p style="text-align:center;font-size:14px;color:#7a6a55;margin:0 0 22px">${t('svc_question') || 'Que souhaitez-vous faire ?'}</p>
+      <p style="text-align:center;font-size:14px;color:#7a6a55;margin:0 0 22px">${t('service_question')}</p>
       <div style="display:flex;flex-direction:column;gap:14px">
-        ${_svcCard('livraison','🚴', t('svc_livraison')||'Se faire livrer', t('svc_livraison_sub')||'Commande livrée à votre adresse', '#F26522')}
-        ${_svcCard('surplace','🍽️', t('svc_surplace')||'Commander pour sur place', t('svc_surplace_sub')||'À déguster au restaurant, à l’heure choisie', '#0EA5E9')}
-        ${_svcCard('reserver','📅', t('svc_reserver')||'Réserver une table', t('svc_reserver_sub')||'Le restaurant vous confirme', '#8B5CF6')}
+        ${_svcCard('livraison','🚴', t('service_livraison'), t('service_livraison_sub'), '#F26522')}
+        ${_svcCard('surplace','🍽️', t('service_surplace'), t('service_surplace_sub'), '#0EA5E9')}
+        ${_svcCard('reserver','📅', t('service_reserver'), t('service_reserver_sub'), '#8B5CF6')}
       </div>
-      <button onclick="window.App.backToPicker()" style="display:block;margin:22px auto 0;background:none;border:none;color:#7a6a55;font-size:13px;font-weight:600;cursor:pointer">← ${t('svc_change')||"Changer d'établissement"}</button>
+      <button onclick="window.App.backToPicker()" style="display:block;margin:22px auto 0;background:none;border:none;color:#7a6a55;font-size:13px;font-weight:600;cursor:pointer">← ${t('service_change')}</button>
     </div>`;
 }
 window.App.chooseService = function(s) {
@@ -2298,8 +2303,8 @@ function renderReservation() {
   const L = 'display:block;font-size:12px;font-weight:700;color:#7a6a55;margin-bottom:6px';
   view.innerHTML = `
     <div style="max-width:480px;margin:0 auto;padding:18px 16px 40px">
-      <button onclick="window.App.backToService()" style="background:none;border:none;color:#7a6a55;font-size:14px;font-weight:600;cursor:pointer;padding:0 0 12px">← ${t('back')||'Retour'}</button>
-      <h2 style="font-size:20px;font-weight:800;color:#2B1D16;margin:0 0 2px">📅 ${t('svc_reserver')||'Réserver une table'}</h2>
+      <button onclick="window.App.backToService()" style="background:none;border:none;color:#7a6a55;font-size:14px;font-weight:600;cursor:pointer;padding:0 0 12px">← ${t('back')}</button>
+      <h2 style="font-size:20px;font-weight:800;color:#2B1D16;margin:0 0 2px">📅 ${t('service_reserver')}</h2>
       <p style="font-size:13px;color:#7a6a55;margin:0 0 18px">${State.resto?.nom || ''}</p>
       <div style="display:flex;flex-direction:column;gap:14px">
         <div><label style="${L}">Votre nom *</label><input id="rv-nom" style="${_SVC_INPUT}" placeholder="Nom complet"></div>
