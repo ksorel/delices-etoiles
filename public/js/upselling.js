@@ -71,3 +71,15 @@ export function getPrixFormat(item, format) {
   const altPrice = getPrixForFormat(item, format);
   return altPrice - item.price;
 }
+
+// Vérifie si l'item a des variantes (ex: portions, garnitures) — le prix de base est alors ignoré
+export function hasVariantes(item) {
+  return Array.isArray(item?.variantes) && item.variantes.length > 0;
+}
+
+// Retourne la fourchette de prix { min, max } des variantes
+export function getVariantesRange(item) {
+  if (!hasVariantes(item)) return null;
+  const prices = item.variantes.map(v => v.prix);
+  return { min: Math.min(...prices), max: Math.max(...prices) };
+}

@@ -25,7 +25,7 @@ function _cartPersist() {
 }
 function addItem(item, opts = {}) {
   const qty = opts.qty || 1;
-  const prixFinal = item.price + (opts.prixFormat || 0);
+  const prixFinal = opts.priceOverride != null ? opts.priceOverride : item.price + (opts.prixFormat || 0);
   _cartItems.push({
     uid: Math.random().toString(36).slice(2),
     id: item.id, name_fr: item.name_fr,
@@ -33,6 +33,7 @@ function addItem(item, opts = {}) {
     price: prixFinal, category: item.category,
     imageUrl: item.imageUrl || null, qty,
     glace: opts.glace ?? null, format: opts.format || null,
+    variant: opts.variantLabel || null,
     comment: (opts.comment || '').slice(0, 100),
     upsells: opts.upsells || [],
   });
@@ -54,7 +55,7 @@ function removeItem(uid) {
   _cartPersist();
 }
 function clearCart() { _cartItems = []; _cartPersist(); }
-import { initUpselling, getUpsells, isBoisson, hasFormats, getPrixForFormat, getFormatLabels } from './upselling.js';
+import { initUpselling, getUpsells, isBoisson, hasFormats, getPrixForFormat, getFormatLabels, hasVariantes, getVariantesRange } from './upselling.js';
 import { submitSalleOrder, submitLivraisonOrder, formatFCFA } from './order.js';
 import { initAssistant } from './assistant.js';
 // ─── État global de l'app ────────────────────────────────
@@ -690,7 +691,7 @@ function renderMenu(container) {
       <div class="card-body">
         <div class="card-name">${itemName(item)}</div>
         <div class="card-desc">${itemDesc(item)}</div>
-        <div class="card-price">${item.prixVariable ? '<span style="font-size:12px;color:var(--brown-md)">📞 Sur devis</span>' : formatFCFA(item.price)}</div>
+        <div class="card-price">${menuCardPriceLabel(item)}</div>
       </div>
     </div>`).join('');
   const pdjHtml = renderPlatDuJour(State.platDuJour);
@@ -708,6 +709,14 @@ function renderMenu(container) {
   // Afficher l'assistant après chargement du menu
   if (window._ai) window._ai.show();
 }
+// Prix affiché sur la carte menu : fourchette si variantes, sinon prix simple/sur devis
+function menuCardPriceLabel(item) {
+  if (hasVariantes(item)) {
+    const { min, max } = getVariantesRange(item);
+    return min === max ? formatFCFA(min) : formatFCFA(min) + ' – ' + formatFCFA(max);
+  }
+  return item.prixVariable ? '<span style="font-size:12px;color:var(--brown-md)">📞 Sur devis</span>' : formatFCFA(item.price);
+}
 // ─── Modal Item ───────────────────────────────────────────
 function openItem(itemId) {
   const item = State.menu.find(m => m.id === itemId);
@@ -718,8 +727,9 @@ function openItem(itemId) {
     upsells.accompagnements = (upsells.accompagnements || []).filter(u => !u.salleOnly);
     upsells.boissons        = (upsells.boissons || []).filter(u => !u.salleOnly);
   }
-  const boisson  = isBoisson(item);
-  const formats  = hasFormats(item);
+  const boisson   = isBoisson(item);
+  const variantes = hasVariantes(item) ? item.variantes : null;
+  const formats   = !variantes && hasFormats(item);
   // Options glaçons (boissons)
   const glaceHtml = boisson ? `
     <div class="option-group">
@@ -727,6 +737,17 @@ function openItem(itemId) {
       <div class="option-chips">
         <button class="chip active" id="glace-oui" onclick="window.App.setOption('glace','oui')">${t('opt_oui')}</button>
         <button class="chip"        id="glace-non" onclick="window.App.setOption('glace','non')">${t('opt_non')}</button>
+      </div>
+    </div>` : '';
+  // Options variantes (ex: portions, garnitures) — remplacent le prix de base
+  const variantHtml = variantes ? `
+    <div class="option-group">
+      <div class="option-label">Choisissez une option</div>
+      <div class="option-chips">
+        ${variantes.map((v, i) => `
+          <button class="chip" id="variante-${i}" onclick="window.App.setOption('variante',${i})">
+            ${v.label} — ${formatFCFA(v.prix)}
+          </button>`).join('')}
       </div>
     </div>` : '';
   // Options format (Entier/Demi pour plats, Petit/Grand pour boissons)
@@ -782,8 +803,9 @@ function openItem(itemId) {
       <div class="modal-body">
         <div class="modal-name">${itemName(item)}</div>
         <div class="modal-desc">${itemDesc(item)}</div>
-        <div class="modal-price">${formatFCFA(item.price)}</div>
+        <div class="modal-price" id="modal-price">${menuCardPriceLabel(item)}</div>
         ${glaceHtml}
+        ${variantHtml}
         ${formatHtml}
         <div class="option-group">
           <div class="qty-control">
@@ -808,7 +830,7 @@ function openItem(itemId) {
     </div>`;
   document.body.appendChild(overlay);
   // État local de la modal
-  window._itemModal = { itemId, qty: 1, glace: 'oui', format: 'base', selectedUpsells: [] };
+  window._itemModal = { itemId, qty: 1, glace: 'oui', format: 'base', variante: null, selectedUpsells: [] };
 }
 // ─── Actions modal ────────────────────────────────────────
 function setOption(type, value) {
@@ -821,6 +843,14 @@ function setOption(type, value) {
   if (type === 'format') {
     document.getElementById('fmt-base')?.classList.toggle('active', value === 'base');
     document.getElementById('fmt-alt')?.classList.toggle('active', value !== 'base');
+  }
+  if (type === 'variante') {
+    const item = State.menu.find(m => m.id === window._itemModal.itemId);
+    (item.variantes || []).forEach((v, i) => {
+      document.getElementById('variante-' + i)?.classList.toggle('active', i === value);
+    });
+    const priceEl = document.getElementById('modal-price');
+    if (priceEl) priceEl.textContent = formatFCFA(item.variantes[value].prix);
   }
 }
 function changeQty(delta) {
@@ -841,18 +871,25 @@ function addToCart(itemId) {
   const item = State.menu.find(m => m.id === itemId);
   if (!item || !window._itemModal) return;
   const m = window._itemModal;
+  if (hasVariantes(item) && m.variante == null) {
+    showToast("Choisissez une option avant d'ajouter au panier");
+    return;
+  }
   const upsellItems = (m.selectedUpsells || [])
     .map(id => State.menu.find(mi => mi.id === id))
     .filter(Boolean);
-  const fmt = hasFormats(item) ? m.format : null;
+  const variante = hasVariantes(item) ? item.variantes[m.variante] : null;
+  const fmt = !variante && hasFormats(item) ? m.format : null;
   const fmtPrice = fmt ? getPrixForFormat(item, fmt) : item.price;
   addItem(item, {
-    qty:        m.qty,
-    glace:      isBoisson(item) ? m.glace === 'oui' : null,
-    format:     fmt,
-    prixFormat: fmt ? fmtPrice - item.price : 0,
-    comment:    document.getElementById('item-comment')?.value || '',
-    upsells:    upsellItems,
+    qty:          m.qty,
+    glace:        isBoisson(item) ? m.glace === 'oui' : null,
+    format:       fmt,
+    prixFormat:   fmt ? fmtPrice - item.price : 0,
+    variantLabel: variante ? variante.label : null,
+    priceOverride: variante ? variante.prix : null,
+    comment:      document.getElementById('item-comment')?.value || '',
+    upsells:      upsellItems,
   });
   closeModal();
   updateCartBadge();
@@ -884,6 +921,7 @@ function renderCart(container) {
     const opts = [
       item.glace != null ? (item.glace ? '🧊 ' + t('opt_oui') : t('opt_non')) : '',
       item.format ? t('opt_' + item.format) : '',
+      item.variant || '',
       ...( item.upsells?.map(u => '+ ' + (getLang() === 'en' ? (u.name_en || u.name_fr) : u.name_fr)) || []),
       item.comment ? `"${item.comment}"` : '',
     ].filter(Boolean).join(' · ');

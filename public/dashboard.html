@@ -903,6 +903,7 @@ function buildCard(o) {
     const opts = [
       item.glace != null ? (item.glace ? '🧊' : 'Sans glaçons') : '',
       item.format ? (item.format === 'grand' ? 'Grand format' : '') : '',
+      item.variant || '',
     ].filter(Boolean).join(' · ');
 
     return `

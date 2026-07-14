@@ -16,6 +16,7 @@ function serializeItems(items, lang = 'fr') {
       subtotal: item.price * item.qty,
       glace:    item.glace   || null,
       format:   item.format  || null,
+      variant:  item.variant || null,
       comment:  item.comment || '',
     };
     const lines = [base];
