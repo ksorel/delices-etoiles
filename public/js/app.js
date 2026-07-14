@@ -764,13 +764,13 @@ function openItem(itemId) {
         </button>
       </div>
     </div>` : '';
-  // Accompagnements upsell
+  // Accompagnements upsell — choix exclusif (un seul à la fois, comme des radios)
   const accompHtml = upsells.accompagnements.length ? `
     <div class="upsell-section">
       <div class="upsell-title">${t('upsell_accomp')}</div>
       <div class="upsell-list">
         ${upsells.accompagnements.map(u => `
-          <div class="upsell-chip" id="upsell-${u.id}" onclick="window.App.toggleUpsell('${u.id}')">
+          <div class="upsell-chip" id="upsell-${u.id}" onclick="window.App.selectAccomp('${u.id}')">
             <div class="upsell-chip-name">${itemName(u)}</div>
             <div class="upsell-chip-price">+${formatFCFA(u.price)}</div>
           </div>`).join('')}
@@ -830,7 +830,10 @@ function openItem(itemId) {
     </div>`;
   document.body.appendChild(overlay);
   // État local de la modal
-  window._itemModal = { itemId, qty: 1, glace: 'oui', format: 'base', variante: null, selectedUpsells: [] };
+  window._itemModal = {
+    itemId, qty: 1, glace: 'oui', format: 'base', variante: null, selectedUpsells: [],
+    accompIds: upsells.accompagnements.map(u => u.id), // pour le choix exclusif d'accompagnement
+  };
 }
 // ─── Actions modal ────────────────────────────────────────
 function setOption(type, value) {
@@ -866,6 +869,19 @@ function toggleUpsell(upsellId) {
   if (idx === -1) arr.push(upsellId);
   else arr.splice(idx, 1);
   document.getElementById(`upsell-${upsellId}`)?.classList.toggle('selected', idx === -1);
+}
+// Sélection exclusive d'accompagnement (un seul à la fois) ; recliquer désélectionne
+function selectAccomp(upsellId) {
+  if (!window._itemModal) return;
+  const m = window._itemModal;
+  const accompIds = m.accompIds || [];
+  const wasSelected = m.selectedUpsells.includes(upsellId);
+  m.selectedUpsells = m.selectedUpsells.filter(id => !accompIds.includes(id));
+  accompIds.forEach(id => document.getElementById(`upsell-${id}`)?.classList.remove('selected'));
+  if (!wasSelected) {
+    m.selectedUpsells.push(upsellId);
+    document.getElementById(`upsell-${upsellId}`)?.classList.add('selected');
+  }
 }
 function addToCart(itemId) {
   const item = State.menu.find(m => m.id === itemId);
@@ -2059,7 +2075,7 @@ window.App = {
     updateCartBadge();
     showToast('✓ Ajouté au panier');
   },
-  openItem, setOption, changeQty, toggleUpsell,
+  openItem, setOption, changeQty, toggleUpsell, selectAccomp,
   addToCart, closeModal, setCategory,
   updateQty: doUpdateQty, removeItem: doRemoveItem, goCheckout,
   confirmSalle, confirmLivraison, onZoneChange, selectPayment, reopenPayment,

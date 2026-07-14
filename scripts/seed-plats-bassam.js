@@ -7,8 +7,10 @@
  *  - Poulet Pondeuse Kedjenou (¼ / ½ / entier)
  *  - Sauce Gouagouassou (4 choix de garniture)
  *  - Sauce claire (mêmes 4 choix de garniture)
- *  + un accompagnement « Riz ou attiéké » (+500) suggéré en upselling
- *    pour les catégories « volailles » (Kedjenou) et « sauces ».
+ *  + des accompagnements individuels (Riz, Attiéké — extensible) suggérés
+ *    en upselling (choix exclusif côté client) pour les catégories
+ *    « volailles » (Kedjenou) et « sauces ». Remplace l'ancien article
+ *    combiné « Riz ou attiéké », désactivé par ce script.
  *
  *  Idempotent (recherche par name_fr + restoId avant d'écrire) :
  *  relançable sans dégât, met à jour les champs si l'article existe déjà.
@@ -72,15 +74,16 @@ const PLATS = [
   },
 ];
 
-// ── Accompagnement upsell (add-on, pas une variante : cumulable) ──
-const ACCOMPAGNEMENT = {
-  name_fr: 'Riz ou attiéké',
-  name_en: 'Rice or Attiéké',
-  description_fr: 'Accompagnement au choix pour le Kedjenou',
-  category: 'accompagnements',
-  order: 0,
-  price: 500,
-};
+// ── Accompagnements upsell (add-ons, choix exclusif côté client) ──
+// Pour ajouter un autre accompagnement plus tard (foutou, banane…),
+// il suffit d'ajouter une entrée ici et de relancer le script --apply.
+const ACCOMPAGNEMENTS = [
+  { name_fr: 'Riz',     name_en: 'Rice',     description_fr: 'Portion de riz blanc',              order: 0, price: 500 },
+  { name_fr: 'Attiéké', name_en: 'Attiéké',  description_fr: 'Semoule de manioc fermentée',        order: 1, price: 500 },
+];
+
+// Ancien article combiné, remplacé par les accompagnements individuels ci-dessus
+const OLD_ACCOMPAGNEMENT_NAME = 'Riz ou attiéké';
 
 async function findByName(nameFr) {
   const snap = await db.collection('menus')
@@ -107,7 +110,9 @@ async function upsertMenuItem(createData, patchData) {
   return ref.id;
 }
 
-async function upsertAccompRule(triggerCategory, accompId) {
+// Remplace entièrement itemIds par la liste courante des accompagnements
+// (permet d'ajouter/retirer des accompagnements en relançant le script).
+async function upsertAccompRule(triggerCategory, itemIds) {
   const label = `${triggerCategory}→accompagnement`;
   const snap = await db.collection('upselling-rules')
     .where('restoId', '==', RESTO_ID)
@@ -118,13 +123,14 @@ async function upsertAccompRule(triggerCategory, accompId) {
 
   if (!snap.empty) {
     const rule = snap.docs[0];
-    const itemIds = rule.data().itemIds || [];
-    if (itemIds.includes(accompId)) {
-      console.log(`  Règle upsell ${label} : déjà en place (id ${rule.id})`);
+    const current = rule.data().itemIds || [];
+    const same = current.length === itemIds.length && current.every(id => itemIds.includes(id));
+    if (same) {
+      console.log(`  Règle upsell ${label} : déjà à jour (id ${rule.id})`);
       return;
     }
-    console.log(`  Règle upsell ${label} : ajout de l'article (id ${rule.id})`);
-    if (APPLY) await rule.ref.update({ itemIds: [...itemIds, accompId] });
+    console.log(`  Règle upsell ${label} : mise à jour des articles (id ${rule.id})`);
+    if (APPLY) await rule.ref.update({ itemIds });
     return;
   }
 
@@ -133,7 +139,7 @@ async function upsertAccompRule(triggerCategory, accompId) {
   await db.collection('upselling-rules').add({
     triggerCategory,
     type:      'accompagnement',
-    itemIds:   [accompId],
+    itemIds,
     restoId:   RESTO_ID,
   });
 }
@@ -170,30 +176,43 @@ async function main() {
     );
   }
 
-  console.log('\nAccompagnement (add-on upsell) :');
-  const accompId = await upsertMenuItem(
-    {
-      name_fr:        ACCOMPAGNEMENT.name_fr,
-      name_en:        ACCOMPAGNEMENT.name_en,
-      description_fr: ACCOMPAGNEMENT.description_fr,
-      category:       ACCOMPAGNEMENT.category,
-      order:          ACCOMPAGNEMENT.order,
-      price:          ACCOMPAGNEMENT.price,
-      prixVariable:   false,
-      salleOnly:      false,
-      available:      true,
-      restoId:        RESTO_ID,
-    },
-    // Si l'article existe déjà : seulement corriger le prix.
-    { price: ACCOMPAGNEMENT.price, prixVariable: false }
-  );
+  console.log('\nAncien accompagnement combiné :');
+  const oldAccomp = await findByName(OLD_ACCOMPAGNEMENT_NAME);
+  if (oldAccomp) {
+    console.log(`  ${OLD_ACCOMPAGNEMENT_NAME.padEnd(28)} existe (id ${oldAccomp.id}) → désactivation`);
+    if (APPLY) await oldAccomp.ref.set({ available: false }, { merge: true });
+  } else {
+    console.log(`  ${OLD_ACCOMPAGNEMENT_NAME.padEnd(28)} déjà absent`);
+  }
+
+  console.log('\nAccompagnements (add-ons upsell, choix exclusif) :');
+  const accompIds = [];
+  for (const a of ACCOMPAGNEMENTS) {
+    const id = await upsertMenuItem(
+      {
+        name_fr:        a.name_fr,
+        name_en:        a.name_en,
+        description_fr: a.description_fr,
+        category:       'accompagnements',
+        order:          a.order,
+        price:          a.price,
+        prixVariable:   false,
+        salleOnly:      false,
+        available:      true,
+        restoId:        RESTO_ID,
+      },
+      // Si l'article existe déjà : corriger prix + s'assurer qu'il est actif.
+      { price: a.price, prixVariable: false, available: true }
+    );
+    if (id) accompIds.push(id);
+  }
 
   console.log('\nRègles d’upselling :');
-  if (accompId) {
-    await upsertAccompRule('volailles', accompId);
-    await upsertAccompRule('sauces', accompId);
+  if (accompIds.length === ACCOMPAGNEMENTS.length) {
+    await upsertAccompRule('volailles', accompIds);
+    await upsertAccompRule('sauces', accompIds);
   } else {
-    console.log('  (ignorées en DRY-RUN — l’id de l’accompagnement n’existe pas encore)');
+    console.log('  (ignorées en DRY-RUN — les ids des accompagnements n’existent pas encore)');
   }
 
   console.log('\n' + (APPLY
