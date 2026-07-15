@@ -1358,15 +1358,18 @@ async function confirmLivraison() {
 }
 // ─── Confirmation ─────────────────────────────────────────
 function renderConfirm(container, orderId, operateur) {
-  const isSalle  = State.mode === 'salle';
-  const isCash   = operateur === 'especes' || (!operateur && isSalle);
-  const isMobile = isSalle && operateur && operateur !== 'especes';
-  let icon  = isSalle ? '🍽️' : '🚴';
-  let title = isSalle ? 'Commande envoyée !' : t('confirm_title_liv');
-  let sub   = isCash ? t('sub_especes') : isMobile ? t('sub_mobile_salle') : t(isSalle ? 'confirm_sub_salle' : 'confirm_sub_liv');
+  const isSalle    = State.mode === 'salle';
+  const isSurplace = State.mode === 'surplace';
+  const isCash     = operateur === 'especes' || (!operateur && (isSalle || isSurplace));
+  const isMobile   = isSalle && operateur && operateur !== 'especes';
+  let icon  = (isSalle || isSurplace) ? '🍽️' : '🚴';
+  let title = isSalle ? 'Commande envoyée !' : isSurplace ? t('confirm_title_surplace') : t('confirm_title_liv');
+  let sub   = isCash
+    ? t(isSurplace ? 'sub_especes_surplace' : 'sub_especes')
+    : isMobile ? t('sub_mobile_salle') : t(isSalle ? 'confirm_sub_salle' : isSurplace ? 'confirm_sub_surplace' : 'confirm_sub_liv');
   if (isMobile) icon = operateur === 'wave' ? '🌊' : operateur === 'orange' ? '🟠' : '💛';
   const payBadge = isCash
-    ? `<div style="background:#E1F5EE;padding:10px 18px;border-radius:20px;font-size:14px;font-weight:700;color:#0F6E56;margin-top:4px">✓ Paiement en espèces à la table</div>`
+    ? `<div style="background:#E1F5EE;padding:10px 18px;border-radius:20px;font-size:14px;font-weight:700;color:#0F6E56;margin-top:4px">✓ Paiement en espèces ${isSurplace ? 'à votre arrivée' : 'à la table'}</div>`
     : isMobile
     ? `<div style="background:var(--orange-light);padding:10px 18px;border-radius:20px;font-size:14px;font-weight:700;color:var(--orange-dark);margin-top:4px">📱 ${(operateur||'').toUpperCase()}</div>`
     : '';
@@ -1435,7 +1438,8 @@ function renderTracking(container, orderId) {
 function updateTrackingView(order) {
   const el = document.getElementById('tracking-content');
   if (!el) return;
-  const isLiv     = order.type === 'livraison';
+  const isLiv      = order.type === 'livraison';
+  const isSurplace = order.type === 'surplace';
   const status    = order.status;
   // Mettre à jour le titre selon statut
   const titleEl = document.getElementById('tracking-title-dyn');
@@ -1449,6 +1453,10 @@ function updateTrackingView(order) {
   if (isLiv) {
     statusMessages.ready = { title: '📦 Prête pour livraison', sub: 'Votre livreur va partir', color: '#10B981' };
     statusMessages.done  = { title: '🚴 En route !',           sub: 'Votre livreur est en chemin',      color: '#3B82F6' };
+  } else if (isSurplace) {
+    const heure = order.surplace?.heure ? ` pour ${order.surplace.heure}` : '';
+    statusMessages.ready = { title: '🍽️ Prête !',           sub: `Votre commande vous attend au restaurant${heure}`, color: '#10B981' };
+    statusMessages.done  = { title: '✅ Commande récupérée', sub: 'Bon appétit !',                                     color: '#065F46' };
   }
   const msg = statusMessages[status] || statusMessages.pending;
   if (titleEl) { titleEl.textContent = msg.title; titleEl.style.color = msg.color; }
@@ -1460,6 +1468,11 @@ function updateTrackingView(order) {
     { key: 'preparing', icon: '👨‍🍳', label: 'En préparation',    sub: 'La cuisine prépare votre commande' },
     { key: 'ready',     icon: '📦', label: 'Prête à livrer',     sub: 'Votre commande est prête' },
     { key: 'done',      icon: '🚴', label: 'En route',           sub: 'Votre livreur est en chemin' },
+  ] : isSurplace ? [
+    { key: 'pending',   icon: '📋', label: 'Commande reçue',    sub: 'Votre commande a bien été enregistrée' },
+    { key: 'preparing', icon: '👨‍🍳', label: 'En préparation',    sub: 'La cuisine prépare vos plats' },
+    { key: 'ready',     icon: '🍽️', label: 'Prête',              sub: 'Vous pouvez venir la récupérer au restaurant' },
+    { key: 'done',      icon: '✅', label: 'Récupérée',          sub: 'Bon appétit !' },
   ] : [
     { key: 'pending',   icon: '📋', label: 'Commande reçue',    sub: 'Votre commande a bien été enregistrée' },
     { key: 'preparing', icon: '👨‍🍳', label: 'En préparation',    sub: 'La cuisine prépare vos plats' },
@@ -3049,6 +3062,12 @@ window.App.openTrackingModal = function(orderId) {
     { key:'ready',     icon:'🍽️', label:'Prête à servir',     color:'#10B981' },
     { key:'done',      icon:'✅', label:'Commande servie',    color:'#065F46' },
   ];
+  const STEPS_SURPLACE = [
+    { key:'pending',   icon:'📋', label:'Commande reçue',    color:'#F59E0B' },
+    { key:'preparing', icon:'👨‍🍳', label:'En préparation',    color:'#3B82F6' },
+    { key:'ready',     icon:'🍽️', label:'Prête',              color:'#10B981' },
+    { key:'done',      icon:'✅', label:'Récupérée',          color:'#065F46' },
+  ];
   const STEPS_LIV = [
     { key:'pending',    icon:'📋', label:'Commande reçue',        color:'#F59E0B' },
     { key:'preparing',  icon:'👨‍🍳', label:'En préparation',        color:'#3B82F6' },
@@ -3105,13 +3124,14 @@ window.App.openTrackingModal = function(orderId) {
   // Listen to order in real time
   window._trackingModalUnsub = listenOrder(orderId, function(order) {
     const status = order.status || 'pending';
-    const isLiv  = order.type === 'livraison';
-    const steps  = isLiv ? STEPS_LIV : STEPS_SALLE;
+    const isLiv      = order.type === 'livraison';
+    const isSurplace = order.type === 'surplace';
+    const steps  = isLiv ? STEPS_LIV : isSurplace ? STEPS_SURPLACE : STEPS_SALLE;
     const curIdx = steps.findIndex(function(s) { return s.key === status; });
     const msgs = {
       pending:    'Votre commande a bien été reçue. Elle sera bientôt prise en charge.',
       preparing:  '🔥 La cuisine prépare votre commande avec soin !',
-      ready:      isLiv ? '📦 Prête ! Le livreur va partir.' : '🎉 Prête ! Le serveur arrive.',
+      ready:      isLiv ? '📦 Prête ! Le livreur va partir.' : isSurplace ? '🎉 Prête ! Vous pouvez venir la récupérer.' : '🎉 Prête ! Le serveur arrive.',
       delivering: '🚴 Votre livreur est en route. Préparez le paiement à la réception !',
       done:       isLiv ? '🎉 Livré ! Merci et bonne dégustation !' : '✅ Bon appétit ! Merci de votre visite.',
     };

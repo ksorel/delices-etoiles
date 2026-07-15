@@ -10,10 +10,9 @@ import { db } from './config.js';
 import { doc, updateDoc } from
   'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
-// ⚠️  Remplacer par ta clé VAPID depuis Firebase Console :
-//     Console Firebase → Paramètres du projet → Cloud Messaging
-//     → Certificats Web Push → Générer une paire de clés
-const VAPID_KEY = 'REMPLACE_PAR_TA_CLE_VAPID';
+// Clé VAPID (Console Firebase → Paramètres du projet → Cloud Messaging
+// → Certificats Web Push). Clé publique — sans risque à exposer côté client.
+const VAPID_KEY = 'BNNsjHCh0DZFhGKfGDiB21VfNS2qJSjmA1QUGebJCdx3np3LwLHtMB59irXOX1H_GORj6ylyNucCViF47_hU368';
 
 let _messaging = null;
 
