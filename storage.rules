@@ -19,7 +19,7 @@ service firebase.storage {
     match /menus/{imageId} {
       allow read:  if true;
       allow write: if request.auth != null
-                   && request.auth.token.role == 'admin';
+                   && request.auth.token.role in ['admin', 'manager'];
     }
 
     // ─── Documents devis traiteur ────────────────────────────
@@ -31,8 +31,8 @@ service firebase.storage {
 
     // ─── Justificatifs de dépenses (comptabilité) ─────────────
     match /depenses/{fileName} {
-      allow read:  if request.auth != null && request.auth.token.role == 'admin';
-      allow write: if request.auth != null && request.auth.token.role == 'admin';
+      allow read:  if request.auth != null && request.auth.token.role in ['admin', 'manager'];
+      allow write: if request.auth != null && request.auth.token.role in ['admin', 'manager'];
     }
 
     // ─── Carrousel d'accueil (images publiques, écriture propriétaire) ─
@@ -42,11 +42,12 @@ service firebase.storage {
                    && request.auth.token.role == 'admin';
     }
 
-    // ─── Logos d'établissement (images publiques, écriture propriétaire) ─
+    // ─── Logos d'établissement (images publiques, écriture propriétaire + gérant de ce lieu) ─
     match /restos/{restoId}/{fileName} {
       allow read:  if true;
       allow write: if request.auth != null
-                   && request.auth.token.role == 'admin';
+                   && (request.auth.token.role == 'admin'
+                       || (request.auth.token.role == 'manager' && request.auth.token.restoId == restoId));
     }
 
     // ─── Fallback ────────────────────────────────────────────

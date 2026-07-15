@@ -73,9 +73,12 @@ service cloud.firestore {
     // ─── Établissements (lecture publique : sélecteur client) ──
     // Lu AVANT l'auth anonyme (le sélecteur s'affiche avant bootApp),
     // donc lecture ouverte. Données non sensibles (nom, commune, adresse).
+    // Créer/supprimer un établissement reste réservé au propriétaire (structure
+    // globale du réseau) ; un gérant peut modifier la fiche de son propre lieu.
     match /restos/{restoId} {
-      allow read:  if true;
-      allow write: if isAdmin();
+      allow read:   if true;
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() || (isManager() && restoId == request.auth.token.restoId);
     }
 
     // ─── Staff / Admin (privé) ──────────────────────────────────
@@ -90,10 +93,11 @@ service cloud.firestore {
       allow update, delete: if isAdmin() || (isManager() && resource.data.restoId == request.auth.token.restoId);
     }
 
-    // ─── Plan de salle ──────────────────────────────────────
+    // ─── Plan de salle (écriture admin + gérant scopé à son établissement) ──
     match /floor-plan/{docId} {
       allow read: if isAuth();
-      allow write: if isAdmin();
+      allow create: if isAdmin() || (isManager() && request.resource.data.restoId == request.auth.token.restoId);
+      allow update, delete: if isAdmin() || (isManager() && resource.data.restoId == request.auth.token.restoId);
     }
 
     // ─── Sessions de table ──────────────────────────────────────
@@ -144,8 +148,10 @@ service cloud.firestore {
       // comme le sélecteur d'établissement → lecture publique. Contenu non
       // sensible (URLs d'images + booléen actif). Les autres docs config
       // (paiements, contacts du gérant) restent réservés aux utilisateurs authentifiés.
+      // Un gérant peut modifier UNIQUEMENT le doc de son propre établissement
+      // (docId == restoId) ; 'accueil' (carrousel global) reste propriétaire uniquement.
       allow read:  if docId == 'accueil' || isAuth();
-      allow write: if isAdmin();
+      allow write: if isAdmin() || (isManager() && docId == request.auth.token.restoId);
     }
 
     // ─── Devis traiteur ──────────────────────────────────────

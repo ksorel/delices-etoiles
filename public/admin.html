@@ -450,21 +450,21 @@ function closeSidebar() {
     </button>
 
     <div class="nav-item active" onclick="showPage('dashboard',this)"><span class="nav-icon">📊</span>Tableau de bord</div>
-    <div class="nav-item admin-only" onclick="showPage('etablissements',this)"><span class="nav-icon">🏢</span>Établissements</div>
+    <div class="nav-item" onclick="showPage('etablissements',this)"><span class="nav-icon">🏢</span>Établissements</div>
     <div class="nav-item admin-only" onclick="showPage('carrousel',this)"><span class="nav-icon">🖼️</span>Carrousel accueil</div>
     <div class="nav-item" onclick="showPage('menu',this)"><span class="nav-icon">🍽️</span>Articles</div>
     <div class="nav-item" onclick="showPage('zones',this)"><span class="nav-icon">🗺️</span>Zones livraison</div>
     <div class="nav-item" onclick="showPage('upselling',this)"><span class="nav-icon">⬆️</span>Upselling</div>
     <div class="nav-item" onclick="showPage('users',this)"><span class="nav-icon">👥</span>Utilisateurs</div>
-    <div class="nav-item admin-only" onclick="showPage('floorplan',this)"><span class="nav-icon">🗺️</span>Plan de salle</div>
-    <div class="nav-item admin-only" onclick="showPage('qrcodes',this)"><span class="nav-icon">📱</span>QR Codes</div>
+    <div class="nav-item" onclick="showPage('floorplan',this)"><span class="nav-icon">🗺️</span>Plan de salle</div>
+    <div class="nav-item" onclick="showPage('qrcodes',this)"><span class="nav-icon">📱</span>QR Codes</div>
     <div class="nav-item" onclick="showPage('platdujour',this)"><span class="nav-icon">⭐</span>Plat du jour</div>
     <div class="nav-item" onclick="showPage('stocks',this)"><span class="nav-icon">📦</span>Stocks</div>
-    <div class="nav-item admin-only" onclick="showPage('config',this)"><span class="nav-icon">⚙️</span>Configuration</div>
-    <div class="nav-item admin-only" onclick="showPage('stats',this)"><span class="nav-icon">📈</span>Statistiques</div>
-    <div class="nav-item admin-only" onclick="showPage('cache',this)"><span class="nav-icon">🔄</span>Cache</div>
-    <div class="nav-item admin-only" onclick="showPage('paiements',this)"><span class="nav-icon">💳</span>Paiements</div>
-    <div class="nav-item admin-only" onclick="showPage('commandes',this)"><span class="nav-icon">📋</span>Commandes</div>
+    <div class="nav-item" onclick="showPage('config',this)"><span class="nav-icon">⚙️</span>Configuration</div>
+    <div class="nav-item" onclick="showPage('stats',this)"><span class="nav-icon">📈</span>Statistiques</div>
+    <div class="nav-item" onclick="showPage('cache',this)"><span class="nav-icon">🔄</span>Cache</div>
+    <div class="nav-item" onclick="showPage('paiements',this)"><span class="nav-icon">💳</span>Paiements</div>
+    <div class="nav-item" onclick="showPage('commandes',this)"><span class="nav-icon">📋</span>Commandes</div>
     <div class="nav-section-title" id="nav-traiteur-title" style="padding:12px 16px 4px;font-size:10px;font-weight:700;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:.1em">Traiteur</div>
     <div class="nav-item admin-only" onclick="showPage('devis-demandes',this)"><span class="nav-icon">📬</span>Demandes</div>
     <div class="nav-item admin-only" onclick="showPage('devis-gestion',this)"><span class="nav-icon">📄</span>Devis</div>
@@ -1209,7 +1209,9 @@ function renderStocksTable() {
 async function renderStats(c) {
   c.innerHTML = '<div class="loading"><div class="spinner"></div><p>Calcul des statistiques…</p></div>';
   try {
-    const snap = await getDocs(query(collection(db, 'commandes'), orderBy('createdAt', 'desc')));
+    // Scopé par établissement (comme le tableau de bord) : ridConstraints() est
+    // vide en mode « Tous », donc le comportement propriétaire est inchangé.
+    const snap = await getDocs(query(collection(db, 'commandes'), ...ridConstraints(), orderBy('createdAt', 'desc')));
     const orders = snap.docs.map(function(d) { return { id: d.id, ...d.data() }; });
     const done   = orders.filter(function(o) { return o.status === 'done'; });
     const total  = done.reduce(function(s, o) { return s + (o.total || 0); }, 0);
@@ -3540,6 +3542,9 @@ async function renderEtablissements(c) {
   try {
     const snap = await getDocs(query(collection(db, 'restos'), orderBy('ordre')));
     docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    // Un gérant ne voit/ne modifie que la fiche de son propre établissement
+    // (création/suppression d'établissements réservées au propriétaire).
+    if (mySessionRole === 'manager') docs = docs.filter(l => l.id === myRestoId);
   } catch(e) {
     c.innerHTML = '<div class="card"><p style="color:red">Erreur : ' + e.message + '</p></div>';
     return;
@@ -3566,7 +3571,7 @@ async function renderEtablissements(c) {
     '<div class="card">'
     + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">'
     +   '<div class="card-title" style="margin:0">🏢 Établissements (' + docs.length + ')</div>'
-    +   '<button class="btn btn-primary btn-sm" onclick="window.Admin.showAddLieu()">+ Ajouter un établissement</button>'
+    +   (mySessionRole === 'manager' ? '' : '<button class="btn btn-primary btn-sm" onclick="window.Admin.showAddLieu()">+ Ajouter un établissement</button>')
     + '</div>'
     + '<p style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.5">Les établissements actifs apparaissent dans le portail client et dans le sélecteur en haut. Désactiver un établissement le retire du portail client sans supprimer ses données.</p>'
     + '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">'
