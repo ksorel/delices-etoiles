@@ -1085,7 +1085,7 @@ function renderCheckout(container) {
     container.innerHTML = `
       <div style="padding:16px;max-width:520px;margin:0 auto">
         <button onclick="window.App.navigate('menu')" style="background:none;border:none;color:#7a6a55;font-size:14px;font-weight:600;cursor:pointer;padding:0 0 12px">← ${t('cart_back')||'Retour au menu'}</button>
-        <h2 style="font-size:19px;font-weight:800;color:#2B1D16;margin:0 0 12px">🍽️ Commander pour manger sur place</h2>
+        <h2 style="font-size:19px;font-weight:800;color:#2B1D16;margin:0 0 12px">🍽️ Manger sur place</h2>
         <div class="card" style="padding:14px;margin-bottom:16px">
           ${itemsHtml}
           <div style="display:flex;justify-content:space-between;padding-top:10px;font-size:16px;font-weight:800;color:#2B1D16">

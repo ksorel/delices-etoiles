@@ -31,7 +31,7 @@ const translations = {
     service_question:      'Que souhaitez-vous faire ?',
     service_livraison:     'Se faire livrer',
     service_livraison_sub: 'Commande livrée à votre adresse',
-    service_surplace:      'Commander pour manger sur place',
+    service_surplace:      'Manger sur place',
     service_surplace_sub:  "À déguster au restaurant, à l'heure choisie",
     service_reserver:      'Réserver une table',
     service_reserver_sub:  'Le restaurant vous confirme',
