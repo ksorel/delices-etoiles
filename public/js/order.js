@@ -74,7 +74,7 @@ export async function submitLivraisonOrder(livraison, clientUid, cartItems = [])
     sous_total,
     total,
     livraison: {
-      nom:           livraison.nom,
+      nom:           livraison.nom || null,
       telephone:     livraison.telephone,
       adresse:       livraison.adresse,
       zoneId:        livraison.zoneId,

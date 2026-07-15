@@ -923,7 +923,7 @@ function buildCard(o) {
   const deliveryHtml = o.type === 'livraison' && o.livraison ? `
     <div class="delivery-info">
       📍 ${o.livraison.adresse} — ${o.livraison.zoneName}<br>
-      📞 ${o.livraison.nom} · ${o.livraison.telephone}<br>
+      📞 ${o.livraison.nom ? o.livraison.nom + ' · ' : ''}${o.livraison.telephone}<br>
       💳 ${o.livraison.operateur?.toUpperCase() || 'Mobile Money'}
     </div>` : '';
 

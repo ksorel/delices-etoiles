@@ -1085,7 +1085,7 @@ function renderCheckout(container) {
     container.innerHTML = `
       <div style="padding:16px;max-width:520px;margin:0 auto">
         <button onclick="window.App.navigate('menu')" style="background:none;border:none;color:#7a6a55;font-size:14px;font-weight:600;cursor:pointer;padding:0 0 12px">← ${t('cart_back')||'Retour au menu'}</button>
-        <h2 style="font-size:19px;font-weight:800;color:#2B1D16;margin:0 0 12px">🍽️ Commander pour sur place</h2>
+        <h2 style="font-size:19px;font-weight:800;color:#2B1D16;margin:0 0 12px">🍽️ Commander pour manger sur place</h2>
         <div class="card" style="padding:14px;margin-bottom:16px">
           ${itemsHtml}
           <div style="display:flex;justify-content:space-between;padding-top:10px;font-size:16px;font-weight:800;color:#2B1D16">
@@ -1093,7 +1093,6 @@ function renderCheckout(container) {
           </div>
         </div>
         <div style="display:flex;flex-direction:column;gap:14px">
-          <div><label style="${L}">Votre nom *</label><input id="sp-nom" style="${I}" placeholder="Nom complet"></div>
           <div><label style="${L}">Téléphone *</label><input id="sp-tel" type="tel" style="${I}" placeholder="+225 07 00 00 00 00"></div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
             <div><label style="${L}">Jour de passage *</label><input id="sp-date" type="date" min="${today}" value="${today}" style="${I}"></div>
@@ -1120,10 +1119,6 @@ function renderCheckout(container) {
     </div>
     <div class="checkout-section">
       <div class="checkout-section-title">${t('delivery_info')}</div>
-      <div class="form-group">
-        <label class="form-label">${t('nom')} *</label>
-        <input class="form-input" id="liv-nom" type="text" placeholder="Kouamé Adjoua" required>
-      </div>
       <div class="form-group">
         <label class="form-label">${t('telephone')} *</label>
         <input class="form-input" id="liv-tel" type="tel" placeholder="+225 07 00 00 00 00" required>
@@ -1304,7 +1299,6 @@ async function confirmSalle() {
   }
 }
 async function confirmLivraison() {
-  const nom     = document.getElementById('liv-nom')?.value.trim();
   const tel     = document.getElementById('liv-tel')?.value.trim();
   const adresse = document.getElementById('liv-adresse')?.value.trim();
   // Zone : lire directement le <select> (robuste même si onZoneChange n'a pas tourné)
@@ -1316,7 +1310,6 @@ async function confirmLivraison() {
     window._selectedZone = zone;
   }
   const missing = [];
-  if (!nom)          missing.push('votre nom');
   if (!tel)          missing.push('votre numéro de téléphone');
   if (!adresse)      missing.push('votre adresse');
   if (!zone || !zone.id) missing.push('une zone de livraison');
@@ -1340,7 +1333,7 @@ async function confirmLivraison() {
     const cartItems = getItems();
     const sousTotal = cartItems.reduce(function(s,i){return s+i.price*i.qty;},0);
     const orderId = await submitLivraisonOrder({
-      nom, telephone: tel, adresse,
+      telephone: tel, adresse,
       zoneId:          zone.id,
       zoneName:        zone.name || zone.nom,
       fraisLivraison:  zone.frais || 0,
@@ -1584,6 +1577,64 @@ function renderTraiteur(container) {
         </div>
       </div>
 
+      <!-- Type d'événement -->
+      <div style="margin-bottom:20px">
+        <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;
+                    letter-spacing:.05em;margin-bottom:10px">${t('tr_event_type')}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px" id="event-type-grid">
+          ${eventTypes.map(e => `
+            <div data-type="${e.id}"
+                 onclick="selectEventType('${e.id}')"
+                 style="padding:12px;border:1.5px solid var(--border);border-radius:12px;
+                        text-align:center;font-size:13px;cursor:pointer;transition:all .15s;
+                        color:var(--brown)">
+              ${e.label}
+            </div>`).join('')}
+        </div>
+        <input type="hidden" id="tr-type" value="">
+      </div>
+      <!-- Infos événement -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+        <div>
+          <label style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;
+                        letter-spacing:.05em;display:block;margin-bottom:5px">${t('tr_date')}</label>
+          <input type="text" id="tr-date" inputmode="numeric"
+                 style="width:100%;padding:10px 12px;border:1.5px solid var(--border);
+                        border-radius:10px;font-size:14px;outline:none"
+                 placeholder="${getLang() === 'en' ? 'MM/DD/YYYY' : 'JJ/MM/AAAA'}"
+                 maxlength="10"
+                 oninput="window.formatDateInput(this, '${getLang()}')"
+                 autocomplete="off">
+          <div style="font-size:10px;color:var(--muted);margin-top:3px">
+            ${getLang() === 'en' ? 'Format: MM/DD/YYYY' : 'Format : JJ/MM/AAAA'}
+          </div>
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;
+                        letter-spacing:.05em;display:block;margin-bottom:5px">${t('tr_nb_persons')}</label>
+          <input type="number" id="tr-nb" class="form-input" placeholder="Ex: 150" min="10"
+                 style="width:100%;padding:10px 12px;border:1.5px solid var(--border);
+                        border-radius:10px;font-size:14px;outline:none">
+        </div>
+      </div>
+      <div style="margin-bottom:16px">
+        <label style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;
+                      letter-spacing:.05em;display:block;margin-bottom:5px">${t('tr_lieu')}</label>
+        <select id="tr-lieu-zone" class="form-input"
+                onchange="window.App.onZoneChange(this.value)"
+                style="width:100%;padding:10px 12px;border:1.5px solid var(--border);
+                       border-radius:10px;font-size:14px;outline:none;background:#fff">
+          <option value="">${t('tr_lieu_loading')}</option>
+        </select>
+        <div id="tr-zone-frais" style="display:none;margin-top:8px;padding:9px 12px;
+             background:#FFF8F5;border:1px solid #FDDCCC;border-radius:9px;font-size:12px;
+             color:#C94E10;font-weight:600"></div>
+        <input type="text" id="tr-lieu-precision" class="form-input"
+               placeholder="${t('tr_lieu_precision_ph')}"
+               style="width:100%;padding:9px 12px;border:1.5px solid var(--border);
+                      border-radius:10px;font-size:13px;outline:none;margin-top:8px">
+      </div>
+
       <!-- Nos compétences -->
       <div style="margin-bottom:24px">
         <button onclick="window.App.toggleCompetences()" id="competences-toggle"
@@ -1659,63 +1710,6 @@ function renderTraiteur(container) {
         </div>
       </div>
 
-      <!-- Type d'événement -->
-      <div style="margin-bottom:20px">
-        <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;
-                    letter-spacing:.05em;margin-bottom:10px">${t('tr_event_type')}</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px" id="event-type-grid">
-          ${eventTypes.map(e => `
-            <div data-type="${e.id}"
-                 onclick="selectEventType('${e.id}')"
-                 style="padding:12px;border:1.5px solid var(--border);border-radius:12px;
-                        text-align:center;font-size:13px;cursor:pointer;transition:all .15s;
-                        color:var(--brown)">
-              ${e.label}
-            </div>`).join('')}
-        </div>
-        <input type="hidden" id="tr-type" value="">
-      </div>
-      <!-- Infos événement -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
-        <div>
-          <label style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;
-                        letter-spacing:.05em;display:block;margin-bottom:5px">${t('tr_date')}</label>
-          <input type="text" id="tr-date" inputmode="numeric"
-                 style="width:100%;padding:10px 12px;border:1.5px solid var(--border);
-                        border-radius:10px;font-size:14px;outline:none"
-                 placeholder="${getLang() === 'en' ? 'MM/DD/YYYY' : 'JJ/MM/AAAA'}"
-                 maxlength="10"
-                 oninput="window.formatDateInput(this, '${getLang()}')"
-                 autocomplete="off">
-          <div style="font-size:10px;color:var(--muted);margin-top:3px">
-            ${getLang() === 'en' ? 'Format: MM/DD/YYYY' : 'Format : JJ/MM/AAAA'}
-          </div>
-        </div>
-        <div>
-          <label style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;
-                        letter-spacing:.05em;display:block;margin-bottom:5px">${t('tr_nb_persons')}</label>
-          <input type="number" id="tr-nb" class="form-input" placeholder="Ex: 150" min="10"
-                 style="width:100%;padding:10px 12px;border:1.5px solid var(--border);
-                        border-radius:10px;font-size:14px;outline:none">
-        </div>
-      </div>
-      <div style="margin-bottom:16px">
-        <label style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;
-                      letter-spacing:.05em;display:block;margin-bottom:5px">${t('tr_lieu')}</label>
-        <select id="tr-lieu-zone" class="form-input"
-                onchange="window.App.onZoneChange(this.value)"
-                style="width:100%;padding:10px 12px;border:1.5px solid var(--border);
-                       border-radius:10px;font-size:14px;outline:none;background:#fff">
-          <option value="">${t('tr_lieu_loading')}</option>
-        </select>
-        <div id="tr-zone-frais" style="display:none;margin-top:8px;padding:9px 12px;
-             background:#FFF8F5;border:1px solid #FDDCCC;border-radius:9px;font-size:12px;
-             color:#C94E10;font-weight:600"></div>
-        <input type="text" id="tr-lieu-precision" class="form-input"
-               placeholder="${t('tr_lieu_precision_ph')}"
-               style="width:100%;padding:9px 12px;border:1.5px solid var(--border);
-                      border-radius:10px;font-size:13px;outline:none;margin-top:8px">
-      </div>
       <div style="margin-bottom:16px">
         <label style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;
                       letter-spacing:.05em;display:block;margin-bottom:5px">${t('tr_besoins')}</label>
@@ -2069,11 +2063,9 @@ window.App = {
   pdjNext() { this.pdjGoTo(this._pdjIdx + 1); },
   pdjPrev() { this.pdjGoTo(this._pdjIdx - 1); },
   addPdjToCart(itemId) {
-    const item = State.menu.find(m => m.id === itemId);
-    if (!item) return;
-    addItem(item);
-    updateCartBadge();
-    showToast('✓ Ajouté au panier');
+    // Ouvre la même fiche article que partout ailleurs (variantes, accompagnements,
+    // glaçons, portions) au lieu d'un ajout direct qui les court-circuitait.
+    openItem(itemId);
   },
   openItem, setOption, changeQty, toggleUpsell, selectAccomp,
   addToCart, closeModal, setCategory,
@@ -2361,7 +2353,6 @@ function renderReservation() {
       <h2 style="font-size:20px;font-weight:800;color:#2B1D16;margin:0 0 2px">📅 ${t('service_reserver')}</h2>
       <p style="font-size:13px;color:#7a6a55;margin:0 0 18px">${State.resto?.nom || ''}</p>
       <div style="display:flex;flex-direction:column;gap:14px">
-        <div><label style="${L}">Votre nom *</label><input id="rv-nom" style="${_SVC_INPUT}" placeholder="Nom complet"></div>
         <div><label style="${L}">Téléphone *</label><input id="rv-tel" type="tel" style="${_SVC_INPUT}" placeholder="+225 07 00 00 00 00"></div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
           <div><label style="${L}">Date *</label><input id="rv-date" type="date" min="${today}" style="${_SVC_INPUT}"></div>
@@ -2377,10 +2368,9 @@ function renderReservation() {
 }
 window.App.submitReservation = async function() {
   const v = (id) => (document.getElementById(id)?.value || '').trim();
-  const nom = v('rv-nom'), tel = v('rv-tel'), date = v('rv-date'), heure = v('rv-heure'), pers = v('rv-pers'), note = v('rv-note');
+  const tel = v('rv-tel'), date = v('rv-date'), heure = v('rv-heure'), pers = v('rv-pers'), note = v('rv-note');
   const errEl = document.getElementById('rv-err');
   const missing = [];
-  if (!nom) missing.push('votre nom');
   if (!tel) missing.push('votre téléphone');
   if (!date) missing.push('la date');
   if (!heure) missing.push("l'heure");
@@ -2388,30 +2378,29 @@ window.App.submitReservation = async function() {
   const btn = document.getElementById('rv-submit');
   if (btn) { btn.disabled = true; btn.textContent = 'Envoi…'; }
   try {
-    await submitReservation({ nom, telephone: tel, date, heure, personnes: parseInt(pers) || null, note }, State.resto?.id);
-    renderReservationDone(nom, date, heure);
+    await submitReservation({ telephone: tel, date, heure, personnes: parseInt(pers) || null, note }, State.resto?.id);
+    renderReservationDone(date, heure);
   } catch(e) {
     errEl.textContent = 'Erreur : ' + (e.message || 'envoi impossible'); errEl.style.display = 'block';
     if (btn) { btn.disabled = false; btn.textContent = '📅 Envoyer la demande'; }
   }
 };
-function renderReservationDone(nom, date, heure) {
+function renderReservationDone(date, heure) {
   const view = document.getElementById('view');
   view.innerHTML = `
     <div style="max-width:440px;margin:0 auto;padding:48px 20px;text-align:center">
       <div style="font-size:56px;margin-bottom:12px">📅</div>
       <h2 style="font-size:22px;font-weight:800;color:#2B1D16;margin:0 0 8px">Demande envoyée !</h2>
-      <p style="font-size:15px;color:#7a6a55;line-height:1.6;margin:0 0 24px">Merci ${nom || ''}. Votre demande de réservation pour le <strong>${date}</strong> à <strong>${heure}</strong> a bien été transmise. Le restaurant vous contactera pour la confirmer.</p>
+      <p style="font-size:15px;color:#7a6a55;line-height:1.6;margin:0 0 24px">Merci ! Votre demande de réservation pour le <strong>${date}</strong> à <strong>${heure}</strong> a bien été transmise. Le restaurant vous contactera pour la confirmer.</p>
       <button onclick="window.App.backToService()" style="padding:13px 28px;background:#2B1D16;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer">Retour</button>
     </div>`;
 }
 
 window.App.confirmSurplace = async function() {
   const v = (id) => (document.getElementById(id)?.value || '').trim();
-  const nom = v('sp-nom'), tel = v('sp-tel'), date = v('sp-date'), heure = v('sp-heure'), pers = v('sp-pers'), note = v('sp-note');
+  const tel = v('sp-tel'), date = v('sp-date'), heure = v('sp-heure'), pers = v('sp-pers'), note = v('sp-note');
   const errEl = document.getElementById('sp-err');
   const missing = [];
-  if (!nom) missing.push('votre nom');
   if (!tel) missing.push('votre téléphone');
   if (!date) missing.push('le jour');
   if (!heure) missing.push("l'heure");
@@ -2423,7 +2412,7 @@ window.App.confirmSurplace = async function() {
     const personnes = parseInt(pers) || 1;
     const orderId = await createOrder({
       type: 'surplace', restoId: State.resto?.id || getRestoId(),
-      nom, telephone: tel, personnes, note,
+      telephone: tel, personnes, note,
       surplace: { date, heure, personnes },
       items, total: getTotal(), operateur: 'especes',
     });
