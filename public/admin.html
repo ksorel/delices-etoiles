@@ -669,14 +669,61 @@ async function loadData() {
   } catch(e) { lieux = []; console.warn('Lieux:', e); }
 
   const rc = ridConstraints();
-  const [mSnap, zSnap, uSnap] = await Promise.all([
-    getDocs(query(collection(db,'menus'), ...rc, orderBy('category'), orderBy('order'))),
+  const [zSnap, uSnap] = await Promise.all([
     getDocs(query(collection(db,'zones-livraison'), ...rc)),
     getDocs(query(collection(db,'upselling-rules'), ...rc)),
   ]);
-  menuItems   = mSnap.docs.map(d => ({id:d.id,...d.data()}));
   zones       = zSnap.docs.map(d => ({id:d.id,...d.data()}));
   upsellRules = uSnap.docs.map(d => ({id:d.id,...d.data()}));
+  menuItems   = await loadMenuItems();
+}
+
+// Catalogue partagé (menus/{id}) + dispo/prix par établissement (menu-dispo/{id}_{restoId}),
+// fusionnés en objets plats (même forme qu'avant la migration) pour que le reste de
+// l'admin (menuRow, showItemModal, sélecteurs plat du jour/upselling/stocks…) n'ait pas
+// à changer. Repli : articles pas encore migrés (restoId encore sur menus/{id}).
+async function loadMenuItems() {
+  const catalogSnap = await getDocs(collection(db,'menus'));
+  const catalogById = {};
+  catalogSnap.docs.forEach(d => { catalogById[d.id] = d.data(); });
+
+  const dispoConstraints = activeResto !== 'ALL' ? [where('restoId','==',activeResto)] : [];
+  const dispoSnap = await getDocs(query(collection(db,'menu-dispo'), ...dispoConstraints));
+
+  const items = [];
+  const seen = new Set();
+  dispoSnap.docs.forEach(d => {
+    const dispo = d.data();
+    const catalog = catalogById[dispo.menuItemId];
+    if (!catalog) return; // fiche dispo orpheline (catalogue supprimé)
+    items.push(_mergeCatalogDispo(dispo.menuItemId, catalog, dispo));
+    seen.add(dispo.menuItemId + '::' + dispo.restoId);
+  });
+
+  // Repli legacy : articles pas encore migrés (restoId encore posé directement sur menus/{id})
+  Object.entries(catalogById).forEach(([id, catalog]) => {
+    if (!catalog.restoId) return;
+    if (activeResto !== 'ALL' && catalog.restoId !== activeResto) return;
+    if (seen.has(id + '::' + catalog.restoId)) return;
+    items.push({ id, ...catalog });
+  });
+
+  items.sort((a,b) => (a.category||'').localeCompare(b.category||'') || (a.order||0)-(b.order||0));
+  return items;
+}
+
+function _mergeCatalogDispo(id, catalog, dispo) {
+  const item = {
+    id, ...catalog,
+    restoId: dispo.restoId, price: dispo.price, prixVariable: dispo.prixVariable,
+    available: dispo.available, order: dispo.order, _dispoId: id + '_' + dispo.restoId,
+  };
+  if (dispo.formats != null) item.formats = dispo.formats;
+  if (dispo.stockStatus != null) item.stockStatus = dispo.stockStatus;
+  if (dispo.variantePrix && Array.isArray(catalog.variantes)) {
+    item.variantes = catalog.variantes.map(v => ({ label: v.label, prix: dispo.variantePrix[v.label] }));
+  }
+  return item;
 }
 
 // ── Navigation ────────────────────────────────────────────
@@ -945,7 +992,8 @@ function statusLabel(s){return{pending:'En attente',preparing:'En préparation',
 
 // ── Menu ──────────────────────────────────────────────────
 function renderMenu(c, a) {
-  a.innerHTML = `<button class="btn btn-primary btn-sm" onclick="window.Admin.openAddItem()">+ Ajouter un article</button>`;
+  a.innerHTML = `<button class="btn btn-primary btn-sm" onclick="window.Admin.openAddItem()">+ Ajouter un article</button>`
+    + `<button class="btn btn-secondary btn-sm" style="margin-left:8px" onclick="window.Admin.openActivateExisting()">📋 Activer un article existant</button>`;
   const allCats = [...new Set(menuItems.map(m => m.category))].sort();
   const catOptions = allCats.map(cat => `<option value="${cat}">${cat}</option>`).join('');
   c.innerHTML = `
@@ -1013,13 +1061,13 @@ function menuRow(item) {
     <td style="color:var(--muted)">${prixDemi}</td>
     <td>
       <label class="toggle">
-        <input type="checkbox" ${item.available!==false?'checked':''} onchange="window.Admin.toggleItem('${item.id}',this.checked)">
+        <input type="checkbox" ${item.available!==false?'checked':''} onchange="window.Admin.toggleItem('${item.id}','${item._dispoId||''}',this.checked)">
         <span class="slider"></span>
       </label>
     </td>
     <td>
       <button class="btn btn-sm btn-secondary" onclick="window.Admin.editItem('${item.id}')">✏️</button>
-      <button class="btn btn-sm btn-danger" onclick="window.Admin.deleteItem('${item.id}')">🗑️</button>
+      <button class="btn btn-sm btn-danger" onclick="window.Admin.deleteItem('${item.id}','${item._dispoId||''}')">🗑️</button>
     </td>
   </tr>`;
 }
@@ -2287,14 +2335,25 @@ async function renderComptabilite(c) {
 
 
 window.Admin = {
-  async toggleItem(id, val) {
-    await updateDoc(doc(db,'menus',id), {available:val});
+  async toggleItem(id, dispoId, val) {
+    if (dispoId) {
+      await updateDoc(doc(db,'menu-dispo',dispoId), {available:val});
+    } else {
+      await updateDoc(doc(db,'menus',id), {available:val}); // legacy, pas encore migré
+    }
     await loadData(); toast('Disponibilité mise à jour');
   },
-  async deleteItem(id) {
-    if (!confirm('Supprimer cet article ?')) return;
-    await deleteDoc(doc(db,'menus',id));
-    await loadData(); renderPage(currentPage); toast('Article supprimé');
+  async deleteItem(id, dispoId) {
+    if (dispoId) {
+      // Le catalogue est partagé : on retire l'article de CET établissement
+      // uniquement (les autres établissements gardent leur propre dispo).
+      if (!confirm('Retirer cet article de cet établissement ? (il reste disponible dans le catalogue pour les autres établissements)')) return;
+      await deleteDoc(doc(db,'menu-dispo',dispoId));
+    } else {
+      if (!confirm('Supprimer cet article ?')) return;
+      await deleteDoc(doc(db,'menus',id)); // legacy, pas encore migré
+    }
+    await loadData(); renderPage(currentPage); toast('Article retiré de cet établissement');
   },
   async toggleZone(id, val) {
     await updateDoc(doc(db,'zones-livraison',id), {active:val});
@@ -2766,6 +2825,7 @@ window.Admin = {
   },
   openAddItem()  { if (activeResto === 'ALL') return toast('⚠️ Choisissez d\x27abord un établissement (menu en haut) pour créer un article'); showItemModal(null); },
   editItem(id)   { showItemModal(menuItems.find(m=>m.id===id)); },
+  openActivateExisting() { if (activeResto === 'ALL') return toast('⚠️ Choisissez d\x27abord un établissement pour activer un article'); showActivateExistingModal(); },
   openAddZone()  { if (activeResto === 'ALL') return toast('⚠️ Choisissez d\x27abord un établissement pour créer une zone'); showZoneModal(); },
   openAddRule()  { if (activeResto === 'ALL') return toast('⚠️ Choisissez d\x27abord un établissement pour créer une règle'); showRuleModal(); },
 };
@@ -4012,9 +4072,10 @@ window.Admin.addStockItem = function() {
       restoId: ridStock,
       updatedAt: serverTimestamp()
     });
-    // Mettre à jour la disponibilité menu si stock = 0
+    // Mettre à jour la disponibilité (pour CET établissement) si stock = 0
     if (qty === 0 && menuItemId) {
-      await updateDoc(doc(db, 'menus', menuItemId), { available: false, stockStatus: 'rupture' });
+      await setDoc(doc(db, 'menu-dispo', menuItemId + '_' + ridStock),
+        { menuItemId, restoId: ridStock, available: false, stockStatus: 'rupture' }, { merge: true });
     }
     document.getElementById('stock-modal').remove();
     toast('✅ Article ajouté' + (menuItemId ? ' et lié au menu ✓' : ' (non trouvé dans le menu)'));
@@ -4679,34 +4740,41 @@ function showItemModal(item) {
 
     const DRINK_CATS_NEW = ['bieres','eaux','jus','spiritueux','boissons'];
     const isDrinkNew     = DRINK_CATS_NEW.includes(cat.toLowerCase());
-    const data = {
-      name_fr:        nameFr,
-      name_en:        document.getElementById('m-name-en').value.trim(),
-      description_fr: document.getElementById('m-desc-fr').value.trim(),
-      price:          priceVal,
-      prixVariable:   priceVal === 0,
-      category:       cat,
-      order:          parseInt(document.getElementById('m-order').value) || 0,
-      salleOnly:      document.getElementById('m-salle-only')?.checked || false,
-      // Boissons : indisponible par défaut jusqu'à entrée de stock
-      available:      id ? (document.getElementById('m-save-btn') ? true : !isDrinkNew) : !isDrinkNew,
-      ...(isDrinkNew && !id ? { stockStatus: 'rupture' } : {}),
-    };
 
-    // Prix demi
-    if (demi !== null && demi > 0) {
-      data.formats = { demi };
-    }
-
-    // Variantes (tailles / choix) — remplacent le prix de base si renseignées
-    data.variantes = [...document.querySelectorAll('#m-variantes-list .m-variante-row')]
+    // Variantes (tailles / choix) — libellés partagés (catalogue), prix par établissement (dispo)
+    const variantesInput = [...document.querySelectorAll('#m-variantes-list .m-variante-row')]
       .map(row => ({
         label: row.querySelector('.m-var-label').value.trim(),
         prix:  parseInt(row.querySelector('.m-var-prix').value) || 0,
       }))
       .filter(v => v.label && v.prix > 0);
 
-    // Image : upload fichier ou URL
+    // Fiche catalogue — partagée entre établissements (propriétaire ET gérant)
+    const catalogData = {
+      name_fr:        nameFr,
+      name_en:        document.getElementById('m-name-en').value.trim(),
+      description_fr: document.getElementById('m-desc-fr').value.trim(),
+      category:       cat,
+      salleOnly:      document.getElementById('m-salle-only')?.checked || false,
+      variantes:      variantesInput.map(v => ({ label: v.label })),
+    };
+
+    // Prix / disponibilité — propres à CET établissement
+    const dispoData = {
+      price:          priceVal,
+      prixVariable:   priceVal === 0,
+      order:          parseInt(document.getElementById('m-order').value) || 0,
+      // Boissons : indisponible par défaut jusqu'à entrée de stock
+      available:      id ? (document.getElementById('m-save-btn') ? true : !isDrinkNew) : !isDrinkNew,
+      ...(isDrinkNew && !id ? { stockStatus: 'rupture' } : {}),
+    };
+    if (demi !== null && demi > 0) dispoData.formats = { demi };
+    if (variantesInput.length) {
+      dispoData.variantePrix = {};
+      variantesInput.forEach(v => { dispoData.variantePrix[v.label] = v.prix; });
+    }
+
+    // Image : upload fichier ou URL (photo = fiche catalogue, partagée)
     btn.disabled = true;
     const fileInput = document.getElementById('m-img-file');
     const file = fileInput.files[0];
@@ -4725,7 +4793,7 @@ function showItemModal(item) {
         msg.textContent = 'Upload en cours…';
         const snap = await sUpload(storageRef, uploadBlob);
         bar.style.width = '90%';
-        data.imageUrl = await sUrl(snap.ref);
+        catalogData.imageUrl = await sUrl(snap.ref);
         bar.style.width = '100%';
         msg.textContent = 'Photo uploadée ✓';
       } catch(e) {
@@ -4735,17 +4803,22 @@ function showItemModal(item) {
       }
     } else {
       const urlInput = document.getElementById('m-img-url').value.trim();
-      if (urlInput) data.imageUrl = urlInput;
+      if (urlInput) catalogData.imageUrl = urlInput;
     }
 
     try {
+      const rid = id ? (item?.restoId || activeRestoForWrite()) : activeRestoForWrite();
+      if (!rid) { toast('⚠️ Choisissez un établissement (pas « Tous ») pour créer un article'); btn.disabled = false; return; }
+
+      let articleId = id;
       if (id) {
-        await updateDoc(doc(db,'menus',id), data);
+        await updateDoc(doc(db,'menus',id), catalogData);
       } else {
-        const rid = activeRestoForWrite();
-        if (!rid) { toast('⚠️ Choisissez un établissement (pas « Tous ») pour créer un article'); btn.disabled = false; return; }
-        await addDoc(collection(db,'menus'), { ...data, restoId: rid });
+        const newRef = await addDoc(collection(db,'menus'), catalogData);
+        articleId = newRef.id;
       }
+      await setDoc(doc(db,'menu-dispo', articleId + '_' + rid), { menuItemId: articleId, restoId: rid, ...dispoData, updatedAt: serverTimestamp() }, { merge: true });
+
       overlay.remove();
       await loadData();
       renderPage(currentPage);
@@ -4753,6 +4826,116 @@ function showItemModal(item) {
     } catch(e) {
       toast('Erreur : ' + e.message);
       btn.disabled = false;
+    }
+  };
+}
+
+// Catalogue partagé : active un article DÉJÀ EXISTANT (nom/photo/description
+// déjà en place ailleurs) pour l'établissement courant, sans le recréer —
+// il suffit de saisir le prix/la disponibilité propres à ce lieu.
+async function showActivateExistingModal() {
+  const catalogSnap = await getDocs(collection(db,'menus'));
+  const activeIds = new Set(menuItems.map(m => m.id));
+  const candidates = catalogSnap.docs
+    .map(d => ({ id: d.id, ...d.data() }))
+    .filter(c => !activeIds.has(c.id))
+    .sort((a,b) => (a.name_fr||'').localeCompare(b.name_fr||''));
+
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(43,29,22,.7);z-index:500;display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto';
+  overlay.innerHTML = `
+    <div style="background:#fff;border-radius:20px;width:100%;max-width:520px;overflow:hidden;box-shadow:0 20px 60px rgba(43,29,22,.3);margin:auto">
+      <div style="background:linear-gradient(135deg,#2B1D16,#4A3020);padding:20px 24px;position:relative">
+        <div style="font-size:26px;margin-bottom:4px">📋</div>
+        <div style="font-size:16px;font-weight:800;color:#fff">Activer un article existant</div>
+        <div style="font-size:12px;color:rgba(255,255,255,.6);margin-top:2px">Depuis le catalogue partagé, sans le recréer</div>
+        <button onclick="this.closest('[style*=fixed]').remove()"
+          style="position:absolute;top:14px;right:14px;background:rgba(255,255,255,.15);border:none;
+                 border-radius:50%;width:30px;height:30px;color:#fff;font-size:18px;cursor:pointer;
+                 display:flex;align-items:center;justify-content:center">×</button>
+      </div>
+      <div style="padding:16px 24px;overflow-y:auto;max-height:70vh">
+        ${candidates.length ? `
+          <input class="form-input" id="ae-search" placeholder="🔍 Rechercher un article…" style="width:100%;margin-bottom:12px" oninput="window.Admin._filterActivateList(this.value)">
+          <div id="ae-list"></div>
+        ` : '<p style="color:var(--muted);text-align:center;padding:20px">Tous les articles du catalogue sont déjà configurés pour cet établissement.</p>'}
+        <div id="ae-form-zone"></div>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  function renderList(filter) {
+    const q = (filter||'').toLowerCase();
+    const filtered = candidates.filter(c => !q || (c.name_fr||'').toLowerCase().includes(q) || (c.category||'').toLowerCase().includes(q));
+    document.getElementById('ae-list').innerHTML = filtered.map(c => `
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:10px;cursor:pointer;border:1.5px solid var(--border);margin-bottom:6px"
+           onclick="window.Admin._pickActivateItem('${c.id}')">
+        ${c.imageUrl ? `<img src="${c.imageUrl}" style="width:36px;height:36px;object-fit:cover;border-radius:6px">` : '<span style="font-size:20px">🍽️</span>'}
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;color:var(--brown);font-size:13px">${c.name_fr}</div>
+          <div style="font-size:11px;color:var(--muted)">${c.category}</div>
+        </div>
+      </div>`).join('') || '<p style="color:var(--muted);text-align:center;padding:12px">Aucun résultat</p>';
+  }
+  renderList('');
+
+  window.Admin._filterActivateList = (val) => renderList(val);
+
+  window.Admin._pickActivateItem = (id) => {
+    const item = candidates.find(c => c.id === id);
+    if (!item) return;
+    const hasVariantes = Array.isArray(item.variantes) && item.variantes.length > 0;
+    const zone = document.getElementById('ae-form-zone');
+    zone.innerHTML = `
+      <div style="border-top:1.5px solid var(--border);margin-top:12px;padding-top:14px">
+        <div style="font-weight:700;color:var(--brown);margin-bottom:10px">${item.name_fr} — ${lieuLabel(activeResto)}</div>
+        ${hasVariantes ? `
+          <label style="display:block;font-size:11px;font-weight:700;color:#7A6356;text-transform:uppercase;margin-bottom:6px">Prix par variante</label>
+          ${item.variantes.map(v => `
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+              <span style="flex:1;font-size:13px">${v.label}</span>
+              <input class="form-input ae-variante-prix" data-label="${v.label}" type="number" placeholder="Prix" style="width:120px">
+            </div>`).join('')}
+        ` : `
+          <label style="display:block;font-size:11px;font-weight:700;color:#7A6356;text-transform:uppercase;margin-bottom:6px">Prix (FCFA)</label>
+          <input class="form-input" id="ae-price" type="number" placeholder="0 = Sur devis" style="margin-bottom:10px">
+        `}
+        <label style="display:flex;align-items:center;gap:8px;margin:10px 0;cursor:pointer">
+          <input type="checkbox" id="ae-available" checked style="width:18px;height:18px;accent-color:#F26522">
+          <span style="font-size:13px">Disponible immédiatement</span>
+        </label>
+        <button class="btn btn-primary" onclick="window.Admin._saveActivateItem('${item.id}')">✓ Activer pour cet établissement</button>
+      </div>`;
+    zone.scrollIntoView({ behavior:'smooth', block:'nearest' });
+  };
+
+  window.Admin._saveActivateItem = async (id) => {
+    const item = candidates.find(c => c.id === id);
+    if (!item) return;
+    const hasVariantes = Array.isArray(item.variantes) && item.variantes.length > 0;
+    const available = document.getElementById('ae-available')?.checked !== false;
+    const dispoData = { menuItemId: id, restoId: activeResto, available, order: 0, updatedAt: serverTimestamp() };
+    if (hasVariantes) {
+      const variantePrix = {};
+      document.querySelectorAll('.ae-variante-prix').forEach(inp => {
+        variantePrix[inp.dataset.label] = parseInt(inp.value) || 0;
+      });
+      dispoData.variantePrix = variantePrix;
+      dispoData.price = 0;
+      dispoData.prixVariable = false;
+    } else {
+      const price = parseInt(document.getElementById('ae-price')?.value) || 0;
+      dispoData.price = price;
+      dispoData.prixVariable = price === 0;
+    }
+    try {
+      await setDoc(doc(db,'menu-dispo', id + '_' + activeResto), dispoData, { merge: true });
+      overlay.remove();
+      await loadData();
+      renderPage(currentPage);
+      toast('Article activé pour cet établissement ✓');
+    } catch(e) {
+      toast('Erreur : ' + e.message);
     }
   };
 }

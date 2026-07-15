@@ -135,16 +135,18 @@ exports.onNewOrder = region.firestore
             orderId: order.id,
             date: admin.firestore.FieldValue.serverTimestamp()
           });
-          // Si stock à 0 → désactiver l'article dans le menu
+          // Si stock à 0 → désactiver l'article pour CET établissement
+          // (catalogue partagé : menus/{id} = fiche commune, menu-dispo/{id}_{restoId} = dispo par lieu)
           if (newQtyRounded <= 0) {
             const menuSnap = await db.collection('menus')
               .where('name_fr', '==', item.name).limit(1).get();
             if (!menuSnap.empty) {
-              await menuSnap.docs[0].ref.update({
-                available: false,
-                stockStatus: 'rupture',
+              const menuId = menuSnap.docs[0].id;
+              await db.collection('menu-dispo').doc(menuId + '_' + stockData.restoId).set({
+                menuItemId: menuId, restoId: stockData.restoId,
+                available: false, stockStatus: 'rupture',
                 updatedAt: admin.firestore.FieldValue.serverTimestamp()
-              });
+              }, { merge: true });
               console.log('Menu item disabled (stock 0):', item.name);
             }
           }
@@ -276,30 +278,34 @@ exports.onStockUpdate = region.firestore
     const newQty = after.qty || 0;
 
     try {
-      // Chercher l'article dans le menu
+      // Chercher l'article dans le catalogue, puis sa dispo pour l'établissement de ce stock
+      // (catalogue partagé : menus/{id} = fiche commune, menu-dispo/{id}_{restoId} = dispo par lieu)
       const menuSnap = await db.collection('menus')
         .where('name_fr', '==', name).limit(1).get();
 
       if (menuSnap.empty) return null;
 
-      const menuDoc  = menuSnap.docs[0];
-      const menuData = menuDoc.data();
+      const menuId    = menuSnap.docs[0].id;
+      const dispoRef  = db.collection('menu-dispo').doc(menuId + '_' + after.restoId);
+      const dispoSnap = await dispoRef.get();
+      const dispoData = dispoSnap.exists ? dispoSnap.data() : {};
 
-      if (newQty === 0 && menuData.available !== false) {
+      if (newQty === 0 && dispoData.available !== false) {
         // Stock épuisé → désactiver
-        await menuDoc.ref.update({
+        await dispoRef.set({
+          menuItemId:  menuId, restoId: after.restoId,
           available:   false,
           stockStatus: 'rupture',
           updatedAt:   admin.firestore.FieldValue.serverTimestamp()
-        });
+        }, { merge: true });
         console.log('Article désactivé (rupture):', name);
-      } else if (newQty > 0 && menuData.available === false && menuData.stockStatus === 'rupture') {
+      } else if (newQty > 0 && dispoData.available === false && dispoData.stockStatus === 'rupture') {
         // Stock réapprovisionné → réactiver
-        await menuDoc.ref.update({
+        await dispoRef.set({
           available:   true,
           stockStatus: 'disponible',
           updatedAt:   admin.firestore.FieldValue.serverTimestamp()
-        });
+        }, { merge: true });
         console.log('Article réactivé (stock réapprovisionné):', name);
       }
     } catch(e) {

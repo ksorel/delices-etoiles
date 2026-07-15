@@ -12,8 +12,17 @@ service cloud.firestore {
     function isCaissier() { return isAuth() && request.auth.token.role == 'caissier'; }
     function canEncaisser(){ return isAdmin() || isCaissier(); }
 
-    // ─── Menu (lecture publique, écriture admin + gérant scopé à son établissement) ─
+    // ─── Menu — catalogue PARTAGÉ entre établissements ─────────
+    // Fiche article (nom, description, photo, catégorie) commune à tous les
+    // lieux ; modifiable par le propriétaire OU n'importe quel gérant (pas de
+    // restoId ici — le prix/la disponibilité par lieu vivent dans menu-dispo).
     match /menus/{itemId} {
+      allow read:  if true;
+      allow write: if isAdmin() || isManager();
+    }
+
+    // ─── Disponibilité/prix par établissement pour un article du catalogue ─
+    match /menu-dispo/{dispoId} {
       allow read: if true;
       allow create: if isAdmin() || (isManager() && request.resource.data.restoId == request.auth.token.restoId);
       allow update, delete: if isAdmin() || (isManager() && resource.data.restoId == request.auth.token.restoId);

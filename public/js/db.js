@@ -37,16 +37,47 @@ function rid(override) {
 }
 
 // ─── Menu ────────────────────────────────────────────────
-// ⚠️ Index composite requis : restoId ASC, category ASC, order ASC
+// Catalogue partagé (menus/{id} : nom, description, photo, catégorie…) +
+// disponibilité/prix par établissement (menu-dispo/{id}_{restoId}). Un
+// article du catalogue n'apparaît que s'il a une fiche dispo pour ce lieu.
+// Repli : un article pas encore migré (ancien format, restoId directement
+// sur menus/{id}) reste utilisable tel quel le temps de la migration.
 export async function fetchMenu(restoId) {
-  const q = query(
-    collection(db, 'menus'),
-    where('restoId', '==', rid(restoId)),
-    orderBy('category'),
-    orderBy('order')
-  );
-  const snap = await getDocs(q);
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const targetResto = rid(restoId);
+  const [catalogSnap, dispoSnap] = await Promise.all([
+    getDocs(collection(db, 'menus')),
+    getDocs(query(collection(db, 'menu-dispo'), where('restoId', '==', targetResto))),
+  ]);
+
+  const dispoByItem = {};
+  dispoSnap.docs.forEach(d => { dispoByItem[d.data().menuItemId] = d.data(); });
+
+  const items = [];
+  for (const catalogDoc of catalogSnap.docs) {
+    const catalog = catalogDoc.data();
+    const dispo = dispoByItem[catalogDoc.id];
+    if (dispo) {
+      items.push(mergeCatalogDispo(catalogDoc.id, catalog, dispo));
+    } else if (catalog.restoId === targetResto) {
+      items.push({ id: catalogDoc.id, ...catalog }); // pas encore migré
+    }
+  }
+  items.sort((a, b) => (a.category || '').localeCompare(b.category || '') || (a.order || 0) - (b.order || 0));
+  return items;
+}
+
+function mergeCatalogDispo(id, catalog, dispo) {
+  const item = {
+    id, ...catalog,
+    price: dispo.price, prixVariable: dispo.prixVariable,
+    available: dispo.available, order: dispo.order,
+  };
+  if (dispo.formats != null) item.formats = dispo.formats;
+  if (dispo.stockStatus != null) item.stockStatus = dispo.stockStatus;
+  if (dispo.variantePrix && Array.isArray(catalog.variantes)) {
+    item.variantes = catalog.variantes.map(v => ({ label: v.label, prix: dispo.variantePrix[v.label] }));
+  }
+  return item;
 }
 
 // ─── Zones de livraison (RESTAURANT, par lieu) ───────────
@@ -275,11 +306,6 @@ export async function updateOrderStatus(orderId, status) {
     status,
     updatedAt: serverTimestamp(),
   });
-}
-
-// ─── Admin : toggle disponibilité item menu ──────────────
-export async function toggleItemAvailability(itemId, available) {
-  await updateDoc(doc(db, 'menus', itemId), { available });
 }
 
 // ─── Admin : mettre à jour une zone de livraison ─────────
