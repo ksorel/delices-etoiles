@@ -1079,7 +1079,6 @@ function renderCheckout(container) {
         <span style="font-size:13px;color:var(--brown)">${itemName(i)} ×${i.qty}</span>
         <span style="font-size:13px;font-weight:700;color:var(--orange)">${formatFCFA(i.price * i.qty)}</span>
       </div>`).join('');
-    const today = new Date().toISOString().split('T')[0];
     const L = 'display:block;font-size:12px;font-weight:700;color:#7a6a55;margin-bottom:6px';
     const I = 'width:100%;padding:12px 14px;border:2px solid #E0D4C8;border-radius:12px;font-size:15px;outline:none;font-family:inherit;box-sizing:border-box';
     container.innerHTML = `
@@ -1094,13 +1093,7 @@ function renderCheckout(container) {
         </div>
         <div style="display:flex;flex-direction:column;gap:14px">
           <div><label style="${L}">Téléphone *</label><input id="sp-tel" type="tel" style="${I}" placeholder="+225 07 00 00 00 00"></div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-            <div><label style="${L}">Jour de passage *</label><input id="sp-date" type="date" min="${today}" value="${today}" style="${I}"></div>
-            <div><label style="${L}">Heure *</label><input id="sp-heure" type="time" style="${I}"></div>
-          </div>
-          <div><label style="${L}">Nombre de personnes</label><input id="sp-pers" type="number" min="1" value="1" style="${I}"></div>
-          <div><label style="${L}">Note (facultatif)</label><textarea id="sp-note" rows="2" style="${I};resize:vertical" placeholder="Précision…"></textarea></div>
-          <div style="background:#FFF7ED;border:1px solid #FED7AA;color:#9A3412;border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.5;display:flex;gap:8px;align-items:flex-start"><span>ℹ️</span><span>Paiement <strong>à l'arrivée</strong> au restaurant. Votre commande est préparée pour l'heure choisie.</span></div>
+          <div style="background:#FFF7ED;border:1px solid #FED7AA;color:#9A3412;border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.5;display:flex;gap:8px;align-items:flex-start"><span>ℹ️</span><span>Paiement <strong>à l'arrivée</strong> au restaurant. Vous serez averti(e) dès que votre commande sera prête à récupérer.</span></div>
           <div id="sp-err" style="display:none;background:#FEE2E2;color:#991B1B;padding:10px 14px;border-radius:10px;font-size:13px"></div>
           <button id="sp-submit" onclick="window.App.confirmSurplace()" style="width:100%;padding:14px;background:#0EA5E9;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer">Valider ma commande →</button>
         </div>
@@ -2411,22 +2404,16 @@ function renderReservationDone(date, heure) {
 
 window.App.confirmSurplace = async function() {
   const v = (id) => (document.getElementById(id)?.value || '').trim();
-  const tel = v('sp-tel'), date = v('sp-date'), heure = v('sp-heure'), pers = v('sp-pers'), note = v('sp-note');
+  const tel = v('sp-tel');
   const errEl = document.getElementById('sp-err');
-  const missing = [];
-  if (!tel) missing.push('votre téléphone');
-  if (!date) missing.push('le jour');
-  if (!heure) missing.push("l'heure");
-  if (missing.length) { errEl.textContent = 'Veuillez renseigner : ' + missing.join(', '); errEl.style.display = 'block'; return; }
+  if (!tel) { errEl.textContent = 'Veuillez renseigner votre téléphone'; errEl.style.display = 'block'; return; }
   const btn = document.getElementById('sp-submit');
   if (btn) { btn.disabled = true; btn.textContent = 'Envoi…'; }
   try {
     const items = getItems().map(i => ({ name: itemName(i), qty: i.qty, subtotal: i.price * i.qty, comment: i.comment || '' }));
-    const personnes = parseInt(pers) || 1;
     const orderId = await createOrder({
       type: 'surplace', restoId: State.resto?.id || getRestoId(),
-      telephone: tel, personnes, note,
-      surplace: { date, heure, personnes },
+      telephone: tel,
       items, total: getTotal(), operateur: 'especes',
     });
     clearCart(); updateCartBadge();

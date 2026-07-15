@@ -925,6 +925,9 @@ function buildCard(o) {
       📍 ${o.livraison.adresse} — ${o.livraison.zoneName}<br>
       📞 ${o.livraison.nom ? o.livraison.nom + ' · ' : ''}${o.livraison.telephone}<br>
       💳 ${o.livraison.operateur?.toUpperCase() || 'Mobile Money'}
+    </div>` : o.type === 'surplace' && o.telephone ? `
+    <div class="delivery-info">
+      📞 ${o.telephone}
     </div>` : '';
 
   // Boutons selon statut + mode paiement
