@@ -398,9 +398,9 @@ function closeSidebar() {
     <div style="margin-bottom:12px;text-align:left">
       <label style="display:block;font-size:11px;font-weight:700;color:#7A6356;
                     text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">
-        Email administrateur
+        Email (propriétaire) ou identifiant (gérant)
       </label>
-      <input id="a-email" type="email" placeholder="admin@delices-etoiles.ci"
+      <input id="a-email" type="text" placeholder="admin@delices-etoiles.ci ou identifiant gérant"
         style="width:100%;padding:11px 14px;border:2px solid #E0D4C8;border-radius:10px;
                font-size:14px;outline:none;transition:border .15s;box-sizing:border-box"
         onfocus="this.style.borderColor='#F26522'" onblur="this.style.borderColor='#E0D4C8'">
@@ -576,7 +576,10 @@ let _unsubs     = []; // stocke tous les unsubscribe Firestore
 
 // ── Auth ──────────────────────────────────────────────────
 window.doAdminLogin = async () => {
-  const email = document.getElementById('a-email').value.trim();
+  const raw  = document.getElementById('a-email').value.trim();
+  // Propriétaire : email réel. Gérant : simple identifiant → email interne fictif
+  // (même convention que le dashboard staff).
+  const email = raw.includes('@') ? raw : raw + '@delices-etoiles.staff';
   const pass  = document.getElementById('a-pass').value;
   document.getElementById('a-err').textContent = '';
   try {
