@@ -15,14 +15,27 @@ const region = functions.region('europe-west1');
 const fcfa   = n => new Intl.NumberFormat('fr-FR').format(n) + ' FCFA';
 
 // ─────────────────────────────────────────────────────────
-//  HELPER : vérifier que l'appelant est admin
+//  HELPER : vérifier que l'appelant est admin (global) OU gérant
+//  (limité à son propre établissement — gestion du staff de son resto).
 // ─────────────────────────────────────────────────────────
-async function checkAdmin(context) {
+async function checkAdminOrManager(context) {
   if (!context.auth) {
     throw new functions.https.HttpsError('unauthenticated', 'Non authentifié');
   }
-  if (context.auth.token.role !== 'admin') {
-    throw new functions.https.HttpsError('permission-denied', 'Réservé aux administrateurs');
+  const role = context.auth.token.role;
+  if (role === 'admin')   return { isAdmin: true,  restoId: null };
+  if (role === 'manager') return { isAdmin: false, restoId: context.auth.token.restoId || null };
+  throw new functions.https.HttpsError('permission-denied', 'Réservé aux administrateurs et gérants');
+}
+
+// Pour un gérant : vérifie que l'employé ciblé appartient bien à son
+// établissement (jamais le propriétaire, jamais un autre établissement).
+// Ne fait rien pour un admin (accès global).
+async function assertOwnEstablishmentEmployee(caller, uid) {
+  if (caller.isAdmin) return;
+  const snap = await db.collection('employees').doc(uid).get();
+  if (!snap.exists || snap.data().restoId !== caller.restoId) {
+    throw new functions.https.HttpsError('permission-denied', "Cet employé n'appartient pas à votre établissement");
   }
 }
 
@@ -297,16 +310,26 @@ exports.onStockUpdate = region.firestore
   });
 
 // ─────────────────────────────────────────────────────────
-//  5. GESTION DES UTILISATEURS (admin uniquement)
+//  5. GESTION DES UTILISATEURS (admin global, ou gérant scopé à son établissement)
 // ─────────────────────────────────────────────────────────
 
 exports.createEmployee = region.https.onCall(async (data, context) => {
-  await checkAdmin(context);
+  const caller = await checkAdminOrManager(context);
   const { email, password, role, roles, displayName, username, restoId } = data;
   if (!email || !password || (!role && !(Array.isArray(roles) && roles.length))) {
     throw new functions.https.HttpsError('invalid-argument', 'Email, mot de passe et rôle(s) requis');
   }
-  const claims = buildRoleClaims(roles || role, restoId);   // valide les rôles + restoId
+  let targetRestoId = restoId;
+  if (!caller.isAdmin) {
+    // Un gérant ne peut créer que du staff de son propre établissement,
+    // jamais un compte Propriétaire.
+    const requestedRoles = Array.isArray(roles) ? roles : (role ? [role] : []);
+    if (requestedRoles.includes('admin')) {
+      throw new functions.https.HttpsError('permission-denied', 'Un gérant ne peut pas créer de compte Propriétaire');
+    }
+    targetRestoId = caller.restoId;
+  }
+  const claims = buildRoleClaims(roles || role, targetRestoId);   // valide les rôles + restoId
   try {
     const userRecord = await admin.auth().createUser({
       email, password,
@@ -333,12 +356,21 @@ exports.createEmployee = region.https.onCall(async (data, context) => {
 });
 
 exports.updateEmployeeRole = region.https.onCall(async (data, context) => {
-  await checkAdmin(context);
+  const caller = await checkAdminOrManager(context);
   const { uid, role, roles, restoId } = data;
   if (!uid || (!role && !(Array.isArray(roles) && roles.length))) {
     throw new functions.https.HttpsError('invalid-argument', 'UID et rôle(s) requis');
   }
-  const claims = buildRoleClaims(roles || role, restoId);
+  await assertOwnEstablishmentEmployee(caller, uid);
+  let targetRestoId = restoId;
+  if (!caller.isAdmin) {
+    const requestedRoles = Array.isArray(roles) ? roles : (role ? [role] : []);
+    if (requestedRoles.includes('admin')) {
+      throw new functions.https.HttpsError('permission-denied', 'Un gérant ne peut pas attribuer le rôle Propriétaire');
+    }
+    targetRestoId = caller.restoId;
+  }
+  const claims = buildRoleClaims(roles || role, targetRestoId);
   await admin.auth().setCustomUserClaims(uid, claims);
   await db.collection('employees').doc(uid).update({
     roles: claims.roles, role: claims.role,
@@ -349,9 +381,10 @@ exports.updateEmployeeRole = region.https.onCall(async (data, context) => {
 });
 
 exports.toggleEmployee = region.https.onCall(async (data, context) => {
-  await checkAdmin(context);
+  const caller = await checkAdminOrManager(context);
   const { uid, disabled } = data;
   if (!uid) throw new functions.https.HttpsError('invalid-argument', 'UID requis');
+  await assertOwnEstablishmentEmployee(caller, uid);
   await admin.auth().updateUser(uid, { disabled });
   await db.collection('employees').doc(uid).update({
     active: !disabled, updatedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -360,19 +393,20 @@ exports.toggleEmployee = region.https.onCall(async (data, context) => {
 });
 
 exports.deleteEmployee = region.https.onCall(async (data, context) => {
-  await checkAdmin(context);
+  const caller = await checkAdminOrManager(context);
   const { uid } = data;
   if (!uid) throw new functions.https.HttpsError('invalid-argument', 'UID requis');
   if (uid === context.auth.uid) {
     throw new functions.https.HttpsError('failed-precondition', 'Impossible de supprimer son propre compte');
   }
+  await assertOwnEstablishmentEmployee(caller, uid);
   await admin.auth().deleteUser(uid);
   await db.collection('employees').doc(uid).delete();
   return { success: true };
 });
 
 exports.resetEmployeePassword = region.https.onCall(async (data, context) => {
-  await checkAdmin(context);
+  const caller = await checkAdminOrManager(context);
   const { uid, password } = data;
   if (!uid || !password) {
     throw new functions.https.HttpsError('invalid-argument', 'UID et mot de passe requis');
@@ -380,6 +414,7 @@ exports.resetEmployeePassword = region.https.onCall(async (data, context) => {
   if (password.length < 6) {
     throw new functions.https.HttpsError('invalid-argument', 'Mot de passe trop court (min. 6 caractères)');
   }
+  await assertOwnEstablishmentEmployee(caller, uid);
   await admin.auth().updateUser(uid, { password });
   return { success: true };
 });

@@ -450,25 +450,25 @@ function closeSidebar() {
     </button>
 
     <div class="nav-item active" onclick="showPage('dashboard',this)"><span class="nav-icon">📊</span>Tableau de bord</div>
-    <div class="nav-item" onclick="showPage('etablissements',this)"><span class="nav-icon">🏢</span>Établissements</div>
-    <div class="nav-item" onclick="showPage('carrousel',this)"><span class="nav-icon">🖼️</span>Carrousel accueil</div>
+    <div class="nav-item admin-only" onclick="showPage('etablissements',this)"><span class="nav-icon">🏢</span>Établissements</div>
+    <div class="nav-item admin-only" onclick="showPage('carrousel',this)"><span class="nav-icon">🖼️</span>Carrousel accueil</div>
     <div class="nav-item" onclick="showPage('menu',this)"><span class="nav-icon">🍽️</span>Articles</div>
     <div class="nav-item" onclick="showPage('zones',this)"><span class="nav-icon">🗺️</span>Zones livraison</div>
     <div class="nav-item" onclick="showPage('upselling',this)"><span class="nav-icon">⬆️</span>Upselling</div>
     <div class="nav-item" onclick="showPage('users',this)"><span class="nav-icon">👥</span>Utilisateurs</div>
-    <div class="nav-item" onclick="showPage('floorplan',this)"><span class="nav-icon">🗺️</span>Plan de salle</div>
-    <div class="nav-item" onclick="showPage('qrcodes',this)"><span class="nav-icon">📱</span>QR Codes</div>
+    <div class="nav-item admin-only" onclick="showPage('floorplan',this)"><span class="nav-icon">🗺️</span>Plan de salle</div>
+    <div class="nav-item admin-only" onclick="showPage('qrcodes',this)"><span class="nav-icon">📱</span>QR Codes</div>
     <div class="nav-item" onclick="showPage('platdujour',this)"><span class="nav-icon">⭐</span>Plat du jour</div>
     <div class="nav-item" onclick="showPage('stocks',this)"><span class="nav-icon">📦</span>Stocks</div>
-    <div class="nav-item" onclick="showPage('config',this)"><span class="nav-icon">⚙️</span>Configuration</div>
-    <div class="nav-item" onclick="showPage('stats',this)"><span class="nav-icon">📈</span>Statistiques</div>
-    <div class="nav-item" onclick="showPage('cache',this)"><span class="nav-icon">🔄</span>Cache</div>
-    <div class="nav-item" onclick="showPage('paiements',this)"><span class="nav-icon">💳</span>Paiements</div>
-    <div class="nav-item" onclick="showPage('commandes',this)"><span class="nav-icon">📋</span>Commandes</div>
-    <div class="nav-section-title" style="padding:12px 16px 4px;font-size:10px;font-weight:700;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:.1em">Traiteur</div>
-    <div class="nav-item" onclick="showPage('devis-demandes',this)"><span class="nav-icon">📬</span>Demandes</div>
-    <div class="nav-item" onclick="showPage('devis-gestion',this)"><span class="nav-icon">📄</span>Devis</div>
-    <div class="nav-item" onclick="showPage('prestations',this)"><span class="nav-icon">🎉</span>Prestations</div>
+    <div class="nav-item admin-only" onclick="showPage('config',this)"><span class="nav-icon">⚙️</span>Configuration</div>
+    <div class="nav-item admin-only" onclick="showPage('stats',this)"><span class="nav-icon">📈</span>Statistiques</div>
+    <div class="nav-item admin-only" onclick="showPage('cache',this)"><span class="nav-icon">🔄</span>Cache</div>
+    <div class="nav-item admin-only" onclick="showPage('paiements',this)"><span class="nav-icon">💳</span>Paiements</div>
+    <div class="nav-item admin-only" onclick="showPage('commandes',this)"><span class="nav-icon">📋</span>Commandes</div>
+    <div class="nav-section-title" id="nav-traiteur-title" style="padding:12px 16px 4px;font-size:10px;font-weight:700;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:.1em">Traiteur</div>
+    <div class="nav-item admin-only" onclick="showPage('devis-demandes',this)"><span class="nav-icon">📬</span>Demandes</div>
+    <div class="nav-item admin-only" onclick="showPage('devis-gestion',this)"><span class="nav-icon">📄</span>Devis</div>
+    <div class="nav-item admin-only" onclick="showPage('prestations',this)"><span class="nav-icon">🎉</span>Prestations</div>
     <div class="nav-item" onclick="showPage('comptabilite',this)"><span class="nav-icon">💰</span>Comptabilité</div>
     <div class="sidebar-footer">
       <button class="logout-btn" onclick="doAdminLogout()">Déconnexion</button>
@@ -530,6 +530,10 @@ let currentPage = 'dashboard';
 let lieux       = [];        // [{id, nom, commune, ...}] chargés depuis 'restos'
 let activeResto = sessionStorage.getItem('admin_resto') || 'ALL';
 
+// Session courante : 'admin' (propriétaire, global) ou 'manager' (verrouillé sur son établissement).
+let mySessionRole = null;
+let myRestoId      = null;
+
 // Contraintes Firestore selon l'établissement actif (vide en mode 'ALL' = tous).
 function ridConstraints() {
   return activeResto && activeResto !== 'ALL' ? [where('restoId', '==', activeResto)] : [];
@@ -578,9 +582,9 @@ window.doAdminLogin = async () => {
   try {
     const cred = await signInWithEmailAndPassword(auth, email, pass);
     const token = await cred.user.getIdTokenResult();
-    if (token.claims.role !== 'admin') {
+    if (!['admin', 'manager'].includes(token.claims.role)) {
       await signOut(auth);
-      document.getElementById('a-err').textContent = 'Accès refusé. Compte admin requis.';
+      document.getElementById('a-err').textContent = 'Accès refusé. Compte Propriétaire ou Gérant requis.';
       return;
     }
   } catch {
@@ -611,14 +615,16 @@ onAuthStateChanged(auth, async user => {
       await new Promise(r => setTimeout(r, 2000));
       token = await user.getIdToken(true).then(() => user.getIdTokenResult());
     }
-    if (token.claims.role !== 'admin') {
-      // Session non-propriétaire (ex. connexion au dashboard dans un autre onglet,
+    if (!['admin', 'manager'].includes(token.claims.role)) {
+      // Session staff non autorisée (ex. connexion au dashboard dans un autre onglet,
       // session partagée) : on masque l'admin SANS déconnecter — sinon on tuerait
       // la session du dashboard. La déconnexion reste manuelle (bouton) ou au login admin.
       document.getElementById('login-screen').style.display = 'flex';
       document.getElementById('admin-app').style.display    = 'none';
       return;
     }
+    mySessionRole = token.claims.role;
+    myRestoId     = token.claims.restoId || null;
 
     // Rafraîchir le token toutes les 55min
     if (window._tokenRefreshInterval) clearInterval(window._tokenRefreshInterval);
@@ -627,6 +633,14 @@ onAuthStateChanged(auth, async user => {
     }, 55 * 60 * 1000);
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('admin-app').style.display    = 'flex';
+
+    if (mySessionRole === 'manager') {
+      // Établissement verrouillé sur celui du gérant — jamais « Tous ».
+      activeResto = myRestoId;
+      sessionStorage.setItem('admin_resto', activeResto);
+      applyManagerNavRestrictions();
+    }
+
     await loadData();
     renderRestoSwitcher();
     showPage('dashboard', document.querySelector('.nav-item'));
@@ -667,6 +681,11 @@ async function loadData() {
 function renderRestoSwitcher() {
   const wrap = document.getElementById('resto-switcher-wrap');
   if (!wrap) return;
+  if (mySessionRole === 'manager') {
+    wrap.innerHTML = '<span style="padding:8px 12px;border:2px solid #E0D4C8;border-radius:10px;'
+      + 'font-size:13px;font-weight:700;color:#2B1D16;background:#F5F0EB">📍 ' + lieuLabel(myRestoId) + '</span>';
+    return;
+  }
   if (activeResto !== 'ALL' && !lieux.some(l => l.id === activeResto)) {
     activeResto = 'ALL'; sessionStorage.setItem('admin_resto', 'ALL');
   }
@@ -685,12 +704,20 @@ function renderRestoSwitcher() {
 
 // Changer d'établissement : recharge les données scopées et re-rend la page courante.
 window.setResto = async (id) => {
+  if (mySessionRole === 'manager') return; // établissement verrouillé pour les gérants
   activeResto = id;
   sessionStorage.setItem('admin_resto', id);
   await loadData();
   renderRestoSwitcher();
   renderPage(currentPage);
 };
+
+// Masque les sections réservées au propriétaire (global) pour une session gérant.
+function applyManagerNavRestrictions() {
+  document.querySelectorAll('.nav-item.admin-only').forEach(el => el.style.display = 'none');
+  const traiteurTitle = document.getElementById('nav-traiteur-title');
+  if (traiteurTitle) traiteurTitle.style.display = 'none';
+}
 
 window.showPage = (page, el) => {
   currentPage = page;
@@ -1083,9 +1110,12 @@ async function loadStocksPage() {
   const wrap = document.getElementById('stocks-wrap');
   if (!wrap) return;
   try {
-    const snap = await getDocs(query(collection(db, 'stocks'), orderBy('name')));
-    let all = snap.docs.map(function(d) { return { id: d.id, ...d.data() }; });
-    if (activeResto !== 'ALL') all = all.filter(s => s.restoId === activeResto);
+    // Scopé par établissement au niveau de la requête (requis par les règles
+    // Firestore pour une session gérant) ; tri fait côté client pour éviter
+    // un index composite dédié.
+    const snap = await getDocs(query(collection(db, 'stocks'), ...ridConstraints()));
+    const all = snap.docs.map(function(d) { return { id: d.id, ...d.data() }; })
+      .sort(function(a, b) { return (a.name || '').localeCompare(b.name || ''); });
     _stocksAll = all;
     _stocksPage = 1;
     renderStocksTable();
@@ -2151,11 +2181,11 @@ async function renderComptabilite(c) {
       } catch(e) { console.warn('CollectionGroup paiements indisponible (index manquant ?)', e); }
     }
 
-    // Dépenses (scopées par établissement ; cumul en mode « Tous »)
-    const depSnap = await getDocs(query(collection(db, 'depenses'), orderBy('date', 'desc')));
-    let depDocs = depSnap.docs;
-    if (activeResto !== 'ALL') depDocs = depDocs.filter(d => d.data().restoId === activeResto);
-    const depenses = depDocs.map(d => ({ id: d.id, ...d.data() }));
+    // Dépenses (scopées par établissement au niveau requête — requis par les
+    // règles Firestore pour une session gérant ; cumul en mode « Tous »)
+    const depSnap = await getDocs(query(collection(db, 'depenses'), ...ridConstraints()));
+    const depenses = depSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
     const totalDepenses = depenses.reduce((s, d) => s + (d.montant || 0), 0);
 
     const totalRevenus = revenuRestaurant + revenuTraiteur;
@@ -4025,9 +4055,13 @@ const ROLE_INFO = {
 };
 
 // ── Puces de rôles multi-sélection (Propriétaire exclusif) ──
+// Une session gérant ne voit jamais la puce Propriétaire (ne peut pas se
+// l'auto-attribuer ni la donner à quelqu'un — appliqué aussi côté functions).
 function _roleChipsHTML(selected) {
   selected = selected || [];
-  return Object.entries(ROLE_INFO).map(function(e) {
+  return Object.entries(ROLE_INFO).filter(function(e) {
+    return mySessionRole === 'admin' || e[0] !== 'admin';
+  }).map(function(e) {
     const id = e[0], info = e[1], on = selected.includes(id);
     return '<label data-role="' + id + '" onclick="window.Admin._onRoleChip(this)" '
       + 'style="cursor:pointer;display:flex;align-items:center;gap:6px;padding:8px 12px;border-radius:10px;font-size:13px;font-weight:700;'
@@ -4066,8 +4100,10 @@ function _getSelectedRoles(container) {
 async function _restoOptionsHTML(selectedId) {
   try {
     const snap = await getDocs(query(collection(db, 'restos'), orderBy('ordre')));
-    if (snap.empty) return '<option value="">(aucun établissement — créez-en un)</option>';
-    return snap.docs.map(function(d) {
+    // Un gérant ne peut créer/modifier du staff que pour son propre établissement.
+    const docs = mySessionRole === 'manager' ? snap.docs.filter(d => d.id === myRestoId) : snap.docs;
+    if (!docs.length) return '<option value="">(aucun établissement — créez-en un)</option>';
+    return docs.map(function(d) {
       const x = d.data();
       const label = x.nom || x.commune || d.id;
       return '<option value="' + d.id + '"' + (d.id === selectedId ? ' selected' : '') + '>' + label + '</option>';
@@ -4082,13 +4118,21 @@ async function renderUsers(c) {
 
   let employees = [];
   try {
-    const snap = await getDocs(
-      query(collection(db, 'employees'), orderBy('createdAt', 'desc'))
-    );
-    employees = snap.docs.map(d => d.data());
-    // Filtrage par établissement : on garde le staff du lieu + le(s) propriétaire(s) (globaux)
-    if (activeResto !== 'ALL') {
-      employees = employees.filter(e => e.restoId === activeResto || e.role === 'admin');
+    if (mySessionRole === 'manager') {
+      // Requête scopée par établissement (requis par les règles Firestore) ;
+      // un gérant ne voit jamais le(s) compte(s) Propriétaire.
+      const snap = await getDocs(query(collection(db, 'employees'), where('restoId', '==', myRestoId)));
+      employees = snap.docs.map(d => d.data())
+        .sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+    } else {
+      const snap = await getDocs(
+        query(collection(db, 'employees'), orderBy('createdAt', 'desc'))
+      );
+      employees = snap.docs.map(d => d.data());
+      // Filtrage par établissement : on garde le staff du lieu + le(s) propriétaire(s) (globaux)
+      if (activeResto !== 'ALL') {
+        employees = employees.filter(e => e.restoId === activeResto || e.role === 'admin');
+      }
     }
   } catch(e) {
     c.innerHTML = '<div class="card"><p style="color:red">Erreur : ' + e.message + '</p></div>';

@@ -12,10 +12,11 @@ service cloud.firestore {
     function isCaissier() { return isAuth() && request.auth.token.role == 'caissier'; }
     function canEncaisser(){ return isAdmin() || isCaissier(); }
 
-    // ─── Menu (lecture publique, écriture admin) ───────────────
+    // ─── Menu (lecture publique, écriture admin + gérant scopé à son établissement) ─
     match /menus/{itemId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow create: if isAdmin() || (isManager() && request.resource.data.restoId == request.auth.token.restoId);
+      allow update, delete: if isAdmin() || (isManager() && resource.data.restoId == request.auth.token.restoId);
     }
 
     // ─── Tables (lecture staff+, session anonyme OK) ───────────
@@ -49,10 +50,11 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // ─── Zones de livraison (lecture publique, écriture admin) ─
+    // ─── Zones de livraison (lecture publique, écriture admin + gérant scopé) ─
     match /zones-livraison/{zoneId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow create: if isAdmin() || (isManager() && request.resource.data.restoId == request.auth.token.restoId);
+      allow update, delete: if isAdmin() || (isManager() && resource.data.restoId == request.auth.token.restoId);
     }
 
     // ─── Zones traiteur (Zone A — lecture publique, écriture admin) ─
@@ -61,10 +63,11 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // ─── Règles upselling (lecture publique, écriture admin) ───
+    // ─── Règles upselling (lecture publique, écriture admin + gérant scopé) ───
     match /upselling-rules/{ruleId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow create: if isAdmin() || (isManager() && request.resource.data.restoId == request.auth.token.restoId);
+      allow update, delete: if isAdmin() || (isManager() && resource.data.restoId == request.auth.token.restoId);
     }
 
     // ─── Établissements (lecture publique : sélecteur client) ──
@@ -80,10 +83,11 @@ service cloud.firestore {
       allow read, write: if isAdmin() || request.auth.uid == uid;
     }
 
-    // ─── Plat du jour (lecture publique, écriture admin) ──────────
+    // ─── Plat du jour (lecture publique, écriture admin + gérant scopé) ──────────
     match /plat-du-jour/{docId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow create: if isAdmin() || (isManager() && request.resource.data.restoId == request.auth.token.restoId);
+      allow update, delete: if isAdmin() || (isManager() && resource.data.restoId == request.auth.token.restoId);
     }
 
     // ─── Plan de salle ──────────────────────────────────────
@@ -106,14 +110,17 @@ service cloud.firestore {
       allow update: if isAdmin() || canEncaisser();
     }
 
-    // ─── Stocks boissons ────────────────────────────────────────
+    // ─── Stocks boissons (écriture admin + gérant scopé à son établissement) ──
     match /stocks/{itemId} {
       allow read:  if isAuth(); // Dashboard staff + admin
-      allow write: if isAdmin();
+      allow create: if isAdmin() || (isManager() && request.resource.data.restoId == request.auth.token.restoId);
+      allow update, delete: if isAdmin() || (isManager() && resource.data.restoId == request.auth.token.restoId);
     }
     match /stock-movements/{id} {
+      // Journal d'audit sans restoId (référence stockId, lui-même scopé) ;
+      // la protection réelle est sur /stocks (écriture de quantité).
       allow read: if isStaff();
-      allow create: if isAdmin();
+      allow create: if isAdmin() || isManager();
     }
     match /supplier-orders/{id} {
       allow read: if isStaff();
@@ -125,10 +132,10 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
-    // ─── Employés ────────────────────────────────────────────
+    // ─── Employés (lecture admin globale, ou gérant scopé à son établissement) ─
     match /employees/{uid} {
-      allow read:  if isAdmin();
-      allow write: if false; // Géré par Cloud Functions uniquement
+      allow read:  if isAdmin() || (isManager() && resource.data.restoId == request.auth.token.restoId);
+      allow write: if false; // Géré par Cloud Functions uniquement (createEmployee, etc.)
     }
 
     // ─── Configuration restaurant ────────────────────────────
@@ -169,9 +176,11 @@ service cloud.firestore {
       allow write:        if isAdmin();
     }
 
-    // ─── Comptabilité — Dépenses (admin uniquement) ───────────
+    // ─── Comptabilité — Dépenses (admin + gérant scopé à son établissement) ───
     match /depenses/{depId} {
-      allow read, write: if isAdmin();
+      allow read: if isAdmin() || (isManager() && resource.data.restoId == request.auth.token.restoId);
+      allow create: if isAdmin() || (isManager() && request.resource.data.restoId == request.auth.token.restoId);
+      allow update, delete: if isAdmin() || (isManager() && resource.data.restoId == request.auth.token.restoId);
     }
   }
 }
