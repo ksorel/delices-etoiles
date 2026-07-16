@@ -2199,7 +2199,6 @@ async function renderRestoPicker() {
           <span class="resto-pick-name">${t('picker_traiteur')}</span>
           <span class="resto-pick-commune">${t('traiteur_subtitle')}</span>
         </span>
-        <span class="resto-pick-go">→</span>
       </button>
     </div>
     <style>
@@ -2303,7 +2302,7 @@ window.App.backFromTraiteur = function () {
 // (page de service si un service est déjà choisi, sinon sélecteur d'établissement).
 window.App.logoClick = function () {
   if (State.mode === 'salle') { window.App.navigate('menu'); return; }
-  if (_serviceChosen) { _serviceChosen = false; renderServiceChoice(); return; }
+  if (_serviceChosen) { _serviceChosen = false; _rvScreen = null; renderServiceChoice(); return; }
   window.App.changeResto();
 };
 
@@ -2391,7 +2390,6 @@ function renderReservation() {
   `;
   view.innerHTML = `
     <div style="max-width:480px;margin:0 auto;padding:18px 16px 40px">
-      <button onclick="window.App.backToService()" style="background:none;border:none;color:#7a6a55;font-size:14px;font-weight:600;cursor:pointer;padding:0 0 12px">← ${t('back')}</button>
       <h2 style="font-size:20px;font-weight:800;color:#2B1D16;margin:0 0 2px">📅 ${t('service_reserver')}</h2>
       <p style="font-size:13px;color:#7a6a55;margin:0 0 18px">${State.resto?.nom || ''}</p>
       <div style="display:flex;flex-direction:column;gap:14px">
