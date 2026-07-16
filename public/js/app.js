@@ -664,10 +664,10 @@ function renderMenu(container) {
     : State.mode === 'surplace'
     ? `<span class="mode-badge salle">🍽️ Sur place</span> Commande à récupérer au restaurant`
     : State.mode === 'reservation'
-    ? `<span class="mode-badge salle">📅 Réservation</span> Choisissez votre menu (facultatif)`
+    ? `<span class="mode-badge salle">📅 ${t('service_reserver')}</span> ${t('rv_choosing_menu')}`
     : `<span class="mode-badge livraison">${t('mode_livraison')}</span> ${t('banner_livraison')}`;
   const backToReservationBar = State.mode === 'reservation'
-    ? `<button onclick="window.App.backToReservation()" style="display:flex;align-items:center;gap:6px;width:100%;padding:12px 16px;background:#8B5CF6;color:#fff;border:none;font-size:14px;font-weight:700;cursor:pointer">← Retour à la réservation</button>`
+    ? `<button onclick="window.App.backToReservation()" style="display:flex;align-items:center;gap:6px;width:100%;padding:12px 16px;background:#8B5CF6;color:#fff;border:none;font-size:14px;font-weight:700;cursor:pointer">${t('rv_back_to_form')}</button>`
     : '';
   // Items visibles : indisponibles masqués ; en LIVRAISON on retire en plus les
   // articles « sur place uniquement » (boissons en emballage consigné).
@@ -2380,19 +2380,19 @@ function renderReservation() {
   const cartItems = getItems();
   const menuSectionHtml = cartItems.length ? `
     <div style="border:1.5px solid #E0D4C8;border-radius:12px;padding:12px 14px">
-      <div style="font-size:11px;font-weight:700;color:#7a6a55;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">🍽️ Vos plats (facultatif)</div>
+      <div style="font-size:11px;font-weight:700;color:#7a6a55;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">${t('rv_menu_items')}</div>
       ${cartItems.map(i => `
         <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;color:#2B1D16">
           <span>${itemName(i)} ×${i.qty}</span>
           <span style="color:var(--orange);font-weight:700">${formatFCFA(i.price * i.qty)}</span>
         </div>`).join('')}
       <div style="display:flex;justify-content:space-between;padding-top:6px;margin-top:6px;border-top:1px solid #F0E8E0;font-weight:800;font-size:13px">
-        <span>Total indicatif</span><span style="color:var(--orange)">${formatFCFA(getTotal())}</span>
+        <span>${t('rv_total_indicatif')}</span><span style="color:var(--orange)">${formatFCFA(getTotal())}</span>
       </div>
-      <button type="button" onclick="window.App.editReservationMenu()" style="margin-top:10px;width:100%;padding:8px;background:none;border:1.5px solid #8B5CF6;color:#8B5CF6;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer">✏️ Modifier ma sélection</button>
+      <button type="button" onclick="window.App.editReservationMenu()" style="margin-top:10px;width:100%;padding:8px;background:none;border:1.5px solid #8B5CF6;color:#8B5CF6;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer">${t('rv_edit_selection')}</button>
     </div>
   ` : `
-    <button type="button" onclick="window.App.editReservationMenu()" style="width:100%;padding:12px;background:#F5F0FF;border:1.5px dashed #8B5CF6;color:#8B5CF6;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer">🍽️ Choisir votre menu (facultatif)</button>
+    <button type="button" onclick="window.App.editReservationMenu()" style="width:100%;padding:12px;background:#F5F0FF;border:1.5px dashed #8B5CF6;color:#8B5CF6;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer">${t('rv_choose_menu')}</button>
   `;
   view.innerHTML = `
     <div style="max-width:480px;margin:0 auto;padding:18px 16px 40px">
@@ -2400,17 +2400,17 @@ function renderReservation() {
       <h2 style="font-size:20px;font-weight:800;color:#2B1D16;margin:0 0 2px">📅 ${t('service_reserver')}</h2>
       <p style="font-size:13px;color:#7a6a55;margin:0 0 18px">${State.resto?.nom || ''}</p>
       <div style="display:flex;flex-direction:column;gap:14px">
-        <div><label style="${L}">Téléphone *</label><input id="rv-tel" type="tel" style="${_SVC_INPUT}" placeholder="+225 07 00 00 00 00" value="${d.tel||''}"></div>
+        <div><label style="${L}">${t('telephone')} *</label><input id="rv-tel" type="tel" style="${_SVC_INPUT}" placeholder="+225 07 00 00 00 00" value="${d.tel||''}"></div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-          <div><label style="${L}">Date *</label><input id="rv-date" type="date" min="${today}" style="${_SVC_INPUT}" value="${d.date||''}"></div>
-          <div><label style="${L}">Heure *</label><input id="rv-heure" type="time" style="${_SVC_INPUT}" value="${d.heure||''}"></div>
+          <div><label style="${L}">${t('rv_date')} *</label><input id="rv-date" type="date" min="${today}" style="${_SVC_INPUT}" value="${d.date||''}"></div>
+          <div><label style="${L}">${t('rv_heure')} *</label><input id="rv-heure" type="time" style="${_SVC_INPUT}" value="${d.heure||''}"></div>
         </div>
-        <div><label style="${L}">Nombre de personnes</label><input id="rv-pers" type="number" min="1" value="${d.pers||2}" style="${_SVC_INPUT}"></div>
-        <div><label style="${L}">Note (facultatif)</label><textarea id="rv-note" rows="2" style="${_SVC_INPUT};resize:vertical" placeholder="Occasion, préférence de table…">${d.note||''}</textarea></div>
+        <div><label style="${L}">${t('rv_pers')}</label><input id="rv-pers" type="number" min="1" value="${d.pers||2}" style="${_SVC_INPUT}"></div>
+        <div><label style="${L}">${t('rv_note')}</label><textarea id="rv-note" rows="2" style="${_SVC_INPUT};resize:vertical" placeholder="${t('rv_note_ph')}">${d.note||''}</textarea></div>
         ${menuSectionHtml}
         <div id="rv-err" style="display:none;background:#FEE2E2;color:#991B1B;padding:10px 14px;border-radius:10px;font-size:13px"></div>
-        <button id="rv-submit" onclick="window.App.submitReservation()" style="width:100%;padding:14px;background:#8B5CF6;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer">📅 Envoyer la demande</button>
-        <p style="font-size:12px;color:#9a8576;text-align:center;line-height:1.5;margin:0">Votre demande est envoyée au restaurant, qui vous confirmera par téléphone.</p>
+        <button id="rv-submit" onclick="window.App.submitReservation()" style="width:100%;padding:14px;background:#8B5CF6;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer">${t('rv_submit')}</button>
+        <p style="font-size:12px;color:#9a8576;text-align:center;line-height:1.5;margin:0">${t('rv_disclaimer')}</p>
       </div>
     </div>`;
 }
@@ -2431,12 +2431,12 @@ window.App.submitReservation = async function() {
   const tel = v('rv-tel'), date = v('rv-date'), heure = v('rv-heure'), pers = v('rv-pers'), note = v('rv-note');
   const errEl = document.getElementById('rv-err');
   const missing = [];
-  if (!tel) missing.push('votre téléphone');
-  if (!date) missing.push('la date');
-  if (!heure) missing.push("l'heure");
-  if (missing.length) { errEl.textContent = 'Veuillez renseigner : ' + missing.join(', '); errEl.style.display = 'block'; return; }
+  if (!tel) missing.push(t('rv_missing_tel'));
+  if (!date) missing.push(t('rv_missing_date'));
+  if (!heure) missing.push(t('rv_missing_heure'));
+  if (missing.length) { errEl.textContent = t('rv_missing_prefix') + missing.join(', '); errEl.style.display = 'block'; return; }
   const btn = document.getElementById('rv-submit');
-  if (btn) { btn.disabled = true; btn.textContent = 'Envoi…'; }
+  if (btn) { btn.disabled = true; btn.textContent = t('rv_sending'); }
   try {
     const cartItems = getItems();
     const items = cartItems.map(i => ({ name: itemName(i), qty: i.qty, subtotal: i.price * i.qty }));
@@ -2444,8 +2444,8 @@ window.App.submitReservation = async function() {
     clearCart(); updateCartBadge(); _rvDraft = null;
     renderReservationDone(date, heure);
   } catch(e) {
-    errEl.textContent = 'Erreur : ' + (e.message || 'envoi impossible'); errEl.style.display = 'block';
-    if (btn) { btn.disabled = false; btn.textContent = '📅 Envoyer la demande'; }
+    errEl.textContent = t('rv_error_prefix') + (e.message || t('rv_error_generic')); errEl.style.display = 'block';
+    if (btn) { btn.disabled = false; btn.textContent = t('rv_submit'); }
   }
 };
 function renderReservationDone(date, heure) {
@@ -2454,9 +2454,9 @@ function renderReservationDone(date, heure) {
   view.innerHTML = `
     <div style="max-width:440px;margin:0 auto;padding:48px 20px;text-align:center">
       <div style="font-size:56px;margin-bottom:12px">📅</div>
-      <h2 style="font-size:22px;font-weight:800;color:#2B1D16;margin:0 0 8px">Demande envoyée !</h2>
-      <p style="font-size:15px;color:#7a6a55;line-height:1.6;margin:0 0 24px">Merci ! Votre demande de réservation pour le <strong>${date}</strong> à <strong>${heure}</strong> a bien été transmise. Le restaurant vous contactera pour la confirmer.</p>
-      <button onclick="window.App.backToService()" style="padding:13px 28px;background:#2B1D16;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer">Retour</button>
+      <h2 style="font-size:22px;font-weight:800;color:#2B1D16;margin:0 0 8px">${t('rv_done_title')}</h2>
+      <p style="font-size:15px;color:#7a6a55;line-height:1.6;margin:0 0 24px">${t('rv_done_intro')} <strong>${date}</strong> ${t('rv_done_at')} <strong>${heure}</strong> ${t('rv_done_outro')}</p>
+      <button onclick="window.App.backToService()" style="padding:13px 28px;background:#2B1D16;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer">${t('rv_done_back')}</button>
     </div>`;
 }
 
