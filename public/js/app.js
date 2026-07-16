@@ -2347,7 +2347,15 @@ function renderServiceChoice() {
         ${_svcCard('livraison','🚴', t('service_livraison'), '#F26522')}
         ${_svcCard('reserver','📅', t('service_reserver'), '#8B5CF6')}
       </div>
-      <button onclick="window.App.backToPicker()" style="display:block;margin:22px auto 0;background:none;border:none;color:#7a6a55;font-size:13px;font-weight:600;cursor:pointer">← ${t('service_change')}</button>
+      <button onclick="window.App.backToPicker()"
+        style="display:block;width:fit-content;margin:26px auto 0;padding:9px 20px;
+               background:#fff;border:1.5px solid #E9DED2;border-radius:20px;
+               color:#7a6a55;font-size:13px;font-weight:700;cursor:pointer;
+               box-shadow:0 2px 8px rgba(43,29,22,.06);transition:all .15s"
+        onmouseover="this.style.borderColor='#F26522';this.style.color='#F26522';this.style.boxShadow='0 4px 14px rgba(242,101,34,.15)'"
+        onmouseout="this.style.borderColor='#E9DED2';this.style.color='#7a6a55';this.style.boxShadow='0 2px 8px rgba(43,29,22,.06)'">
+        🔄 ${t('service_change')}
+      </button>
     </div>
     ${buildContactBlock()}`;
 }
