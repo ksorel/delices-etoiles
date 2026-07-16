@@ -664,9 +664,11 @@ function renderMenu(container) {
     : State.mode === 'surplace'
     ? `<span class="mode-badge salle">🍽️ Sur place</span> Commande à récupérer au restaurant`
     : State.mode === 'reservation'
-    ? `<span class="mode-badge salle">📅 Réservation</span> Choisissez vos plats (facultatif)
-       <button onclick="window.App.backToReservation()" style="margin-left:8px;background:rgba(255,255,255,.25);border:none;border-radius:8px;padding:3px 10px;font-size:12px;cursor:pointer;color:inherit;font-weight:700">← Retour à la réservation</button>`
+    ? `<span class="mode-badge salle">📅 Réservation</span> Choisissez votre menu (facultatif)`
     : `<span class="mode-badge livraison">${t('mode_livraison')}</span> ${t('banner_livraison')}`;
+  const backToReservationBar = State.mode === 'reservation'
+    ? `<button onclick="window.App.backToReservation()" style="display:flex;align-items:center;gap:6px;width:100%;padding:12px 16px;background:#8B5CF6;color:#fff;border:none;font-size:14px;font-weight:700;cursor:pointer">← Retour à la réservation</button>`
+    : '';
   // Items visibles : indisponibles masqués ; en LIVRAISON on retire en plus les
   // articles « sur place uniquement » (boissons en emballage consigné).
   const availableMenu = State.menu.filter(m =>
@@ -707,6 +709,7 @@ function renderMenu(container) {
     </div>`).join('');
   const pdjHtml = renderPlatDuJour(State.platDuJour);
   container.innerHTML = `
+    ${backToReservationBar}
     <div class="mode-banner">${bannerText}</div>
     ${pdjHtml}
     <div class="cat-tabs">${catTabsHtml}</div>
@@ -1560,6 +1563,12 @@ function toggleLang() {
   // Sur l'accueil (sélecteur d'établissement), y rester au lieu de basculer sur le menu
   if (State.mode !== 'salle' && !RESTO_FROM_URL && !_restoChosen) {
     renderRestoPicker();
+  } else if (_rvScreen === 'done') {
+    // Écran de confirmation de réservation (hors routage par hash) : y rester
+    renderReservationDone(_rvDoneDate, _rvDoneHeure);
+  } else if (_rvScreen === 'form' && State.mode !== 'reservation') {
+    // Formulaire de réservation (hors routage par hash) : y rester
+    renderReservation();
   } else if (State.mode !== 'salle' && !_serviceChosen) {
     // Sur la page de choix du service, y rester également
     renderServiceChoice();
@@ -2352,11 +2361,16 @@ window.App.backToPicker = function() {
   _restoChosen = false; _serviceChosen = false;
   renderRestoPicker();
 };
-window.App.backToService = function() { _serviceChosen = false; renderServiceChoice(); };
+window.App.backToService = function() { _serviceChosen = false; _rvScreen = null; renderServiceChoice(); };
 
 // ─── Réservation de table ────────────────────────────────
 let _rvDraft = null; // conserve les champs saisis pendant une excursion vers le menu
+// Écran réservation actif (hors routage par hash, pour que le changement de
+// langue/etc. sache y rester) : 'form' | 'done' | null
+let _rvScreen = null;
+let _rvDoneDate = null, _rvDoneHeure = null;
 function renderReservation() {
+  _rvScreen = 'form';
   const view = document.getElementById('view');
   if (!view) return;
   updateHeader();
@@ -2378,7 +2392,7 @@ function renderReservation() {
       <button type="button" onclick="window.App.editReservationMenu()" style="margin-top:10px;width:100%;padding:8px;background:none;border:1.5px solid #8B5CF6;color:#8B5CF6;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer">✏️ Modifier ma sélection</button>
     </div>
   ` : `
-    <button type="button" onclick="window.App.editReservationMenu()" style="width:100%;padding:12px;background:#F5F0FF;border:1.5px dashed #8B5CF6;color:#8B5CF6;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer">🍽️ Choisir des plats (facultatif)</button>
+    <button type="button" onclick="window.App.editReservationMenu()" style="width:100%;padding:12px;background:#F5F0FF;border:1.5px dashed #8B5CF6;color:#8B5CF6;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer">🍽️ Choisir votre menu (facultatif)</button>
   `;
   view.innerHTML = `
     <div style="max-width:480px;margin:0 auto;padding:18px 16px 40px">
@@ -2435,6 +2449,7 @@ window.App.submitReservation = async function() {
   }
 };
 function renderReservationDone(date, heure) {
+  _rvScreen = 'done'; _rvDoneDate = date; _rvDoneHeure = heure;
   const view = document.getElementById('view');
   view.innerHTML = `
     <div style="max-width:440px;margin:0 auto;padding:48px 20px;text-align:center">
