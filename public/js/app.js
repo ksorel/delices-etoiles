@@ -663,6 +663,9 @@ function renderMenu(container) {
     ? `<span class="mode-badge salle">${t('mode_salle')}</span> ${t('banner_salle')} <strong>${t('banner_table')} ${State.tableId}</strong>`
     : State.mode === 'surplace'
     ? `<span class="mode-badge salle">🍽️ Sur place</span> Commande à récupérer au restaurant`
+    : State.mode === 'reservation'
+    ? `<span class="mode-badge salle">📅 Réservation</span> Choisissez vos plats (facultatif)
+       <button onclick="window.App.backToReservation()" style="margin-left:8px;background:rgba(255,255,255,.25);border:none;border-radius:8px;padding:3px 10px;font-size:12px;cursor:pointer;color:inherit;font-weight:700">← Retour à la réservation</button>`
     : `<span class="mode-badge livraison">${t('mode_livraison')}</span> ${t('banner_livraison')}`;
   // Items visibles : indisponibles masqués ; en LIVRAISON on retire en plus les
   // articles « sur place uniquement » (boissons en emballage consigné).
@@ -993,7 +996,7 @@ function renderCart(container) {
         <span style="color:var(--orange)">${formatFCFA(sous_total)}</span>
       </div>
       <button class="btn btn-primary" onclick="window.App.goCheckout()">
-        ${State.mode === 'salle' ? t('order_btn_salle') : t('order_btn_liv')} →
+        ${State.mode === 'salle' ? t('order_btn_salle') : State.mode === 'reservation' ? 'Continuer vers la réservation' : t('order_btn_liv')} →
       </button>
     </div>`;
 }
@@ -1044,6 +1047,7 @@ function buildPaymentOptions(mode) {
   return html;
 }
 function renderCheckout(container) {
+  if (State.mode === 'reservation') { renderReservation(); return; }
   if (isEmpty()) { navigate('menu'); return; }
   const sous_total = getTotal();
   if (State.mode === 'salle') {
@@ -2351,31 +2355,63 @@ window.App.backToPicker = function() {
 window.App.backToService = function() { _serviceChosen = false; renderServiceChoice(); };
 
 // ─── Réservation de table ────────────────────────────────
+let _rvDraft = null; // conserve les champs saisis pendant une excursion vers le menu
 function renderReservation() {
   const view = document.getElementById('view');
   if (!view) return;
   updateHeader();
   const today = new Date().toISOString().split('T')[0];
   const L = 'display:block;font-size:12px;font-weight:700;color:#7a6a55;margin-bottom:6px';
+  const d = _rvDraft || {};
+  const cartItems = getItems();
+  const menuSectionHtml = cartItems.length ? `
+    <div style="border:1.5px solid #E0D4C8;border-radius:12px;padding:12px 14px">
+      <div style="font-size:11px;font-weight:700;color:#7a6a55;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">🍽️ Vos plats (facultatif)</div>
+      ${cartItems.map(i => `
+        <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;color:#2B1D16">
+          <span>${itemName(i)} ×${i.qty}</span>
+          <span style="color:var(--orange);font-weight:700">${formatFCFA(i.price * i.qty)}</span>
+        </div>`).join('')}
+      <div style="display:flex;justify-content:space-between;padding-top:6px;margin-top:6px;border-top:1px solid #F0E8E0;font-weight:800;font-size:13px">
+        <span>Total indicatif</span><span style="color:var(--orange)">${formatFCFA(getTotal())}</span>
+      </div>
+      <button type="button" onclick="window.App.editReservationMenu()" style="margin-top:10px;width:100%;padding:8px;background:none;border:1.5px solid #8B5CF6;color:#8B5CF6;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer">✏️ Modifier ma sélection</button>
+    </div>
+  ` : `
+    <button type="button" onclick="window.App.editReservationMenu()" style="width:100%;padding:12px;background:#F5F0FF;border:1.5px dashed #8B5CF6;color:#8B5CF6;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer">🍽️ Choisir des plats (facultatif)</button>
+  `;
   view.innerHTML = `
     <div style="max-width:480px;margin:0 auto;padding:18px 16px 40px">
       <button onclick="window.App.backToService()" style="background:none;border:none;color:#7a6a55;font-size:14px;font-weight:600;cursor:pointer;padding:0 0 12px">← ${t('back')}</button>
       <h2 style="font-size:20px;font-weight:800;color:#2B1D16;margin:0 0 2px">📅 ${t('service_reserver')}</h2>
       <p style="font-size:13px;color:#7a6a55;margin:0 0 18px">${State.resto?.nom || ''}</p>
       <div style="display:flex;flex-direction:column;gap:14px">
-        <div><label style="${L}">Téléphone *</label><input id="rv-tel" type="tel" style="${_SVC_INPUT}" placeholder="+225 07 00 00 00 00"></div>
+        <div><label style="${L}">Téléphone *</label><input id="rv-tel" type="tel" style="${_SVC_INPUT}" placeholder="+225 07 00 00 00 00" value="${d.tel||''}"></div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-          <div><label style="${L}">Date *</label><input id="rv-date" type="date" min="${today}" style="${_SVC_INPUT}"></div>
-          <div><label style="${L}">Heure *</label><input id="rv-heure" type="time" style="${_SVC_INPUT}"></div>
+          <div><label style="${L}">Date *</label><input id="rv-date" type="date" min="${today}" style="${_SVC_INPUT}" value="${d.date||''}"></div>
+          <div><label style="${L}">Heure *</label><input id="rv-heure" type="time" style="${_SVC_INPUT}" value="${d.heure||''}"></div>
         </div>
-        <div><label style="${L}">Nombre de personnes</label><input id="rv-pers" type="number" min="1" value="2" style="${_SVC_INPUT}"></div>
-        <div><label style="${L}">Note (facultatif)</label><textarea id="rv-note" rows="2" style="${_SVC_INPUT};resize:vertical" placeholder="Occasion, préférence de table…"></textarea></div>
+        <div><label style="${L}">Nombre de personnes</label><input id="rv-pers" type="number" min="1" value="${d.pers||2}" style="${_SVC_INPUT}"></div>
+        <div><label style="${L}">Note (facultatif)</label><textarea id="rv-note" rows="2" style="${_SVC_INPUT};resize:vertical" placeholder="Occasion, préférence de table…">${d.note||''}</textarea></div>
+        ${menuSectionHtml}
         <div id="rv-err" style="display:none;background:#FEE2E2;color:#991B1B;padding:10px 14px;border-radius:10px;font-size:13px"></div>
         <button id="rv-submit" onclick="window.App.submitReservation()" style="width:100%;padding:14px;background:#8B5CF6;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer">📅 Envoyer la demande</button>
         <p style="font-size:12px;color:#9a8576;text-align:center;line-height:1.5;margin:0">Votre demande est envoyée au restaurant, qui vous confirmera par téléphone.</p>
       </div>
     </div>`;
 }
+window.App.editReservationMenu = function() {
+  _rvDraft = {
+    tel:   document.getElementById('rv-tel')?.value || '',
+    date:  document.getElementById('rv-date')?.value || '',
+    heure: document.getElementById('rv-heure')?.value || '',
+    pers:  document.getElementById('rv-pers')?.value || '',
+    note:  document.getElementById('rv-note')?.value || '',
+  };
+  State.mode = 'reservation';
+  navigate('menu');
+};
+window.App.backToReservation = function() { renderReservation(); };
 window.App.submitReservation = async function() {
   const v = (id) => (document.getElementById(id)?.value || '').trim();
   const tel = v('rv-tel'), date = v('rv-date'), heure = v('rv-heure'), pers = v('rv-pers'), note = v('rv-note');
@@ -2388,7 +2424,10 @@ window.App.submitReservation = async function() {
   const btn = document.getElementById('rv-submit');
   if (btn) { btn.disabled = true; btn.textContent = 'Envoi…'; }
   try {
-    await submitReservation({ telephone: tel, date, heure, personnes: parseInt(pers) || null, note }, State.resto?.id);
+    const cartItems = getItems();
+    const items = cartItems.map(i => ({ name: itemName(i), qty: i.qty, subtotal: i.price * i.qty }));
+    await submitReservation({ telephone: tel, date, heure, personnes: parseInt(pers) || null, note, items }, State.resto?.id);
+    clearCart(); updateCartBadge(); _rvDraft = null;
     renderReservationDone(date, heure);
   } catch(e) {
     errEl.textContent = 'Erreur : ' + (e.message || 'envoi impossible'); errEl.style.display = 'block';
