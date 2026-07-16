@@ -61,6 +61,8 @@ import { initAssistant } from './assistant.js';
 // ─── Icônes réseaux sociaux (établissement) ──────────────
 const FB_SVG = '<svg viewBox="0 0 24 24" width="26" height="26" style="display:block"><path fill="#1877F2" d="M24 12.07C24 5.4 18.63 0 12 0S0 5.4 0 12.07C0 18.1 4.39 23.1 10.13 24v-8.44H7.08v-3.49h3.05V9.41c0-3.02 1.79-4.69 4.53-4.69 1.31 0 2.68.24 2.68.24v2.97h-1.51c-1.49 0-1.96.93-1.96 1.89v2.25h3.33l-.53 3.49h-2.8V24C19.61 23.1 24 18.1 24 12.07z"/></svg>';
 const WA_SVG = '<svg viewBox="0 0 24 24" width="26" height="26" style="display:block"><path fill="#25D366" d="M.06 24l1.68-6.15a11.87 11.87 0 01-1.59-5.95C.15 5.34 5.5 0 12.07 0a11.82 11.82 0 018.41 3.49 11.82 11.82 0 013.49 8.41c0 6.57-5.35 11.91-11.92 11.91a11.9 11.9 0 01-5.7-1.45L.06 24z"/><path fill="#FFF" d="M8.53 7.33c-.16-.36-.33-.37-.48-.38l-.42-.01c-.14 0-.38.05-.58.27-.2.22-.76.75-.76 1.82 0 1.07.78 2.11.89 2.26.11.14 1.51 2.42 3.72 3.3 1.84.72 2.21.58 2.61.54.4-.04 1.29-.53 1.47-1.03.18-.51.18-.94.13-1.03-.05-.09-.2-.14-.42-.25-.22-.11-1.29-.64-1.49-.71-.2-.07-.35-.11-.5.11-.14.22-.57.71-.7.86-.13.14-.26.16-.48.05-.22-.11-.93-.34-1.77-1.09-.65-.58-1.09-1.3-1.22-1.52-.13-.22-.01-.34.1-.45.1-.1.22-.26.33-.38.11-.13.14-.22.22-.37.07-.14.04-.27-.02-.38-.05-.11-.48-1.2-.68-1.63z"/></svg>';
+// Épingle de localisation (remplace l'émoji 📍 sur les cartes établissement)
+const PIN_SVG = '<svg viewBox="0 0 24 24" width="15" height="15" style="display:inline-block;vertical-align:-3px;flex-shrink:0"><path fill="#F26522" d="M12 2C7.86 2 4.5 5.36 4.5 9.5c0 5.5 6.25 11.5 7.02 12.22a.7.7 0 00.96 0C13.25 21 19.5 15 19.5 9.5 19.5 5.36 16.14 2 12 2zm0 10.25a2.75 2.75 0 110-5.5 2.75 2.75 0 010 5.5z"/></svg>';
 // ─── État global de l'app ────────────────────────────────
 const State = {
   mode:        'livraison',  // 'salle' | 'livraison'
@@ -2149,10 +2151,9 @@ async function renderRestoPicker() {
         : `<span class="resto-pick-avatar">🍽️</span>`}
       <span class="resto-pick-body">
         <span class="resto-pick-name">${l.nom || l.id}</span>
-        ${loc ? `<a class="resto-pick-map" href="${lieuMapUrl(l)}" target="_blank" rel="noopener" title="Voir sur Google Maps" onclick="event.stopPropagation()"><span class="resto-pick-maptext">📍 ${loc}</span><span class="resto-pick-maparrow">↗</span></a>` : ''}
+        ${loc ? `<a class="resto-pick-map" href="${lieuMapUrl(l)}" target="_blank" rel="noopener" title="Voir sur Google Maps" onclick="event.stopPropagation()"><span class="resto-pick-maptext">${PIN_SVG} ${loc}</span></a>` : ''}
         ${social}
       </span>
-      <span class="resto-pick-go">→</span>
     </div>`;
   }).join('');
 
@@ -2331,7 +2332,6 @@ function _svcCard(id, icon, title, color) {
     <span style="flex:1;min-width:0">
       <span style="display:block;font-size:16px;font-weight:800;color:#2B1D16">${title}</span>
     </span>
-    <span style="color:${color};font-size:20px;flex-shrink:0">→</span>
   </div>`;
 }
 function renderServiceChoice() {
@@ -2347,15 +2347,6 @@ function renderServiceChoice() {
         ${_svcCard('livraison','🚴', t('service_livraison'), '#F26522')}
         ${_svcCard('reserver','📅', t('service_reserver'), '#8B5CF6')}
       </div>
-      <button onclick="window.App.backToPicker()"
-        style="display:block;width:fit-content;margin:26px auto 0;padding:9px 20px;
-               background:#fff;border:1.5px solid #E9DED2;border-radius:20px;
-               color:#7a6a55;font-size:13px;font-weight:700;cursor:pointer;
-               box-shadow:0 2px 8px rgba(43,29,22,.06);transition:all .15s"
-        onmouseover="this.style.borderColor='#F26522';this.style.color='#F26522';this.style.boxShadow='0 4px 14px rgba(242,101,34,.15)'"
-        onmouseout="this.style.borderColor='#E9DED2';this.style.color='#7a6a55';this.style.boxShadow='0 2px 8px rgba(43,29,22,.06)'">
-        🔄 ${t('service_change')}
-      </button>
     </div>
     ${buildContactBlock()}`;
 }
@@ -2364,10 +2355,6 @@ window.App.chooseService = function(s) {
   if (s === 'livraison') { State.mode = 'livraison'; navigate('menu'); }
   else if (s === 'surplace') { State.mode = 'surplace'; navigate('menu'); }
   else if (s === 'reserver') { renderReservation(); }
-};
-window.App.backToPicker = function() {
-  _restoChosen = false; _serviceChosen = false;
-  renderRestoPicker();
 };
 window.App.backToService = function() { _serviceChosen = false; _rvScreen = null; renderServiceChoice(); };
 
