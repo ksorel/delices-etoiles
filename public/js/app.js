@@ -2303,7 +2303,7 @@ window.App.chooseResto = function (id) {
 
 // ─── Choix du service (livraison / sur place / réservation) ──
 const _SVC_INPUT = 'width:100%;padding:12px 14px;border:2px solid #E0D4C8;border-radius:12px;font-size:15px;outline:none;font-family:inherit;box-sizing:border-box';
-function _svcCard(id, icon, title, sub, color) {
+function _svcCard(id, icon, title, color) {
   return `<div role="button" tabindex="0" onclick="window.App.chooseService('${id}')"
     onkeydown="if(event.key==='Enter'){window.App.chooseService('${id}')}"
     style="display:flex;align-items:center;gap:14px;background:#fff;border:1.5px solid #E9DED2;border-radius:18px;padding:18px 16px;cursor:pointer;box-shadow:0 4px 14px rgba(43,29,22,.06);transition:border-color .15s"
@@ -2311,7 +2311,6 @@ function _svcCard(id, icon, title, sub, color) {
     <span style="width:52px;height:52px;border-radius:50%;background:${color}1a;display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0">${icon}</span>
     <span style="flex:1;min-width:0">
       <span style="display:block;font-size:16px;font-weight:800;color:#2B1D16">${title}</span>
-      <span style="display:block;font-size:13px;color:#7a6a55;margin-top:2px">${sub}</span>
     </span>
     <span style="color:${color};font-size:20px;flex-shrink:0">→</span>
   </div>`;
@@ -2323,12 +2322,11 @@ function renderServiceChoice() {
   const nom = State.resto?.nom || State.resto?.commune || '';
   view.innerHTML = `
     <div style="max-width:520px;margin:0 auto;padding:22px 16px 40px">
-      <h2 style="text-align:center;font-size:20px;font-weight:800;color:#2B1D16;margin:6px 0 2px">${nom}</h2>
-      <p style="text-align:center;font-size:14px;color:#7a6a55;margin:0 0 22px">${t('service_question')}</p>
+      <h2 style="text-align:center;font-size:20px;font-weight:800;color:#2B1D16;margin:6px 0 22px">${nom}</h2>
       <div style="display:flex;flex-direction:column;gap:14px">
-        ${_svcCard('livraison','🚴', t('service_livraison'), t('service_livraison_sub'), '#F26522')}
-        ${_svcCard('surplace','🍽️', t('service_surplace'), t('service_surplace_sub'), '#0EA5E9')}
-        ${_svcCard('reserver','📅', t('service_reserver'), t('service_reserver_sub'), '#8B5CF6')}
+        ${_svcCard('surplace','🍽️', t('service_surplace'), '#0EA5E9')}
+        ${_svcCard('livraison','🚴', t('service_livraison'), '#F26522')}
+        ${_svcCard('reserver','📅', t('service_reserver'), '#8B5CF6')}
       </div>
       <button onclick="window.App.backToPicker()" style="display:block;margin:22px auto 0;background:none;border:none;color:#7a6a55;font-size:13px;font-weight:600;cursor:pointer">← ${t('service_change')}</button>
     </div>
