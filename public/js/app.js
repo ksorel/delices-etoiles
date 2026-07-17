@@ -614,36 +614,43 @@ function buildContactBlock() {
   const rows = [];
   if (c) {
     if (c.tel1 && c.tel1_show !== false) {
-      rows.push({ href: 'tel:' + c.tel1.replace(/\s/g,''), icon: '📞', label: c.tel1_label || t('contact_tel'), value: c.tel1 });
+      rows.push({ href: 'tel:' + c.tel1.replace(/\s/g,''), icon: '📞', label: c.tel1_label || t('contact_tel'), value: c.tel1, bg: '#FFF0E8', fg: '#C2410C' });
     }
     if (c.tel2 && c.tel2_show !== false) {
-      rows.push({ href: 'tel:' + c.tel2.replace(/\s/g,''), icon: '📱', label: c.tel2_label || t('contact_mobile'), value: c.tel2 });
+      rows.push({ href: 'tel:' + c.tel2.replace(/\s/g,''), icon: '📱', label: c.tel2_label || t('contact_mobile'), value: c.tel2, bg: '#FFF0E8', fg: '#C2410C' });
     }
     if (c.email && c.email_show !== false) {
-      rows.push({ href: 'mailto:' + c.email, icon: '✉️', label: t('contact_email'), value: c.email });
+      rows.push({ href: 'mailto:' + c.email, icon: '✉️', label: t('contact_email'), value: c.email, bg: '#EEF1FE', fg: '#4C56A8' });
     }
   }
   if (State.resto?.facebookUrl) {
-    rows.push({ href: State.resto.facebookUrl, icon: FB_SVG, label: t('contact_facebook'), value: t('contact_view_page'), external: true });
+    rows.push({ href: State.resto.facebookUrl, icon: FB_SVG, label: t('contact_facebook'), value: t('contact_view_page'), external: true, bg: '#E7F0FE', fg: '#1877F2' });
   }
   const waNum = (State.resto?.whatsapp || '').replace(/[^0-9]/g, '');
   if (waNum) {
-    rows.push({ href: 'https://wa.me/' + waNum, icon: WA_SVG, label: t('contact_whatsapp'), value: State.resto.whatsapp, external: true });
+    rows.push({ href: 'https://wa.me/' + waNum, icon: WA_SVG, label: t('contact_whatsapp'), value: State.resto.whatsapp, external: true, bg: '#E7F8EE', fg: '#128C4A' });
   }
   if (!rows.length) return '';
-  const items = rows.map((r, i) => '<a href="' + r.href + '"' + (r.external ? ' target="_blank" rel="noopener"' : '')
-    + ' style="display:flex;align-items:center;gap:12px;padding:12px 0;text-decoration:none;color:var(--brown);'
-    + (i < rows.length - 1 ? 'border-bottom:1px solid var(--border);' : '') + '">'
-    + '<div style="width:40px;height:40px;background:var(--orange-soft);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">' + r.icon + '</div>'
-    + '<div><div style="font-size:12px;color:var(--muted)">' + r.label + '</div>'
-    + '<div style="font-weight:700;font-size:15px">' + r.value + '</div></div></a>').join('');
-  return '<div style="margin:16px;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(43,29,22,.08)">'
-    + '<div style="background:linear-gradient(135deg,#2B1D16,#4A3020);padding:14px 20px;display:flex;align-items:center;gap:10px">'
-    +   '<div style="font-size:20px">📬</div>'
-    +   '<div style="font-size:15px;font-weight:800;color:#fff">' + t('contact_title') + '</div>'
-    + '</div>'
-    + '<div style="padding:0 20px">' + items + '</div>'
-    + '</div>';
+  const items = rows.map((r, i) => `
+    <a href="${r.href}" ${r.external ? 'target="_blank" rel="noopener"' : ''}
+       style="display:flex;align-items:center;gap:14px;padding:13px 8px;margin:0 -8px;text-decoration:none;color:var(--brown);
+              border-radius:12px;transition:background .15s;${i < rows.length - 1 ? 'border-bottom:1px solid #F3ECE4;' : ''}"
+       onmouseover="this.style.background='#FBF6F1'" onmouseout="this.style.background='transparent'">
+      <div style="width:44px;height:44px;background:${r.bg};border-radius:50%;display:flex;align-items:center;justify-content:center;
+                  font-size:19px;flex-shrink:0;box-shadow:0 2px 6px rgba(43,29,22,.07)">${r.icon}</div>
+      <div style="min-width:0">
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:700">${r.label}</div>
+        <div style="font-weight:700;font-size:15px;color:${r.fg};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.value}</div>
+      </div>
+    </a>`).join('');
+  return `
+    <div style="margin:16px;background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 4px 20px rgba(43,29,22,.10);border:1px solid #F3ECE4">
+      <div style="background:linear-gradient(135deg,#2B1D16,#4A3020);padding:16px 20px;display:flex;align-items:center;gap:12px">
+        <div style="width:34px;height:34px;background:rgba(255,255,255,.15);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0">📬</div>
+        <div style="font-size:15px;font-weight:800;color:#fff;letter-spacing:.01em">${t('contact_title')}</div>
+      </div>
+      <div style="padding:6px 20px 6px">${items}</div>
+    </div>`;
 }
 function renderMenu(container) {
   if (!State.menu.length) {
