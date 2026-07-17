@@ -459,6 +459,7 @@ function closeSidebar() {
     <div class="nav-item" onclick="showPage('floorplan',this)"><span class="nav-icon">🗺️</span>Plan de salle</div>
     <div class="nav-item" onclick="showPage('qrcodes',this)"><span class="nav-icon">📱</span>QR Codes</div>
     <div class="nav-item" onclick="showPage('platdujour',this)"><span class="nav-icon">⭐</span>Plat du jour</div>
+    <div class="nav-item" onclick="showPage('avis',this)"><span class="nav-icon">🌟</span>Avis clients</div>
     <div class="nav-item" onclick="showPage('stocks',this)"><span class="nav-icon">📦</span>Stocks</div>
     <div class="nav-item" onclick="showPage('config',this)"><span class="nav-icon">⚙️</span>Configuration</div>
     <div class="nav-item" onclick="showPage('stats',this)"><span class="nav-icon">📈</span>Statistiques</div>
@@ -516,7 +517,7 @@ import {
 } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import {
   collection, doc, addDoc, updateDoc, deleteDoc, setDoc, getDoc,
-  getDocs, onSnapshot, query, orderBy, where,
+  getDocs, onSnapshot, query, orderBy, where, limit,
   serverTimestamp, disableNetwork, enableNetwork, increment as admin_increment
 } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import {
@@ -551,6 +552,12 @@ function lieuLabel(id) {
   if (!id) return '— sans établissement —';
   const l = lieux.find(x => x.id === id);
   return l ? (l.nomCourt || l.nom || l.commune || id) : id;
+}
+// Échappement HTML basique (texte libre client, ex. commentaires d'avis).
+function escapeAdminHtml(s) {
+  return String(s || '').replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  }[c]));
 }
 // Petite puce « 📍 Lieu » à insérer dans les tableaux en mode « Tous ».
 function lieuChip(id) {
@@ -793,7 +800,7 @@ window.showPage = (page, el) => {
   el.classList.add('active');
   const titles = {
     dashboard:'Tableau de bord', etablissements:'Établissements', carrousel:'Carrousel d\'accueil', menu:'Gestion des articles',
-    zones:'Zones de livraison', upselling:'Règles d\'upselling', platdujour:'Plat du jour', cache:'Gestion du cache',
+    zones:'Zones de livraison', upselling:'Règles d\'upselling', platdujour:'Plat du jour', avis:'Avis clients', cache:'Gestion du cache',
     qrcodes:'QR Codes tables', floorplan:'Plan de salle', commandes:'Historique commandes',
     users:'Utilisateurs', stats:'Statistiques', stocks:'Stocks', paiements:'Paiements', config:'Configuration',
     'devis-demandes':'Traiteur : Demandes de devis',
@@ -820,6 +827,7 @@ async function renderPage(page) {
     case 'floorplan':  renderFloorPlan(c); break;
     case 'qrcodes':    renderQRCodes(c); break;
     case 'platdujour': renderPlatDuJour(c, a); break;
+    case 'avis':       renderAvis(c); break;
     case 'paiements':  renderPaiements(c); break;
     case 'stocks':     renderStocks(c); break;
     case 'stats':      renderStats(c); break;
@@ -1815,6 +1823,57 @@ function renderCommandes(c) {
   _unsubs.push(unsubComm);
 }
 
+// ── Avis clients (modération) ──────────────────────────────
+function avisStarsHtml(rating) {
+  const full = Math.round(rating || 0);
+  let s = '';
+  for (let i = 1; i <= 5; i++) s += (i <= full ? '★' : '☆');
+  return '<span style="color:#E5A200;letter-spacing:1px">' + s + '</span>';
+}
+function renderAvis(c) {
+  const conds = activeResto !== 'ALL' ? [where('restoId','==',activeResto)] : [];
+  const q = query(collection(db,'avis'), ...conds, orderBy('createdAt','desc'), limit(300));
+  const unsubAvis = onSnapshot(q,
+    snap => {
+      const list = snap.docs.map(d=>({id:d.id,...d.data()}));
+      const scopeLbl = activeResto === 'ALL' ? 'Tous les établissements' : lieuLabel(activeResto);
+      const rows = list.map(a => {
+        const item = menuItems.find(m => m.id === a.menuId);
+        const nom  = item ? (item.name_fr || a.menuId) : a.menuId;
+        const date = a.createdAt?.toDate ? a.createdAt.toDate().toLocaleDateString('fr-FR', {day:'numeric',month:'short',year:'numeric'}) : '—';
+        return '<tr style="border-bottom:1px solid var(--border)">'
+          + '<td style="padding:10px 12px">' + nom + (activeResto==='ALL' ? ' ' + lieuChip(a.restoId) : '') + '</td>'
+          + '<td style="padding:10px 12px">' + avisStarsHtml(a.rating) + '</td>'
+          + '<td style="padding:10px 12px;max-width:320px">' + (a.comment ? escapeAdminHtml(a.comment) : '<span style="color:#CCC">—</span>') + '</td>'
+          + '<td style="padding:10px 12px;font-size:12px;color:#7A6356">' + (a.prenom ? escapeAdminHtml(a.prenom) : 'Client') + '</td>'
+          + '<td style="padding:10px 12px;font-size:12px;color:#7A6356;white-space:nowrap">' + date + '</td>'
+          + '<td style="padding:10px 12px"><button class="btn btn-sm btn-danger" onclick="window.Admin.deleteAvis(\x27' + a.id + '\x27)">🗑️</button></td>'
+          + '</tr>';
+      }).join('');
+      c.innerHTML = `
+        <div class="card">
+          <div class="card-title">Avis clients — ${scopeLbl} (${list.length})</div>
+          ${list.length ? `
+          <div style="overflow-x:auto">
+            <table style="width:100%;border-collapse:collapse">
+              <thead><tr style="border-bottom:2px solid var(--border);text-align:left;font-size:12px;color:#7A6356">
+                <th style="padding:10px 12px">Article</th>
+                <th style="padding:10px 12px">Note</th>
+                <th style="padding:10px 12px">Commentaire</th>
+                <th style="padding:10px 12px">Client</th>
+                <th style="padding:10px 12px">Date</th>
+                <th style="padding:10px 12px"></th>
+              </tr></thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>` : '<p style="color:#7A6356;padding:20px 0">Aucun avis pour le moment.</p>'}
+        </div>`;
+    },
+    err => { if (err.code !== 'permission-denied') console.error(err); }
+  );
+  _unsubs.push(unsubAvis);
+}
+
 // ── Admin actions (exposés globalement) ───────────────────
 // ════════════════════════════════════════════════════════════
 //  TRAITEUR — Demandes / Devis / Prestations
@@ -2372,6 +2431,15 @@ window.Admin = {
       await deleteDoc(doc(db,'menus',id)); // legacy, pas encore migré
     }
     await loadData(); renderPage(currentPage); toast('Article retiré de cet établissement');
+  },
+  async deleteAvis(id) {
+    if (!confirm('Supprimer cet avis ? Cette action est irréversible.')) return;
+    try {
+      await deleteDoc(doc(db,'avis',id));
+      toast('Avis supprimé');
+    } catch(e) {
+      toast('Erreur : ' + (e.message || e.code || 'suppression impossible'));
+    }
   },
   async toggleZone(id, val) {
     await updateDoc(doc(db,'zones-livraison',id), {active:val});
