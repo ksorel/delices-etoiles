@@ -499,9 +499,9 @@ function updateHeader() {
     }
   }
 
-  // Bouton langue
+  // Bouton langue (drapeau de la langue active)
   const langBtn = document.getElementById('lang-btn');
-  if (langBtn) langBtn.textContent = State.lang.toUpperCase();
+  if (langBtn) langBtn.textContent = State.lang === 'en' ? '🇬🇧' : '🇫🇷';
   // Badge panier
   updateCartBadge();
 }
@@ -1562,8 +1562,12 @@ function toggleLang() {
   setLang(getLang() === 'fr' ? 'en' : 'fr');
   State.lang = getLang();
   updateHeader();
+  // Sur le formulaire traiteur (accessible sans passer par le choix d'établissement),
+  // y rester plutôt que de retomber sur le sélecteur d'établissement.
+  if (location.hash === '#traiteur') {
+    renderView('traiteur');
   // Sur l'accueil (sélecteur d'établissement), y rester au lieu de basculer sur le menu
-  if (State.mode !== 'salle' && !RESTO_FROM_URL && !_restoChosen) {
+  } else if (State.mode !== 'salle' && !RESTO_FROM_URL && !_restoChosen) {
     renderRestoPicker();
   } else if (_rvScreen === 'done') {
     // Écran de confirmation de réservation (hors routage par hash) : y rester
