@@ -603,7 +603,18 @@ window.doAdminLogout = async () => {
     _unsubs.forEach(fn => { try { fn(); } catch(e) {} });
     _unsubs.length = 0;
   } catch(e) { /* ignorer */ }
-  // 3. Déconnexion Firebase Auth
+  // 3. Réinitialiser l'état local (établissement sélectionné, données en mémoire,
+  //    session gérant) pour qu'un autre utilisateur ne voie rien de la session précédente.
+  try { sessionStorage.removeItem('admin_resto'); } catch(_) {}
+  activeResto = 'ALL';
+  menuItems = []; zones = []; upsellRules = []; lieux = [];
+  mySessionRole = null; myRestoId = null;
+  // 4. Vider le cache PWA (assets JS/HTML) pour repartir sur une version fraîche
+  try {
+    const keys = await caches.keys();
+    await Promise.all(keys.map(k => caches.delete(k)));
+  } catch(_) {}
+  // 5. Déconnexion Firebase Auth
   await signOut(auth);
 };
 

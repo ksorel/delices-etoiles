@@ -418,7 +418,18 @@ window.doLogout = async function() {
   try {
     await disableNetwork(db);
     if (unsubOrders) { try { unsubOrders(); } catch(e) {} unsubOrders = null; }
+    if (unsubReservations) { try { unsubReservations(); } catch(e) {} unsubReservations = null; }
   } catch(e) {}
+  // Réinitialiser l'état local pour qu'un autre utilisateur ne voie rien de la
+  // session précédente (établissement, commandes/réservations en mémoire, rôle).
+  allOrders = []; allReservations = []; dashMenu = []; staffCart = [];
+  currentRole = ''; currentRoles = []; currentRestoId = null; currentUser = null;
+  activeFilter = 'all';
+  // Vider le cache PWA (assets JS/HTML) pour repartir sur une version fraîche
+  try {
+    const keys = await caches.keys();
+    await Promise.all(keys.map(k => caches.delete(k)));
+  } catch(_) {}
   await signOut(auth);
 };
 
