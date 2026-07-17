@@ -63,6 +63,15 @@ const translations = {
     rv_done_outro:       'a bien été transmise. Le restaurant vous contactera pour la confirmer.',
     rv_done_back:        'Retour',
 
+    // Bloc "Nous contacter"
+    contact_title:     'Nous contacter',
+    contact_tel:       'Téléphone',
+    contact_mobile:    'Mobile',
+    contact_email:     'Email',
+    contact_facebook:  'Facebook',
+    contact_whatsapp:  'WhatsApp',
+    contact_view_page: 'Voir la page',
+
     pay_note_livraison: "En livraison, le paiement mobile (Wave, Orange Money, MTN) se règle à l'avance : c'est sa confirmation qui valide et déclenche votre commande.",
     menu_empty_title:  'Aucun plat disponible',
     menu_empty_sub:    "Cet établissement n'a pas encore de menu en ligne.",
@@ -277,6 +286,15 @@ const translations = {
     rv_done_at:          'at',
     rv_done_outro:       'has been sent. The restaurant will contact you to confirm it.',
     rv_done_back:        'Back',
+
+    // "Contact us" block
+    contact_title:     'Contact us',
+    contact_tel:       'Phone',
+    contact_mobile:    'Mobile',
+    contact_email:     'Email',
+    contact_facebook:  'Facebook',
+    contact_whatsapp:  'WhatsApp',
+    contact_view_page: 'View page',
 
     pay_note_livraison: 'For delivery, mobile payment (Wave, Orange Money, MTN) is made in advance: its confirmation validates and starts your order.',
     menu_empty_title:  'No dishes available',

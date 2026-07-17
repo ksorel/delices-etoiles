@@ -479,7 +479,8 @@ function updateHeader() {
     //    donc toujours visible ; le clic sur le logo gère déjà le changement).
     const parent = badge.parentNode;
     let mk = document.getElementById('resto-marker');
-    const show = State.mode === 'salle' ? !!State.tableId : !!State.resto;
+    const onTraiteur = location.hash === '#traiteur';
+    const show = State.mode === 'salle' ? !!State.tableId : (!!State.resto || onTraiteur);
     if (show && parent) {
       if (!mk) {
         mk = document.createElement('div');
@@ -491,6 +492,9 @@ function updateHeader() {
       try { mk.style.color = getComputedStyle(badge).color; } catch (_) {}
       if (State.mode === 'salle') {
         mk.innerHTML = `<strong>${t('mode_salle')} ${State.tableId}</strong>`;
+      } else if (!State.resto && onTraiteur) {
+        // Formulaire traiteur : accessible sans établissement choisi, pas de lieu à afficher.
+        mk.innerHTML = `<span style="color:#F26522;font-weight:700;white-space:nowrap">← ${t('back')}</span>`;
       } else {
         // Nom court (commune de préférence) + ellipse ; « ← Retour » reste sur la même ligne.
         const court = State.resto?.commune || State.resto?.nom || '';
@@ -610,21 +614,21 @@ function buildContactBlock() {
   const rows = [];
   if (c) {
     if (c.tel1 && c.tel1_show !== false) {
-      rows.push({ href: 'tel:' + c.tel1.replace(/\s/g,''), icon: '📞', label: c.tel1_label||'Téléphone', value: c.tel1 });
+      rows.push({ href: 'tel:' + c.tel1.replace(/\s/g,''), icon: '📞', label: c.tel1_label || t('contact_tel'), value: c.tel1 });
     }
     if (c.tel2 && c.tel2_show !== false) {
-      rows.push({ href: 'tel:' + c.tel2.replace(/\s/g,''), icon: '📱', label: c.tel2_label||'Mobile', value: c.tel2 });
+      rows.push({ href: 'tel:' + c.tel2.replace(/\s/g,''), icon: '📱', label: c.tel2_label || t('contact_mobile'), value: c.tel2 });
     }
     if (c.email && c.email_show !== false) {
-      rows.push({ href: 'mailto:' + c.email, icon: '✉️', label: 'Email', value: c.email });
+      rows.push({ href: 'mailto:' + c.email, icon: '✉️', label: t('contact_email'), value: c.email });
     }
   }
   if (State.resto?.facebookUrl) {
-    rows.push({ href: State.resto.facebookUrl, icon: FB_SVG, label: 'Facebook', value: 'Voir la page', external: true });
+    rows.push({ href: State.resto.facebookUrl, icon: FB_SVG, label: t('contact_facebook'), value: t('contact_view_page'), external: true });
   }
   const waNum = (State.resto?.whatsapp || '').replace(/[^0-9]/g, '');
   if (waNum) {
-    rows.push({ href: 'https://wa.me/' + waNum, icon: WA_SVG, label: 'WhatsApp', value: State.resto.whatsapp, external: true });
+    rows.push({ href: 'https://wa.me/' + waNum, icon: WA_SVG, label: t('contact_whatsapp'), value: State.resto.whatsapp, external: true });
   }
   if (!rows.length) return '';
   const items = rows.map((r, i) => '<a href="' + r.href + '"' + (r.external ? ' target="_blank" rel="noopener"' : '')
@@ -636,7 +640,7 @@ function buildContactBlock() {
   return '<div style="margin:16px;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(43,29,22,.08)">'
     + '<div style="background:linear-gradient(135deg,#2B1D16,#4A3020);padding:14px 20px;display:flex;align-items:center;gap:10px">'
     +   '<div style="font-size:20px">📬</div>'
-    +   '<div style="font-size:15px;font-weight:800;color:#fff">Nous contacter</div>'
+    +   '<div style="font-size:15px;font-weight:800;color:#fff">' + t('contact_title') + '</div>'
     + '</div>'
     + '<div style="padding:0 20px">' + items + '</div>'
     + '</div>';
@@ -1589,6 +1593,7 @@ function toggleLang() {
 // ─── Exposer l'API globale pour les onclick HTML ──────────
 // ─── Traiteur ─────────────────────────────────────────────
 function renderTraiteur(container) {
+  updateHeader();
   const eventTypes = [
     { id:'mariage',      label:t('tr_ev_mariage') },
     { id:'bapteme',      label:t('tr_ev_bapteme') },
@@ -1598,11 +1603,6 @@ function renderTraiteur(container) {
     { id:'autre',        label:t('tr_ev_autre') },
   ];
   container.innerHTML = `
-    <div style="display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--border)">
-      <button onclick="window.App.backFromTraiteur()"
-              style="background:none;border:none;font-size:14px;color:#7A6356;cursor:pointer;font-weight:700">←</button>
-      <span style="font-size:15px;font-weight:800;color:#F26522">👨‍🍳 ${t('tab_traiteur')}</span>
-    </div>
     <div style="padding:20px 16px;max-width:560px;margin:0 auto">
       <div style="text-align:center;margin-bottom:20px">
         <div style="font-size:32px;margin-bottom:8px">🎉</div>
@@ -1641,9 +1641,6 @@ function renderTraiteur(container) {
                  placeholder="${getLang() === 'en' ? 'MM/DD/YYYY' : 'JJ/MM/AAAA'}"
                  onclick="window.App.openTrDatePicker(this)"
                  autocomplete="off">
-          <div style="font-size:10px;color:var(--muted);margin-top:3px">
-            ${getLang() === 'en' ? 'Format: MM/DD/YYYY' : 'Format : JJ/MM/AAAA'}
-          </div>
         </div>
         <div>
           <label style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;
@@ -2309,6 +2306,7 @@ window.App.backFromTraiteur = function () {
 // (page de service si un service est déjà choisi, sinon sélecteur d'établissement).
 window.App.logoClick = function () {
   if (State.mode === 'salle') { window.App.navigate('menu'); return; }
+  if (location.hash === '#traiteur') { window.App.backFromTraiteur(); return; }
   if (_serviceChosen) { _serviceChosen = false; _rvScreen = null; renderServiceChoice(); return; }
   window.App.changeResto();
 };
