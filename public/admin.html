@@ -517,7 +517,7 @@ import {
 import {
   collection, doc, addDoc, updateDoc, deleteDoc, setDoc, getDoc,
   getDocs, onSnapshot, query, orderBy, where,
-  serverTimestamp, disableNetwork, increment as admin_increment
+  serverTimestamp, disableNetwork, enableNetwork, increment as admin_increment
 } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import {
   ref, uploadBytes, getDownloadURL
@@ -620,6 +620,9 @@ window.doAdminLogout = async () => {
 
 onAuthStateChanged(auth, async user => {
   if (user) {
+    // Réactiver le réseau Firestore (coupé par disableNetwork() à la déconnexion —
+    // sans ça, un changement d'utilisateur sur la même page restait bloqué en cache local).
+    try { await enableNetwork(db); } catch(_) {}
     // Lire le rôle avec retry si token pas encore propagé
     let token = await user.getIdTokenResult();
     if (!token.claims.role) {
