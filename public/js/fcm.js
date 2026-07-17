@@ -23,11 +23,13 @@ function getMsg() {
 
 /**
  * Demander la permission + enregistrer le token FCM
- * Sauvegarde le token dans la commande Firestore
- * @param {string} orderId
+ * Sauvegarde le token sur le document Firestore (commande ou réservation)
+ * pour que la Cloud Function correspondante puisse notifier le client.
+ * @param {string} docId
+ * @param {string} [collection] 'commandes' (défaut) ou 'reservations'
  * @returns {string|null} fcmToken
  */
-export async function requestNotificationPermission(orderId) {
+export async function requestNotificationPermission(docId, collection = 'commandes') {
   if (!('Notification' in window)) return null;
   if (VAPID_KEY === 'REMPLACE_PAR_TA_CLE_VAPID') {
     console.warn('[FCM] Clé VAPID non configurée');
@@ -42,9 +44,8 @@ export async function requestNotificationPermission(orderId) {
     const reg = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
     const token = await getToken(getMsg(), { vapidKey: VAPID_KEY, serviceWorkerRegistration: reg });
 
-    if (token && orderId) {
-      // Sauvegarder le token dans la commande pour que la Cloud Function l'utilise
-      await updateDoc(doc(db, 'commandes', orderId), { fcmToken: token });
+    if (token && docId) {
+      await updateDoc(doc(db, collection, docId), { fcmToken: token });
     }
     return token;
   } catch (e) {

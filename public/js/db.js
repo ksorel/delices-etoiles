@@ -321,6 +321,18 @@ export async function submitReservation(data, restoId) {
   });
   return ref.id;
 }
+// Retrouver une réservation existante (téléphone + date exacts, établissement courant).
+export async function findReservation(restoId, telephone, date) {
+  const q = query(
+    collection(db, 'reservations'),
+    where('restoId', '==', rid(restoId)),
+    where('telephone', '==', telephone),
+    where('date', '==', date)
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
 // Dashboard : écoute des réservations d'un établissement.
 export function listenReservations(callback, restoId) {
   const conds = [orderBy('createdAt', 'desc')];
@@ -470,6 +482,37 @@ export function listenOrder(orderId, callback) {
 
   start();
   // Return unsubscribe function
+  return function() {
+    if (unsub) { try { unsub(); } catch(e) {} }
+  };
+}
+
+// Suivi en direct d'une réservation (statut pending/confirmed/refused).
+export function listenReservation(reservationId, callback) {
+  let unsub = null;
+  let retryCount = 0;
+
+  function start() {
+    unsub = onSnapshot(
+      doc(db, 'reservations', reservationId),
+      snap => {
+        retryCount = 0;
+        if (snap.exists()) callback({ id: snap.id, ...snap.data() });
+      },
+      err => {
+        console.warn('listenReservation error:', err.code);
+        if (err.code === 'permission-denied' && retryCount < 3) {
+          retryCount++;
+          setTimeout(function() {
+            if (unsub) { try { unsub(); } catch(e) {} }
+            start();
+          }, 2000 * retryCount);
+        }
+      }
+    );
+  }
+
+  start();
   return function() {
     if (unsub) { try { unsub(); } catch(e) {} }
   };

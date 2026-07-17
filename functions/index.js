@@ -261,6 +261,38 @@ exports.onOrderReady = region.firestore
     return null;
   });
 
+// ─────────────────────────────────────────────────────────
+//  4b. TRIGGER : Notification FCM quand une réservation est confirmée/refusée
+// ─────────────────────────────────────────────────────────
+exports.onReservationStatusChange = region.firestore
+  .document('reservations/{resaId}')
+  .onUpdate(async (change, context) => {
+    const before = change.before.data();
+    const after  = change.after.data();
+
+    if (before.status === after.status) return null;
+    if (!['confirmed', 'refused'].includes(after.status)) return null;
+
+    const fcmToken = after.fcmToken;
+    if (!fcmToken) return null;
+
+    const confirmed = after.status === 'confirmed';
+    try {
+      await admin.messaging().send({
+        token: fcmToken,
+        notification: {
+          title: confirmed ? '✅ Réservation confirmée' : '❌ Réservation refusée',
+          body: confirmed
+            ? `Votre réservation du ${after.date || ''} à ${after.heure || ''} est confirmée. À bientôt !`
+            : `Votre réservation du ${after.date || ''} à ${after.heure || ''} n'a pas pu être confirmée. Contactez l'établissement pour plus d'informations.`,
+        },
+        data: { reservationId: context.params.resaId, status: after.status },
+      });
+    } catch (e) { console.error('FCM réservation error:', e.message); }
+
+    return null;
+  });
+
 
 // ─────────────────────────────────────────────────────────
 //  6. TRIGGER : Stock mis à jour → disponibilité menu

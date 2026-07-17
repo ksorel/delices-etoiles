@@ -8,7 +8,7 @@ import { t, initLang, getLang, setLang, itemName, itemDesc } from './i18n.js';
 import { fetchMenu, fetchZones, fetchUpsellRules, getOrCreateTable, fetchPlatDuJour, listenOrder,
          createSession, getOpenSessions, updateSessionStatus, getSessionOrders,
          getRestoId, setRestoId, fetchLieux, fetchLieu, fetchAccueilCarousel,
-         submitReservation, createOrder,
+         submitReservation, createOrder, listenReservation, findReservation,
          fetchAvisForItem, hasVerifiedPurchase, getExistingAvis, submitAvis } from './db.js';
 import { getDoc, doc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { requestNotificationPermission, listenForegroundMessages } from './fcm.js';
@@ -302,6 +302,14 @@ async function bootApp() {
       return d && (Date.now() - d.ts < 2 * 60 * 60 * 1000) ? d : null;
     } catch { return null; }
   })();
+  // Vérifier si réservation récente à suivre (< 30 jours ; retirée dès que
+  // son statut quitte "en attente", voir openReservationTrackingModal).
+  const lastReservation = (() => {
+    try {
+      const d = JSON.parse(localStorage.getItem('de_last_reservation') || 'null');
+      return d && (Date.now() - d.ts < 30 * 24 * 60 * 60 * 1000) ? d : null;
+    } catch { return null; }
+  })();
   // 9. Rendu initial
   // Détecter la route /devis?id=...&token=...
   if (window.location.pathname.startsWith('/devis') || 
@@ -334,6 +342,16 @@ async function bootApp() {
         }
       }, 1000);
     }
+  } else if (lastReservation && !State.tableId) {
+    navigate('menu');
+    setTimeout(function() {
+      const resume = confirm(t('rv_resume_prompt'));
+      if (resume) {
+        window.App.openReservationTrackingModal(lastReservation.reservationId);
+      } else {
+        localStorage.removeItem('de_last_reservation');
+      }
+    }, 1000);
   } else if (State.mode !== 'salle' && !_serviceChosen) {
     renderServiceChoice();
   } else {
@@ -1737,7 +1755,7 @@ function toggleLang() {
     renderRestoPicker();
   } else if (_rvScreen === 'done') {
     // Écran de confirmation de réservation (hors routage par hash) : y rester
-    renderReservationDone(_rvDoneDate, _rvDoneHeure);
+    renderReservationDone(_rvDoneDate, _rvDoneHeure, _rvDoneId);
   } else if (_rvScreen === 'form' && State.mode !== 'reservation') {
     // Formulaire de réservation (hors routage par hash) : y rester
     renderReservation();
@@ -2232,6 +2250,22 @@ window.App = {
       if (btn) { btn.disabled = false; btn.textContent = 'Activer'; }
     }
   },
+  async enableReservationNotifications(reservationId, bannerId, btnId) {
+    bannerId = bannerId || 'rv-notif-banner'; btnId = btnId || 'rv-notif-btn';
+    const btn = document.getElementById(btnId);
+    if (btn) { btn.disabled = true; btn.textContent = '…'; }
+    try {
+      const token = await requestNotificationPermission(reservationId, 'reservations');
+      const banner = document.getElementById(bannerId);
+      if (token) {
+        if (banner) banner.innerHTML = '<span style="font-size:18px">✅</span> <span style="font-size:13px;color:var(--brown);font-weight:600">' + t('rv_notif_enabled') + '</span>';
+      } else {
+        if (banner) banner.innerHTML = '<span style="font-size:18px">❌</span> <span style="font-size:13px;color:var(--text-muted)">' + t('rv_notif_refused') + '</span>';
+      }
+    } catch(e) {
+      if (btn) { btn.disabled = false; btn.textContent = t('rv_notif_activate'); }
+    }
+  },
   async joinSession(sessionId) {
     State.sessionId = sessionId;
     navigate('menu');
@@ -2605,6 +2639,12 @@ function renderServiceChoice() {
         ${_svcCard('livraison','🚴', t('service_livraison'), '#F26522')}
         ${_svcCard('reserver','📅', t('service_reserver'), '#8B5CF6')}
       </div>
+      <div style="text-align:center;margin-top:18px">
+        <button type="button" onclick="window.App.openReservationLookup()"
+                style="background:none;border:none;color:#8B5CF6;font-size:13px;font-weight:700;cursor:pointer;text-decoration:underline">
+          🔍 ${t('rv_lookup_link')}
+        </button>
+      </div>
     </div>
     ${buildContactBlock()}`;
 }
@@ -2706,22 +2746,31 @@ window.App.submitReservation = async function() {
   try {
     const cartItems = getItems();
     const items = cartItems.map(i => ({ name: itemName(i), qty: i.qty, subtotal: i.price * i.qty }));
-    await submitReservation({ telephone: tel, date, heure, personnes: parseInt(pers) || null, note, items }, State.resto?.id);
+    const reservationId = await submitReservation({ telephone: tel, date, heure, personnes: parseInt(pers) || null, note, items, clientUid: State.uid || null }, State.resto?.id);
     clearCart(); updateCartBadge(); _rvDraft = null;
-    renderReservationDone(date, heure);
+    renderReservationDone(date, heure, reservationId);
   } catch(e) {
     errEl.textContent = t('rv_error_prefix') + (e.message || t('rv_error_generic')); errEl.style.display = 'block';
     if (btn) { btn.disabled = false; btn.textContent = t('rv_submit'); }
   }
 };
-function renderReservationDone(date, heure) {
-  _rvScreen = 'done'; _rvDoneDate = date; _rvDoneHeure = heure;
+let _rvDoneId = null;
+function renderReservationDone(date, heure, reservationId) {
+  _rvScreen = 'done'; _rvDoneDate = date; _rvDoneHeure = heure; _rvDoneId = reservationId || null;
+  if (_rvDoneId) {
+    try { localStorage.setItem('de_last_reservation', JSON.stringify({ reservationId: _rvDoneId, date, heure, ts: Date.now() })); } catch(_) {}
+  }
   const view = document.getElementById('view');
   view.innerHTML = `
     <div style="max-width:440px;margin:0 auto;padding:48px 20px;text-align:center">
       <div style="font-size:56px;margin-bottom:12px">📅</div>
       <h2 style="font-size:22px;font-weight:800;color:#2B1D16;margin:0 0 8px">${t('rv_done_title')}</h2>
       <p style="font-size:15px;color:#7a6a55;line-height:1.6;margin:0 0 24px">${t('rv_done_intro')} <strong>${date}</strong> ${t('rv_done_at')} <strong>${heure}</strong> ${t('rv_done_outro')}</p>
+      ${_rvDoneId ? `
+      <button class="btn btn-brown" style="width:100%;max-width:280px;padding:14px 28px;font-size:16px;margin-bottom:8px"
+              onclick="window.App.openReservationTrackingModal('${_rvDoneId}')">
+        📍 ${t('rv_track_title')}
+      </button>` : ''}
       <button onclick="window.App.backToService()" style="padding:13px 28px;background:#2B1D16;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer">${t('rv_done_back')}</button>
     </div>`;
 }
@@ -3487,6 +3536,158 @@ window.App.openTrackingModal = function(orderId) {
       });
       body.appendChild(backBtn);
     }
+  });
+};
+
+// ─── Retrouver une réservation existante (téléphone + date) ──
+window.App.openReservationLookup = function() {
+  document.getElementById('rv-lookup-modal')?.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'rv-lookup-modal';
+  overlay.className = 'modal-overlay center';
+  overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+  const L = 'display:block;font-size:12px;font-weight:700;color:#7a6a55;margin-bottom:6px';
+  const I = 'width:100%;padding:12px 14px;border:1.5px solid #E0D4C8;border-radius:10px;font-size:14px;box-sizing:border-box';
+  overlay.innerHTML = ''
+    + '<div class="modal centered">'
+    +   '<div style="padding:20px">'
+    +     '<div style="font-size:17px;font-weight:800;color:#2B1D16;margin-bottom:4px">🔍 ' + t('rv_lookup_title') + '</div>'
+    +     '<p style="font-size:13px;color:#7a6a55;margin:0 0 16px">' + t('rv_lookup_sub') + '</p>'
+    +     '<div style="display:flex;flex-direction:column;gap:14px">'
+    +       '<div><label style="' + L + '">' + t('telephone') + ' *</label>'
+    +         '<input id="rvl-tel" type="tel" style="' + I + '" placeholder="+225 07 00 00 00 00"></div>'
+    +       '<div><label style="' + L + '">' + t('rv_date') + ' *</label>'
+    +         '<input id="rvl-date-display" type="text" readonly autocomplete="off" style="' + I + ';cursor:pointer" '
+    +         'placeholder="' + (getLang()==='en'?'MM/DD/YYYY':'JJ/MM/AAAA') + '" onclick="window.App.openLookupDatePicker(this)">'
+    +         '<input type="hidden" id="rvl-date" value="">'
+    +       '</div>'
+    +       '<div id="rvl-err" style="display:none;background:#FEE2E2;color:#991B1B;padding:10px 14px;border-radius:10px;font-size:13px"></div>'
+    +       '<button id="rvl-submit" onclick="window.App.submitReservationLookup()" '
+    +         'style="width:100%;padding:14px;background:#8B5CF6;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer">'
+    +         t('rv_lookup_submit') + '</button>'
+    +       '<button type="button" onclick="document.getElementById(\x27rv-lookup-modal\x27).remove()" '
+    +         'style="width:100%;padding:10px;background:none;border:none;color:#7a6a55;font-size:13px;cursor:pointer">'
+    +         t('rv_lookup_cancel') + '</button>'
+    +     '</div>'
+    +   '</div>'
+    + '</div>';
+  document.body.appendChild(overlay);
+};
+window.App.openLookupDatePicker = function(displayEl) {
+  openDatePicker(displayEl, {
+    initialIso: document.getElementById('rvl-date')?.value || null,
+    onSelect: (y, m, dNum) => {
+      document.getElementById('rvl-date').value = _dpIso(y, m, dNum);
+      displayEl.value = _dpFormatDisplay(y, m, dNum, getLang());
+    },
+  });
+};
+window.App.submitReservationLookup = async function() {
+  const tel  = (document.getElementById('rvl-tel')?.value || '').trim();
+  const date = (document.getElementById('rvl-date')?.value || '').trim();
+  const errEl = document.getElementById('rvl-err');
+  if (!tel || !date) {
+    errEl.textContent = t('rv_lookup_missing'); errEl.style.display = 'block';
+    return;
+  }
+  const btn = document.getElementById('rvl-submit');
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  try {
+    const results = await findReservation(getRestoId(), tel, date);
+    if (!results.length) {
+      errEl.textContent = t('rv_lookup_notfound'); errEl.style.display = 'block';
+      if (btn) { btn.disabled = false; btn.textContent = t('rv_lookup_submit'); }
+      return;
+    }
+    document.getElementById('rv-lookup-modal')?.remove();
+    window.App.openReservationTrackingModal(results[0].id);
+  } catch(e) {
+    errEl.textContent = t('rv_lookup_notfound'); errEl.style.display = 'block';
+    if (btn) { btn.disabled = false; btn.textContent = t('rv_lookup_submit'); }
+  }
+};
+
+// ─── Suivi de réservation (statut en direct + notifications) ─
+window.App.openReservationTrackingModal = function(reservationId) {
+  document.getElementById('reservation-tracking-modal')?.remove();
+  if (window._rvTrackingUnsub) { window._rvTrackingUnsub(); window._rvTrackingUnsub = null; }
+  listenForegroundMessages(payload => {
+    const { title, body } = payload.notification || {};
+    showToast(title || body || '');
+  });
+
+  const overlay = document.createElement('div');
+  overlay.id = 'reservation-tracking-modal';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(43,29,22,.75);z-index:9000;display:flex;align-items:center;justify-content:center;padding:20px';
+  const sheet = document.createElement('div');
+  sheet.style.cssText = 'background:#fff;border-radius:20px;width:100%;max-width:480px;max-height:88vh;overflow-y:auto;padding-bottom:24px';
+  const handle = document.createElement('div');
+  handle.style.cssText = 'display:flex;justify-content:center;padding:12px';
+  handle.innerHTML = '<div style="width:40px;height:4px;background:#E0D4C8;border-radius:2px"></div>';
+  const header = document.createElement('div');
+  header.style.cssText = 'padding:0 20px 16px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #F0E8E0';
+  header.innerHTML = '<div>'
+    + '<div style="display:flex;align-items:center;gap:8px">'
+    +   '<div style="font-size:18px;font-weight:800;color:#2B1D16">📍 ' + t('rv_track_title') + '</div>'
+    +   '<div style="width:8px;height:8px;border-radius:50%;background:#10B981;animation:pulse-dot 1.5s infinite" title="Mis à jour en temps réel"></div>'
+    + '</div>'
+    + '<div style="font-size:13px;color:#7A6356;margin-top:2px"><span style="color:#10B981;font-size:11px">● ' + t('rv_track_live') + '</span></div></div>';
+  const closeBtn = document.createElement('button');
+  closeBtn.textContent = '×';
+  closeBtn.style.cssText = 'background:#F0E8E0;border:none;border-radius:50%;width:32px;height:32px;font-size:18px;cursor:pointer';
+  closeBtn.addEventListener('click', function() {
+    overlay.remove();
+    if (window._rvTrackingUnsub) { window._rvTrackingUnsub(); window._rvTrackingUnsub = null; }
+  });
+  header.appendChild(closeBtn);
+  const body = document.createElement('div');
+  body.id = 'reservation-tracking-body';
+  body.style.cssText = 'padding:20px';
+  body.innerHTML = '<div style="text-align:center;padding:32px"><p>Chargement…</p></div>';
+  sheet.appendChild(handle);
+  sheet.appendChild(header);
+  sheet.appendChild(body);
+  overlay.appendChild(sheet);
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', function(e) {
+    if (e.target === overlay) {
+      overlay.remove();
+      if (window._rvTrackingUnsub) { window._rvTrackingUnsub(); window._rvTrackingUnsub = null; }
+    }
+  });
+
+  const notifSupported = 'Notification' in window && 'serviceWorker' in navigator;
+
+  window._rvTrackingUnsub = listenReservation(reservationId, function(r) {
+    const status = r.status || 'pending';
+    const STATUS_CFG = {
+      pending:   { icon:'⏳', color:'#D97706', bg:'#FEF3C7', label: t('rv_track_pending') },
+      confirmed: { icon:'✅', color:'#059669', bg:'#ECFDF5', label: t('rv_track_confirmed') },
+      refused:   { icon:'❌', color:'#991B1B', bg:'#FEE2E2', label: t('rv_track_refused') },
+    };
+    const cfg = STATUS_CFG[status] || STATUS_CFG.pending;
+    if (status !== 'pending') {
+      const last = (() => { try { return JSON.parse(localStorage.getItem('de_last_reservation') || 'null'); } catch(_) { return null; } })();
+      if (last && last.reservationId === reservationId) localStorage.removeItem('de_last_reservation');
+    }
+    const when = (r.date || '') + (r.heure ? ' ' + t('rv_done_at') + ' ' + r.heure : '');
+    let html = '<div style="text-align:center;padding:12px 0 20px">'
+      + '<div style="font-size:48px;margin-bottom:10px">' + cfg.icon + '</div>'
+      + '<div style="display:inline-block;padding:6px 16px;border-radius:20px;font-size:13px;font-weight:700;background:' + cfg.bg + ';color:' + cfg.color + '">' + cfg.label + '</div>'
+      + '<div style="margin-top:14px;font-size:15px;color:#2B1D16;font-weight:600">' + when + '</div>'
+      + (r.personnes ? '<div style="font-size:13px;color:#7A6356;margin-top:2px">' + r.personnes + ' ' + t('rv_track_personnes') + '</div>' : '')
+      + '</div>';
+    if (notifSupported && status === 'pending') {
+      html += '<div id="rv-track-notif-banner" style="'
+        + 'background:var(--orange-light);border:1px solid var(--brown-light);border-radius:var(--r);'
+        + 'padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:10px;font-size:13px;color:var(--brown);text-align:left">'
+        + '<span style="font-size:22px">🔔</span>'
+        + '<div style="flex:1"><div style="font-weight:700">' + t('rv_notif_title') + '</div>'
+        + '<div style="font-size:11px;color:var(--text-muted)">' + t('rv_notif_sub') + '</div></div>'
+        + '<button id="rv-track-notif-btn" class="btn btn-primary btn-sm" onclick="window.App.enableReservationNotifications(\x27' + reservationId + '\x27,\x27rv-track-notif-banner\x27,\x27rv-track-notif-btn\x27)">' + t('rv_notif_activate') + '</button>'
+        + '</div>';
+    }
+    body.innerHTML = html;
   });
 };
 

@@ -55,7 +55,11 @@ service cloud.firestore {
     match /reservations/{resaId} {
       allow create: if isAuth();     // client (anonyme) ou staff
       allow read:   if isAuth();
-      allow update: if isStaff();    // confirmer / refuser
+      allow update: if isStaff()     // confirmer / refuser
+                    // Le client peut uniquement enregistrer son token de notification
+                    // (FCM) sur sa propre réservation, rien d'autre (statut inclus).
+                    || (isAuth() && resource.data.clientUid == request.auth.uid
+                        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fcmToken']));
       allow delete: if isAdmin();
     }
 

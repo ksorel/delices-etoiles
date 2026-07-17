@@ -612,6 +612,11 @@ onAuthStateChanged(auth, async user => {
     const orderBtn = document.getElementById('staff-order-btn');
     if (orderBtn) orderBtn.style.display = canOrder ? 'flex' : 'none';
 
+    // Le gérant n'a pas d'alerte sonore (voir listeners commandes/réservations) :
+    // masquer le bouton, sans effet pour lui.
+    const soundBtn = document.getElementById('sound-btn');
+    if (soundBtn) soundBtn.style.display = currentRole === 'manager' ? 'none' : '';
+
     // Masquer bouton plan de salle pour certains rôles
     const planBtn = document.getElementById('fp-btn');
     if (planBtn) planBtn.style.display = roleConfig.masquePlan ? 'none' : '';
@@ -709,7 +714,7 @@ async function initDashboard() {
     // Notification sonore sur nouvelle commande pending
     const newPending = newOrders.filter(o => o.status === 'pending');
     const oldPending = allOrders.filter(o => o.status === 'pending');
-    if (soundEnabled && newPending.length > oldPending.length) {
+    if (soundEnabled && currentRole !== 'manager' && newPending.length > oldPending.length) {
       audio.play().catch(() => {});
     }
 
@@ -729,7 +734,7 @@ async function initDashboard() {
     const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     const nP = list.filter(r => r.status === 'pending').length;
     const oP = allReservations.filter(r => r.status === 'pending').length;
-    if (soundEnabled && nP > oP) audio.play().catch(() => {});
+    if (soundEnabled && currentRole !== 'manager' && nP > oP) audio.play().catch(() => {});
     allReservations = list;
     updateReservationBadge();
     if (activeFilter === 'reservations') renderOrders();
@@ -1373,12 +1378,10 @@ window.updateStatus = async function(orderId, newStatus) {
 
 </script>
 <script>
-let _soundEnabled = true;
-
 window.toggleSound = function() {
-  _soundEnabled = !_soundEnabled;
+  soundEnabled = !soundEnabled;
   const btn = document.getElementById('sound-btn');
-  if (btn) btn.textContent = _soundEnabled ? '🔔' : '🔕';
+  if (btn) btn.textContent = soundEnabled ? '🔔' : '🔕';
 };
 
 window.openStaffOrder = function() {
