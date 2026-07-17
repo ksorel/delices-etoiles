@@ -334,6 +334,7 @@
     <button class="filter-btn" data-filter="salle" onclick="setFilter('salle', this)">🪑 Salle</button>
     <button class="filter-btn" data-filter="livraison" onclick="setFilter('livraison', this)">🚴 Livraison</button>
     <button class="filter-btn" data-filter="done" onclick="setFilter('done', this)">✓ Servies</button>
+    <button class="filter-btn" data-filter="awaiting_payment" onclick="setFilter('awaiting_payment', this)">💳 Paiement à confirmer<span id="pay-count" style="display:none;margin-left:5px;background:#DC2626;color:#fff;font-size:10px;font-weight:800;padding:1px 6px;border-radius:9px"></span></button>
     <button class="filter-btn" data-filter="expired" onclick="setFilter('expired', this)">⏰ Expirées</button>
     <button class="filter-btn" data-filter="reservations" onclick="setFilter('reservations', this)">📅 Réservations<span id="resa-count" style="display:none;margin-left:5px;background:#8B5CF6;color:#fff;font-size:10px;font-weight:800;padding:1px 6px;border-radius:9px"></span></button>
   </div>
@@ -558,11 +559,11 @@ onAuthStateChanged(auth, async user => {
     const ROLES_CONFIG = {
       admin:    { canOrder: true,  canPay: true,  canStatus: true,  canPlan: true,  filterAuto: null,         masquePlan: false, tabs: null, stats: null },
       manager:  { canOrder: true,  canPay: true,  canStatus: true,  canPlan: true,  filterAuto: null,         masquePlan: false, tabs: null, stats: null },
-      serveur:  { canOrder: true,  canPay: false, canStatus: true,  canPlan: true,  filterAuto: null,         masquePlan: false, tabs: ['all','pending','preparing','ready','salle','done','expired','reservations'], stats: ['pending','prep','ready','done'] },
+      serveur:  { canOrder: true,  canPay: false, canStatus: true,  canPlan: true,  filterAuto: null,         masquePlan: false, tabs: ['all','pending','preparing','ready','salle','done','awaiting_payment','expired','reservations'], stats: ['pending','prep','ready','done'] },
       bar:      { canOrder: true,  canPay: false, canStatus: true,  canPlan: true,  filterAuto: null,         masquePlan: true,  tabs: ['all','pending','preparing','ready','expired'], stats: ['pending','prep','ready'] },
       cuisine:  { canOrder: false, canPay: false, canStatus: true,  canPlan: false, filterAuto: 'preparing',  masquePlan: true,  tabs: ['pending','preparing','ready'], stats: ['pending','prep','ready'] },
-      livreur:  { canOrder: false, canPay: false, canStatus: true,  canPlan: false, filterAuto: 'livraison',  masquePlan: true,  tabs: ['livraison','preparing','ready','done'], stats: ['prep','ready','done'] },
-      caissier: { canOrder: false, canPay: true,  canStatus: false, canPlan: true,  filterAuto: null,         masquePlan: false, tabs: ['all','salle','livraison','done','expired'], stats: ['pending','done','ca'] },
+      livreur:  { canOrder: false, canPay: false, canStatus: true,  canPlan: false, filterAuto: 'livraison',  masquePlan: true,  tabs: ['livraison','preparing','ready','done','awaiting_payment'], stats: ['prep','ready','done'] },
+      caissier: { canOrder: false, canPay: true,  canStatus: false, canPlan: true,  filterAuto: null,         masquePlan: false, tabs: ['all','salle','livraison','done','awaiting_payment','expired'], stats: ['pending','done','ca'] },
     };
     // Fusion des rôles : union des onglets/stats/permissions
     function mergeRoleConfigs(roles) {
@@ -787,17 +788,20 @@ async function showEstablishmentName() {
 
 function updateStats() {
   const counts = { pending:0, preparing:0, ready:0, done:0 };
-  let ca = 0;
+  let ca = 0, awaitingPay = 0;
   for (const o of allOrders) {
     if (isExpired(o)) continue;   // les expirées ne comptent pas dans les stats actives
     counts[o.status] = (counts[o.status] || 0) + 1;
     if (o.status === 'done') ca += o.total || 0;
+    if (o.paymentStatus === 'awaiting_payment') awaitingPay++;
   }
   document.getElementById('s-pending').textContent = counts.pending;
   document.getElementById('s-prep').textContent    = counts.preparing;
   document.getElementById('s-ready').textContent   = counts.ready;
   document.getElementById('s-done').textContent    = counts.done;
   document.getElementById('s-ca').textContent      = new Intl.NumberFormat('fr-FR').format(ca);
+  const payBadge = document.getElementById('pay-count');
+  if (payBadge) { payBadge.textContent = awaitingPay; payBadge.style.display = awaitingPay ? 'inline-block' : 'none'; }
 }
 
 // ── Filtres ───────────────────────────────────────────────
@@ -824,6 +828,7 @@ function renderOrders() {
     filtered = filtered.filter(o => !isExpired(o));
     if (activeFilter === 'salle')     filtered = filtered.filter(o => o.type === 'salle');
     else if (activeFilter === 'livraison') filtered = filtered.filter(o => o.type === 'livraison');
+    else if (activeFilter === 'awaiting_payment') filtered = filtered.filter(o => o.paymentStatus === 'awaiting_payment');
     else if (['pending','preparing','ready','done'].includes(activeFilter))
       filtered = filtered.filter(o => o.status === activeFilter);
   }
@@ -1064,7 +1069,7 @@ function buildCard(o) {
     <div class="order-card status-${o.status}" id="card-${o.id}">
       <div class="order-head">
         <div>
-          <div class="order-id">#${num} ${sessionBadge}${staffBadge}${isExpired(o) ? ' <span style="background:#F3E8E2;color:#8A6D5B;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px">⏰ expirée</span>' : ''}</div>
+          <div class="order-id">#${num} ${sessionBadge}${staffBadge}${isExpired(o) ? ' <span style="background:#F3E8E2;color:#8A6D5B;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px">⏰ expirée</span>' : ''}${o.paymentStatus === 'awaiting_payment' ? ' <span style="background:#FEE2E2;color:#DC2626;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px">💳 Paiement à confirmer</span>' : ''}</div>
           <div class="order-time">${time}</div>
         </div>
         <span class="order-type ${o.type}">${o.type === 'salle' ? `🪑 Table ${o.tableId || ''}` : o.type === 'surplace' ? `🍽️ Sur place${o.surplace ? ' · ' + (o.surplace.date || '') + ' ' + (o.surplace.heure || '') : ''}` : '🚴 Livraison'}</span>
@@ -1361,6 +1366,37 @@ window.showSessionInvoice = async function(sessionId, tableId) {
 
 `  );
   w.document.close();
+};
+
+// ── Confirmation de paiement (espèces ou mobile money) ────
+window.confirmPayment = async function(orderId, operateur) {
+  try {
+    await updateDoc(doc(db, 'commandes', orderId), {
+      paymentStatus: 'paid',
+      operateur: operateur,
+      paidAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+    showToast('Paiement confirmé ✓');
+  } catch(e) {
+    alert('Erreur paiement : ' + e.message);
+  }
+};
+
+// ── Livraison + paiement confirmés en une seule action ────
+window.confirmDelivery = async function(orderId, operateur) {
+  try {
+    await updateDoc(doc(db, 'commandes', orderId), {
+      status: 'done',
+      paymentStatus: 'paid',
+      operateur: operateur,
+      paidAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+    showToast('Livraison confirmée ✓');
+  } catch(e) {
+    alert('Erreur livraison : ' + e.message);
+  }
 };
 
 // ── Exposer updateStatus globalement ─────────────────────
