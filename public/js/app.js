@@ -63,6 +63,10 @@ const FB_SVG = '<svg viewBox="0 0 24 24" width="26" height="26" style="display:b
 const WA_SVG = '<svg viewBox="0 0 24 24" width="26" height="26" style="display:block"><path fill="#25D366" d="M.06 24l1.68-6.15a11.87 11.87 0 01-1.59-5.95C.15 5.34 5.5 0 12.07 0a11.82 11.82 0 018.41 3.49 11.82 11.82 0 013.49 8.41c0 6.57-5.35 11.91-11.92 11.91a11.9 11.9 0 01-5.7-1.45L.06 24z"/><path fill="#FFF" d="M8.53 7.33c-.16-.36-.33-.37-.48-.38l-.42-.01c-.14 0-.38.05-.58.27-.2.22-.76.75-.76 1.82 0 1.07.78 2.11.89 2.26.11.14 1.51 2.42 3.72 3.3 1.84.72 2.21.58 2.61.54.4-.04 1.29-.53 1.47-1.03.18-.51.18-.94.13-1.03-.05-.09-.2-.14-.42-.25-.22-.11-1.29-.64-1.49-.71-.2-.07-.35-.11-.5.11-.14.22-.57.71-.7.86-.13.14-.26.16-.48.05-.22-.11-.93-.34-1.77-1.09-.65-.58-1.09-1.3-1.22-1.52-.13-.22-.01-.34.1-.45.1-.1.22-.26.33-.38.11-.13.14-.22.22-.37.07-.14.04-.27-.02-.38-.05-.11-.48-1.2-.68-1.63z"/></svg>';
 // Épingle de localisation (remplace l'émoji 📍 sur les cartes établissement)
 const PIN_SVG = '<svg viewBox="0 0 24 24" width="15" height="15" style="display:inline-block;vertical-align:-3px;flex-shrink:0"><path fill="#F26522" d="M12 2C7.86 2 4.5 5.36 4.5 9.5c0 5.5 6.25 11.5 7.02 12.22a.7.7 0 00.96 0C13.25 21 19.5 15 19.5 9.5 19.5 5.36 16.14 2 12 2zm0 10.25a2.75 2.75 0 110-5.5 2.75 2.75 0 010 5.5z"/></svg>';
+// Drapeaux (bouton de langue) — en SVG plutôt qu'en émoji : Windows n'a pas
+// les glyphes des émojis drapeaux et retombe sur le texte "FR"/"GB".
+const FR_FLAG_SVG = '<svg viewBox="0 0 3 2" width="22" height="15" style="display:block;border-radius:3px;overflow:hidden"><rect width="1" height="2" x="0" fill="#0055A4"/><rect width="1" height="2" x="1" fill="#FFFFFF"/><rect width="1" height="2" x="2" fill="#EF4135"/></svg>';
+const GB_FLAG_SVG = '<svg viewBox="0 0 60 30" width="22" height="15" style="display:block;border-radius:3px;overflow:hidden"><rect width="60" height="30" fill="#00247d"/><path d="M0,0 L60,30 M60,0 L0,30" stroke="#fff" stroke-width="6"/><path d="M0,0 L60,30 M60,0 L0,30" stroke="#cf142b" stroke-width="2"/><path d="M30,0 V30 M0,15 H60" stroke="#fff" stroke-width="10"/><path d="M30,0 V30 M0,15 H60" stroke="#cf142b" stroke-width="6"/></svg>';
 // ─── État global de l'app ────────────────────────────────
 const State = {
   mode:        'livraison',  // 'salle' | 'livraison'
@@ -501,7 +505,7 @@ function updateHeader() {
 
   // Bouton langue (drapeau de la langue active)
   const langBtn = document.getElementById('lang-btn');
-  if (langBtn) langBtn.textContent = State.lang === 'en' ? '🇬🇧' : '🇫🇷';
+  if (langBtn) langBtn.innerHTML = State.lang === 'en' ? GB_FLAG_SVG : FR_FLAG_SVG;
   // Badge panier
   updateCartBadge();
 }
@@ -1631,12 +1635,11 @@ function renderTraiteur(container) {
         <div>
           <label style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;
                         letter-spacing:.05em;display:block;margin-bottom:5px">${t('tr_date')}</label>
-          <input type="text" id="tr-date" inputmode="numeric"
+          <input type="text" id="tr-date" readonly
                  style="width:100%;padding:10px 12px;border:1.5px solid var(--border);
-                        border-radius:10px;font-size:14px;outline:none"
+                        border-radius:10px;font-size:14px;outline:none;cursor:pointer"
                  placeholder="${getLang() === 'en' ? 'MM/DD/YYYY' : 'JJ/MM/AAAA'}"
-                 maxlength="10"
-                 oninput="window.formatDateInput(this, '${getLang()}')"
+                 onclick="window.App.openTrDatePicker(this)"
                  autocomplete="off">
           <div style="font-size:10px;color:var(--muted);margin-top:3px">
             ${getLang() === 'en' ? 'Format: MM/DD/YYYY' : 'Format : JJ/MM/AAAA'}
@@ -2324,6 +2327,76 @@ window.App.chooseResto = function (id) {
   bootApp();
 };
 
+// ─── Sélecteur de date personnalisé (calendrier, respecte la langue) ──
+// Remplace les <input type="date"> natifs : leur calendrier suit la langue
+// du système/navigateur, pas celle de l'app, et n'apparaît pas partout de
+// façon fiable (ex. saisie manuelle sur le formulaire traiteur).
+const _DP_WEEKDAYS = { fr: ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'], en: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'] };
+function _dpFormatDisplay(y, m, d, lang) {
+  const dd = String(d).padStart(2,'0'), mm = String(m+1).padStart(2,'0');
+  return lang === 'en' ? `${mm}/${dd}/${y}` : `${dd}/${mm}/${y}`;
+}
+function _dpIso(y, m, d) {
+  return `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+}
+let _dpOutsideHandler = null;
+function closeDatePicker() {
+  document.getElementById('dp-popup')?.remove();
+  if (_dpOutsideHandler) { document.removeEventListener('mousedown', _dpOutsideHandler); _dpOutsideHandler = null; }
+}
+function openDatePicker(anchorEl, opts) {
+  closeDatePicker();
+  const lang = getLang();
+  const today = new Date(); today.setHours(0,0,0,0);
+  let view = opts.initialIso ? new Date(opts.initialIso + 'T00:00:00') : new Date();
+  if (isNaN(view.getTime())) view = new Date();
+  view.setDate(1);
+
+  const popup = document.createElement('div');
+  popup.id = 'dp-popup';
+  popup.style.cssText = 'position:absolute;z-index:2000;background:#fff;border:1.5px solid #E0D4C8;border-radius:14px;box-shadow:0 12px 32px rgba(43,29,22,.18);padding:12px;width:266px';
+
+  function render() {
+    const y = view.getFullYear(), m = view.getMonth();
+    const monthLabel = view.toLocaleDateString(lang === 'en' ? 'en-US' : 'fr-FR', { month: 'long', year: 'numeric' });
+    const firstDow = (new Date(y, m, 1).getDay() + 6) % 7; // lundi = 0
+    const daysInMonth = new Date(y, m + 1, 0).getDate();
+    let cells = '';
+    for (let i = 0; i < firstDow; i++) cells += '<span></span>';
+    for (let d = 1; d <= daysInMonth; d++) {
+      const cellDate = new Date(y, m, d);
+      const disabled = opts.minToday && cellDate < today;
+      const isToday = cellDate.getTime() === today.getTime();
+      cells += `<button type="button" data-d="${d}" ${disabled ? 'disabled' : ''}
+        style="width:33px;height:33px;border:none;border-radius:8px;font-size:13px;cursor:${disabled ? 'default' : 'pointer'};
+               background:${isToday ? '#F5F0FF' : 'transparent'};color:${disabled ? '#C8BFBA' : '#2B1D16'};font-weight:${isToday ? '700' : '400'}">${d}</button>`;
+    }
+    popup.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <button type="button" id="dp-prev" style="background:none;border:none;font-size:16px;cursor:pointer;color:#7a6a55;padding:4px 8px">‹</button>
+        <div style="font-weight:700;font-size:13px;color:#2B1D16;text-transform:capitalize">${monthLabel}</div>
+        <button type="button" id="dp-next" style="background:none;border:none;font-size:16px;cursor:pointer;color:#7a6a55;padding:4px 8px">›</button>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:4px">
+        ${_DP_WEEKDAYS[lang === 'en' ? 'en' : 'fr'].map(w => `<span style="font-size:10px;color:#9a8576;text-align:center;font-weight:700">${w}</span>`).join('')}
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;justify-items:center">${cells}</div>`;
+    popup.querySelector('#dp-prev').onclick = () => { view.setMonth(view.getMonth() - 1); render(); };
+    popup.querySelector('#dp-next').onclick = () => { view.setMonth(view.getMonth() + 1); render(); };
+    popup.querySelectorAll('button[data-d]').forEach(btn => {
+      btn.onclick = () => { opts.onSelect(y, m, parseInt(btn.dataset.d)); closeDatePicker(); };
+    });
+  }
+  render();
+  document.body.appendChild(popup);
+  const rect = anchorEl.getBoundingClientRect();
+  popup.style.top  = (rect.bottom + window.scrollY + 6) + 'px';
+  popup.style.left = (rect.left + window.scrollX) + 'px';
+
+  _dpOutsideHandler = (e) => { if (!popup.contains(e.target) && e.target !== anchorEl) closeDatePicker(); };
+  setTimeout(() => document.addEventListener('mousedown', _dpOutsideHandler), 0);
+}
+
 // ─── Choix du service (livraison / sur place / réservation) ──
 const _SVC_INPUT = 'width:100%;padding:12px 14px;border:2px solid #E0D4C8;border-radius:12px;font-size:15px;outline:none;font-family:inherit;box-sizing:border-box';
 function _svcCard(id, icon, title, color) {
@@ -2372,7 +2445,6 @@ function renderReservation() {
   const view = document.getElementById('view');
   if (!view) return;
   updateHeader();
-  const today = new Date().toISOString().split('T')[0];
   const L = 'display:block;font-size:12px;font-weight:700;color:#7a6a55;margin-bottom:6px';
   const d = _rvDraft || {};
   const cartItems = getItems();
@@ -2399,7 +2471,12 @@ function renderReservation() {
       <div style="display:flex;flex-direction:column;gap:14px">
         <div><label style="${L}">${t('telephone')} *</label><input id="rv-tel" type="tel" style="${_SVC_INPUT}" placeholder="+225 07 00 00 00 00" value="${d.tel||''}"></div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-          <div><label style="${L}">${t('rv_date')} *</label><input id="rv-date" type="date" min="${today}" style="${_SVC_INPUT}" value="${d.date||''}"></div>
+          <div><label style="${L}">${t('rv_date')} *</label>
+            <input id="rv-date-display" type="text" readonly autocomplete="off" style="${_SVC_INPUT};cursor:pointer"
+                   placeholder="${getLang()==='en'?'MM/DD/YYYY':'JJ/MM/AAAA'}" value="${d.dateDisplay||''}"
+                   onclick="window.App.openRvDatePicker(this)">
+            <input type="hidden" id="rv-date" value="${d.date||''}">
+          </div>
           <div><label style="${L}">${t('rv_heure')} *</label><input id="rv-heure" type="time" style="${_SVC_INPUT}" value="${d.heure||''}"></div>
         </div>
         <div><label style="${L}">${t('rv_pers')}</label><input id="rv-pers" type="number" min="1" value="${d.pers||2}" style="${_SVC_INPUT}"></div>
@@ -2412,14 +2489,25 @@ function renderReservation() {
 }
 window.App.editReservationMenu = function() {
   _rvDraft = {
-    tel:   document.getElementById('rv-tel')?.value || '',
-    date:  document.getElementById('rv-date')?.value || '',
-    heure: document.getElementById('rv-heure')?.value || '',
-    pers:  document.getElementById('rv-pers')?.value || '',
-    note:  document.getElementById('rv-note')?.value || '',
+    tel:         document.getElementById('rv-tel')?.value || '',
+    date:        document.getElementById('rv-date')?.value || '',
+    dateDisplay: document.getElementById('rv-date-display')?.value || '',
+    heure:       document.getElementById('rv-heure')?.value || '',
+    pers:        document.getElementById('rv-pers')?.value || '',
+    note:        document.getElementById('rv-note')?.value || '',
   };
   State.mode = 'reservation';
   navigate('menu');
+};
+window.App.openRvDatePicker = function(displayEl) {
+  openDatePicker(displayEl, {
+    minToday: true,
+    initialIso: document.getElementById('rv-date')?.value || null,
+    onSelect: (y, m, dNum) => {
+      document.getElementById('rv-date').value = _dpIso(y, m, dNum);
+      displayEl.value = _dpFormatDisplay(y, m, dNum, getLang());
+    },
+  });
 };
 window.App.backToReservation = function() { renderReservation(); };
 window.App.submitReservation = async function() {
@@ -2820,20 +2908,22 @@ window.App.downloadDevisPDF = async function(devisId) {
 
 
 
-window.formatDateInput = function(input, lang) {
-  let val = input.value.replace(/\D/g, ''); // chiffres seulement
-  if (val.length > 8) val = val.slice(0, 8);
-
-  if (lang === 'en') {
-    // MM/DD/YYYY
-    if (val.length >= 3)      val = val.slice(0,2) + '/' + val.slice(2);
-    if (val.length >= 6)      val = val.slice(0,5) + '/' + val.slice(5);
-  } else {
-    // JJ/MM/AAAA
-    if (val.length >= 3)      val = val.slice(0,2) + '/' + val.slice(2);
-    if (val.length >= 6)      val = val.slice(0,5) + '/' + val.slice(5);
+window.App.openTrDatePicker = function(displayEl) {
+  const raw = displayEl.value;
+  let initialIso = null;
+  if (raw) {
+    const parts = raw.split('/');
+    if (parts.length === 3) {
+      initialIso = getLang() === 'en'
+        ? `${parts[2]}-${parts[0].padStart(2,'0')}-${parts[1].padStart(2,'0')}`
+        : `${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`;
+    }
   }
-  input.value = val;
+  openDatePicker(displayEl, {
+    minToday: false,
+    initialIso,
+    onSelect: (y, m, dNum) => { displayEl.value = _dpFormatDisplay(y, m, dNum, getLang()); },
+  });
 };
 
 window.handleTraiteurFile = function(file) {
