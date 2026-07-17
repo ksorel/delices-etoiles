@@ -72,6 +72,12 @@ const translations = {
     contact_whatsapp:  'WhatsApp',
     contact_view_page: 'Voir la page',
 
+    // Partage d'article
+    share_action:      'Partager',
+    share_prefix:      'Découvrez',
+    share_copied:      'Lien copié !',
+    share_copy_manual: 'Copiez ce lien :',
+
     pay_note_livraison: "En livraison, le paiement mobile (Wave, Orange Money, MTN) se règle à l'avance : c'est sa confirmation qui valide et déclenche votre commande.",
     menu_empty_title:  'Aucun plat disponible',
     menu_empty_sub:    "Cet établissement n'a pas encore de menu en ligne.",

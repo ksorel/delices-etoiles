@@ -11,6 +11,10 @@ import { fetchMenu, fetchZones, fetchUpsellRules, getOrCreateTable, fetchPlatDuJ
          submitReservation, createOrder } from './db.js';
 import { getDoc, doc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { requestNotificationPermission, listenForegroundMessages } from './fcm.js';
+// Lien partagé vers un article précis (?item=<id>) : ouvert automatiquement
+// une fois le menu chargé (voir renderMenu). Lu une seule fois au démarrage.
+let _itemFromUrl = null;
+try { _itemFromUrl = new URLSearchParams(window.location.search).get('item') || null; } catch (_) {}
 // ─── Panier inline (cart.js supprimé) ───────────────────────
 const CART_KEY = 'de_cart';
 let _cartItems = [];
@@ -739,6 +743,14 @@ function renderMenu(container) {
   }
   // Afficher l'assistant après chargement du menu
   if (window._ai) window._ai.show();
+  // Lien partagé vers un article précis : l'ouvrir une seule fois, une fois le menu prêt.
+  if (_itemFromUrl) {
+    const targetId = _itemFromUrl;
+    _itemFromUrl = null;
+    if (State.menu.some(m => m.id === targetId)) {
+      setTimeout(() => openItem(targetId), 300);
+    }
+  }
 }
 // Prix affiché sur la carte menu : fourchette si variantes, sinon prix simple/sur devis
 function menuCardPriceLabel(item) {
@@ -834,7 +846,12 @@ function openItem(itemId) {
       <div class="modal-body">
         <div class="modal-name">${itemName(item)}</div>
         <div class="modal-desc">${itemDesc(item)}</div>
-        <div class="modal-price" id="modal-price">${menuCardPriceLabel(item)}</div>
+        <div class="modal-price-row">
+          <div class="modal-price" id="modal-price">${menuCardPriceLabel(item)}</div>
+          <button class="share-pill" onclick="window.App.shareItem('${item.id}')">
+            <span class="share-pill-icon">📤</span> ${t('share_action')}
+          </button>
+        </div>
         ${glaceHtml}
         ${variantHtml}
         ${formatHtml}
@@ -946,6 +963,23 @@ function closeModal() {
   document.getElementById('item-modal')?.remove();
   window._itemModal = null;
 }
+async function _doShareItem(itemId) {
+  const item = State.menu.find(m => m.id === itemId);
+  if (!item) return;
+  const url  = `${location.origin}${location.pathname}?resto=${getRestoId()}&item=${itemId}`;
+  const text = `${t('share_prefix')} ${itemName(item)} — Délices Étoiles`;
+  if (navigator.share) {
+    try { await navigator.share({ title: 'Délices Étoiles', text, url }); }
+    catch (_) { /* partage annulé par l'utilisateur */ }
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(url);
+    showToast(t('share_copied'));
+  } catch (_) {
+    window.prompt(t('share_copy_manual'), url);
+  }
+};
 function setCategory(cat) {
   State.activeCategory = cat;
   renderView('menu');
@@ -1595,6 +1629,27 @@ function toggleLang() {
     renderServiceChoice();
   } else {
     renderView(location.hash.replace('#', '') || 'menu');
+  }
+  // La fiche article (modale) est ajoutée hors du conteneur re-rendu ci-dessus :
+  // si elle est ouverte, la reconstruire pour rafraîchir ses textes traduits.
+  if (window._itemModal) reopenItemModalForLangChange();
+}
+function reopenItemModalForLangChange() {
+  const prev = window._itemModal;
+  if (!prev) return;
+  const commentEl = document.getElementById('item-comment');
+  const prevComment = commentEl ? commentEl.value : '';
+  openItem(prev.itemId);
+  if (prev.glace)             setOption('glace', prev.glace);
+  if (prev.format)            setOption('format', prev.format);
+  if (prev.variante != null)  setOption('variante', prev.variante);
+  if (prev.qty > 1)           changeQty(prev.qty - 1);
+  (prev.selectedUpsells || []).forEach(id => toggleUpsell(id));
+  const newCommentEl = document.getElementById('item-comment');
+  if (newCommentEl && prevComment) {
+    newCommentEl.value = prevComment;
+    const countEl = document.getElementById('char-count');
+    if (countEl) countEl.textContent = prevComment.length;
   }
 }
 // ─── Exposer l'API globale pour les onclick HTML ──────────
@@ -2285,6 +2340,8 @@ function _startHeroCarousel() {
     if (dots[idx]) dots[idx].classList.add('on');
   }, 5000);
 }
+
+window.App.shareItem = _doShareItem;
 
 // Revenir au sélecteur d'établissement (hors salle). Le panier d'un autre
 // lieu n'étant plus valide (prix/plats différents), on le vide.

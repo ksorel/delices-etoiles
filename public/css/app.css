@@ -297,7 +297,32 @@ input, select, textarea { font-family: inherit; }
 .modal-body { padding: 20px; }
 .modal-name  { font-size: 20px; font-weight: 800; color: var(--brown); margin-bottom: 6px; }
 .modal-desc  { font-size: 14px; color: var(--text-muted); line-height: 1.6; margin-bottom: 16px; }
-.modal-price { font-size: 22px; font-weight: 800; color: var(--orange); margin-bottom: 20px; }
+.modal-price { font-size: 22px; font-weight: 800; color: var(--orange); }
+
+.modal-price-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+.share-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 8px 14px;
+  border-radius: 20px;
+  border: 1.5px solid var(--orange);
+  background: var(--white);
+  color: var(--orange);
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: var(--shadow);
+  transition: all .15s;
+}
+.share-pill:active { background: var(--orange); color: var(--white); }
+.share-pill-icon { font-size: 15px; }
 
 .close-btn {
   position: absolute;
