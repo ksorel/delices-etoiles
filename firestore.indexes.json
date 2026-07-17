@@ -142,6 +142,24 @@
         { "fieldPath": "actif", "order": "ASCENDING" },
         { "fieldPath": "ordre", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "commandes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "restoId",    "order": "ASCENDING" },
+        { "fieldPath": "clientUid",  "order": "ASCENDING" },
+        { "fieldPath": "itemIds",    "arrayConfig": "CONTAINS" }
+      ]
+    },
+    {
+      "collectionGroup": "avis",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "restoId",   "order": "ASCENDING" },
+        { "fieldPath": "menuId",    "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

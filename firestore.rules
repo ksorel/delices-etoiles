@@ -197,5 +197,22 @@ service cloud.firestore {
       allow create: if isAdmin() || (isManager() && request.resource.data.restoId == request.auth.token.restoId);
       allow update, delete: if isAdmin() || (isManager() && resource.data.restoId == request.auth.token.restoId);
     }
+
+    // ─── Avis clients sur les articles (par établissement) ─────
+    // ID déterministe {restoId}_{menuId}_{uid} : 1 avis max par client/plat/lieu.
+    // L'achat vérifié (le client a bien commandé ce plat) est contrôlé côté client ;
+    // ici on ne garantit que la forme des données et l'unicité par uid.
+    match /avis/{avisId} {
+      allow read: if true;
+      allow create: if isAuth()
+                    && avisId == (request.resource.data.restoId + '_' + request.resource.data.menuId + '_' + request.auth.uid)
+                    && request.resource.data.clientUid == request.auth.uid
+                    && request.resource.data.rating is int
+                    && request.resource.data.rating >= 1 && request.resource.data.rating <= 5
+                    && request.resource.data.comment.size() <= 300
+                    && request.resource.data.status == 'visible';
+      allow update: if false; // immuable une fois publié
+      allow delete: if isAdmin() || (isManager() && resource.data.restoId == request.auth.token.restoId);
+    }
   }
 }

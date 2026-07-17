@@ -8,7 +8,8 @@ import { t, initLang, getLang, setLang, itemName, itemDesc } from './i18n.js';
 import { fetchMenu, fetchZones, fetchUpsellRules, getOrCreateTable, fetchPlatDuJour, listenOrder,
          createSession, getOpenSessions, updateSessionStatus, getSessionOrders,
          getRestoId, setRestoId, fetchLieux, fetchLieu, fetchAccueilCarousel,
-         submitReservation, createOrder } from './db.js';
+         submitReservation, createOrder,
+         fetchAvisForItem, hasVerifiedPurchase, getExistingAvis, submitAvis } from './db.js';
 import { getDoc, doc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { requestNotificationPermission, listenForegroundMessages } from './fcm.js';
 // Lien partagé vers un article précis (?item=<id>) : ouvert automatiquement
@@ -725,6 +726,7 @@ function renderMenu(container) {
       <div class="card-body">
         <div class="card-name">${itemName(item)}</div>
         <div class="card-desc">${itemDesc(item)}</div>
+        ${cardRatingHtml(item)}
         <div class="card-price">${menuCardPriceLabel(item)}</div>
       </div>
     </div>`).join('');
@@ -751,6 +753,24 @@ function renderMenu(container) {
       setTimeout(() => openItem(targetId), 300);
     }
   }
+}
+// Échappement HTML basique (avis clients = texte libre affiché publiquement).
+function escapeHtml(s) {
+  return String(s || '').replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  }[c]));
+}
+// Rendu des étoiles (arrondi à l'entier le plus proche) pour une moyenne 0-5.
+function starsHtml(avg) {
+  const full = Math.round(avg || 0);
+  let s = '';
+  for (let i = 1; i <= 5; i++) s += (i <= full ? '★' : '☆');
+  return s;
+}
+// Petit badge note (carte grille) : uniquement si au moins un avis publié.
+function cardRatingHtml(item) {
+  if (!item.ratingCount) return '';
+  return `<div class="card-rating">${starsHtml(item.avgRating)} <span>(${item.ratingCount})</span></div>`;
 }
 // Prix affiché sur la carte menu : fourchette si variantes, sinon prix simple/sur devis
 function menuCardPriceLabel(item) {
@@ -875,8 +895,21 @@ function openItem(itemId) {
       </div>
       ${accompHtml}
       ${boissonUpsellHtml}
+      <div class="modal-body">
+        <div class="avis-section" id="avis-section">
+          <div class="avis-section-title">${t('avis_section_title')}</div>
+          <div class="avis-summary">
+            <span class="avis-summary-stars">${starsHtml(item.avgRating)}</span>
+            <span class="avis-summary-num">${item.ratingCount ? item.avgRating.toFixed(1) : '—'}</span>
+            <span class="avis-summary-count">${item.ratingCount ? (item.ratingCount + ' ' + t('avis_count_suffix')) : t('avis_none')}</span>
+          </div>
+          <div id="avis-write-zone"></div>
+          <div id="avis-list"></div>
+        </div>
+      </div>
     </div>`;
   document.body.appendChild(overlay);
+  loadAvisSection(item.id);
   // État local de la modal
   window._itemModal = {
     itemId, qty: 1, glace: 'oui', format: 'base', variante: null, selectedUpsells: [],
@@ -980,6 +1013,90 @@ async function _doShareItem(itemId) {
     window.prompt(t('share_copy_manual'), url);
   }
 };
+// ─── Avis clients ───────────────────────────────────────────
+async function loadAvisSection(itemId) {
+  const restoId = getRestoId();
+  const listEl  = document.getElementById('avis-list');
+  const writeEl = document.getElementById('avis-write-zone');
+  if (!listEl || !writeEl) return;
+  try {
+    const avisList = await fetchAvisForItem(restoId, itemId, 10);
+    listEl.innerHTML = avisList.map(a => `
+      <div class="avis-item">
+        <div class="avis-item-head">
+          <span class="avis-item-name">${escapeHtml(a.prenom) || t('avis_anonymous')}</span>
+          <span class="avis-item-stars">${starsHtml(a.rating)}</span>
+        </div>
+        ${a.comment ? `<div class="avis-item-comment">${escapeHtml(a.comment)}</div>` : ''}
+      </div>`).join('');
+  } catch (e) { console.error('[avis] liste:', e); }
+
+  if (!State.uid) { writeEl.innerHTML = ''; return; }
+  try {
+    const [existing, verified] = await Promise.all([
+      getExistingAvis(restoId, itemId, State.uid),
+      hasVerifiedPurchase(restoId, itemId, State.uid),
+    ]);
+    if (existing) {
+      writeEl.innerHTML = `<div class="avis-note-msg">${t('avis_already')}</div>`;
+    } else if (verified) {
+      writeEl.innerHTML = `<button class="avis-cta-btn" onclick="window.App.openAvisForm('${itemId}')">${t('avis_write_cta')}</button>`;
+    } else {
+      writeEl.innerHTML = `<div class="avis-note-msg">${t('avis_locked')}</div>`;
+    }
+  } catch (e) { console.error('[avis] vérif achat:', e); }
+}
+function _openAvisForm(itemId) {
+  window._avisDraft = { itemId, rating: 0 };
+  const writeEl = document.getElementById('avis-write-zone');
+  if (!writeEl) return;
+  writeEl.innerHTML = `
+    <div class="avis-form">
+      <div class="avis-star-picker" id="avis-star-picker">
+        ${[1,2,3,4,5].map(i => `<span data-n="${i}" onclick="window.App.setAvisStars(${i})">☆</span>`).join('')}
+      </div>
+      <input type="text" id="avis-prenom" maxlength="40" placeholder="${t('avis_name_placeholder')}">
+      <textarea id="avis-comment" maxlength="300" rows="3" placeholder="${t('avis_comment_placeholder')}"></textarea>
+      <div class="avis-form-actions">
+        <button class="btn btn-primary" style="flex:1" onclick="window.App.confirmSubmitAvis()">${t('avis_submit')}</button>
+        <button class="btn" style="flex:0 0 auto" onclick="window.App.openItem('${itemId}')">${t('avis_cancel')}</button>
+      </div>
+    </div>`;
+}
+function _setAvisStars(n) {
+  if (!window._avisDraft) return;
+  window._avisDraft.rating = n;
+  document.querySelectorAll('#avis-star-picker span').forEach(el => {
+    el.textContent = Number(el.dataset.n) <= n ? '★' : '☆';
+    el.classList.toggle('on', Number(el.dataset.n) <= n);
+  });
+}
+async function _confirmSubmitAvis() {
+  const draft = window._avisDraft;
+  if (!draft) return;
+  if (!draft.rating) { showToast(t('avis_rating_required')); return; }
+  try {
+    await submitAvis({
+      restoId: getRestoId(),
+      menuId:  draft.itemId,
+      uid:     State.uid,
+      rating:  draft.rating,
+      comment: document.getElementById('avis-comment')?.value || '',
+      prenom:  document.getElementById('avis-prenom')?.value || '',
+    });
+    showToast(t('avis_submitted_toast'));
+    window._avisDraft = null;
+    const item = State.menu.find(m => m.id === draft.itemId);
+    if (item) {
+      item.ratingCount = (item.ratingCount || 0) + 1;
+      item.avgRating   = ((item.avgRating || 0) * (item.ratingCount - 1) + draft.rating) / item.ratingCount;
+    }
+    openItem(draft.itemId);
+  } catch (e) {
+    console.error('[avis] envoi:', e);
+    showToast(t('avis_error'));
+  }
+}
 function setCategory(cat) {
   State.activeCategory = cat;
   renderView('menu');
@@ -2342,6 +2459,9 @@ function _startHeroCarousel() {
 }
 
 window.App.shareItem = _doShareItem;
+window.App.openAvisForm     = _openAvisForm;
+window.App.setAvisStars     = _setAvisStars;
+window.App.confirmSubmitAvis = _confirmSubmitAvis;
 
 // Revenir au sélecteur d'établissement (hors salle). Le panier d'un autre
 // lieu n'étant plus valide (prix/plats différents), on le vide.
@@ -2614,11 +2734,13 @@ window.App.confirmSurplace = async function() {
   const btn = document.getElementById('sp-submit');
   if (btn) { btn.disabled = true; btn.textContent = 'Envoi…'; }
   try {
-    const items = getItems().map(i => ({ name: itemName(i), qty: i.qty, subtotal: i.price * i.qty, comment: i.comment || '' }));
+    const cartItems = getItems();
+    const items = cartItems.map(i => ({ id: i.id, name: itemName(i), qty: i.qty, subtotal: i.price * i.qty, comment: i.comment || '' }));
     const orderId = await createOrder({
       type: 'surplace', restoId: State.resto?.id || getRestoId(),
       telephone: tel,
-      items, total: getTotal(), operateur: 'especes',
+      clientUid: State.uid || null,
+      items, itemIds: cartItems.map(i => i.id), total: getTotal(), operateur: 'especes',
     });
     clearCart(); updateCartBadge();
     localStorage.setItem('de_last_order', JSON.stringify({ orderId, operateur: 'especes', mode: 'surplace', ts: Date.now() }));

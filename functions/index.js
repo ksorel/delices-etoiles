@@ -316,6 +316,51 @@ exports.onStockUpdate = region.firestore
   });
 
 // ─────────────────────────────────────────────────────────
+//  6b. TRIGGERS : Avis client → agrégation note moyenne (menu-dispo)
+// ─────────────────────────────────────────────────────────
+async function applyAvisDelta(restoId, menuId, ratingDelta, countDelta) {
+  const dispoRef = db.collection('menu-dispo').doc(menuId + '_' + restoId);
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(dispoRef);
+    const data = snap.exists ? snap.data() : {};
+    const prevCount = data.ratingCount || 0;
+    const prevAvg   = data.avgRating   || 0;
+    const newCount  = Math.max(0, prevCount + countDelta);
+    const newAvg    = newCount === 0 ? 0 : ((prevAvg * prevCount) + ratingDelta) / newCount;
+    tx.set(dispoRef, {
+      menuItemId: menuId, restoId,
+      avgRating:   newAvg,
+      ratingCount: newCount,
+      updatedAt:   admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+  });
+}
+
+exports.onAvisCreate = region.firestore
+  .document('avis/{avisId}')
+  .onCreate(async (snap) => {
+    const d = snap.data();
+    try {
+      await applyAvisDelta(d.restoId, d.menuId, d.rating, 1);
+    } catch (e) {
+      console.error('onAvisCreate error:', e.message);
+    }
+    return null;
+  });
+
+exports.onAvisDelete = region.firestore
+  .document('avis/{avisId}')
+  .onDelete(async (snap) => {
+    const d = snap.data();
+    try {
+      await applyAvisDelta(d.restoId, d.menuId, -d.rating, -1);
+    } catch (e) {
+      console.error('onAvisDelete error:', e.message);
+    }
+    return null;
+  });
+
+// ─────────────────────────────────────────────────────────
 //  5. GESTION DES UTILISATEURS (admin global, ou gérant scopé à son établissement)
 // ─────────────────────────────────────────────────────────
 

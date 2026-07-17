@@ -78,6 +78,22 @@ const translations = {
     share_copied:      'Lien copié !',
     share_copy_manual: 'Copiez ce lien :',
 
+    // Avis clients
+    avis_section_title:     'Avis clients',
+    avis_none:               'Aucun avis pour le moment',
+    avis_count_suffix:       'avis',
+    avis_write_cta:          '★ Laisser un avis',
+    avis_already:            'Vous avez déjà noté ce plat, merci !',
+    avis_locked:             'Commandez ce plat pour pouvoir le noter',
+    avis_name_placeholder:   'Votre prénom (optionnel)',
+    avis_comment_placeholder:'Votre avis (optionnel)',
+    avis_submit:             'Publier mon avis',
+    avis_cancel:             'Annuler',
+    avis_submitted_toast:    'Merci pour votre avis !',
+    avis_rating_required:    'Choisissez une note avant de publier',
+    avis_error:               "Erreur, veuillez réessayer",
+    avis_anonymous:           'Client',
+
     pay_note_livraison: "En livraison, le paiement mobile (Wave, Orange Money, MTN) se règle à l'avance : c'est sa confirmation qui valide et déclenche votre commande.",
     menu_empty_title:  'Aucun plat disponible',
     menu_empty_sub:    "Cet établissement n'a pas encore de menu en ligne.",
@@ -301,6 +317,28 @@ const translations = {
     contact_facebook:  'Facebook',
     contact_whatsapp:  'WhatsApp',
     contact_view_page: 'View page',
+
+    // Share an item
+    share_action:      'Share',
+    share_prefix:      'Check out',
+    share_copied:      'Link copied!',
+    share_copy_manual: 'Copy this link:',
+
+    // Customer reviews
+    avis_section_title:     'Customer reviews',
+    avis_none:               'No reviews yet',
+    avis_count_suffix:       'reviews',
+    avis_write_cta:          '★ Write a review',
+    avis_already:            'You already reviewed this dish, thank you!',
+    avis_locked:             'Order this dish to be able to rate it',
+    avis_name_placeholder:   'Your first name (optional)',
+    avis_comment_placeholder:'Your review (optional)',
+    avis_submit:             'Post my review',
+    avis_cancel:             'Cancel',
+    avis_submitted_toast:    'Thank you for your review!',
+    avis_rating_required:    'Choose a rating before posting',
+    avis_error:               'Error, please try again',
+    avis_anonymous:           'Customer',
 
     pay_note_livraison: 'For delivery, mobile payment (Wave, Orange Money, MTN) is made in advance: its confirmation validates and starts your order.',
     menu_empty_title:  'No dishes available',

@@ -15,7 +15,7 @@
 import { db, INITIAL_RESTO_ID } from './config.js';
 import {
   collection, doc, getDoc, getDocs, addDoc, updateDoc, setDoc, deleteDoc,
-  query, where, orderBy, onSnapshot,
+  query, where, orderBy, limit, onSnapshot,
   serverTimestamp, Timestamp,
 } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
@@ -71,6 +71,7 @@ function mergeCatalogDispo(id, catalog, dispo) {
     id, ...catalog,
     price: dispo.price, prixVariable: dispo.prixVariable,
     available: dispo.available, order: dispo.order,
+    avgRating: dispo.avgRating || 0, ratingCount: dispo.ratingCount || 0,
   };
   if (dispo.formats != null) item.formats = dispo.formats;
   if (dispo.stockStatus != null) item.stockStatus = dispo.stockStatus;
@@ -256,6 +257,57 @@ export async function createOrder(orderData) {
     createdAt: serverTimestamp(),
   });
   return ref.id;
+}
+
+// ─── Avis clients sur un article (par établissement) ─────
+// ID déterministe {restoId}_{menuId}_{uid} : au plus 1 avis par client/plat/lieu.
+function avisId(restoId, menuId, uid) { return restoId + '_' + menuId + '_' + uid; }
+
+// L'avis existe-t-il déjà pour ce client sur ce plat/lieu ?
+export async function getExistingAvis(restoId, menuId, uid) {
+  const snap = await getDoc(doc(db, 'avis', avisId(restoId, menuId, uid)));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+// Le client a-t-il déjà commandé ce plat dans cet établissement ?
+// (condition pour pouvoir laisser un avis — "achat vérifié")
+export async function hasVerifiedPurchase(restoId, menuId, uid) {
+  const q = query(
+    collection(db, 'commandes'),
+    where('restoId', '==', restoId),
+    where('clientUid', '==', uid),
+    where('itemIds', 'array-contains', menuId),
+    limit(1)
+  );
+  const snap = await getDocs(q);
+  return !snap.empty;
+}
+
+export async function submitAvis({ restoId, menuId, uid, rating, comment, prenom }) {
+  const id = avisId(restoId, menuId, uid);
+  await setDoc(doc(db, 'avis', id), {
+    restoId, menuId,
+    clientUid: uid,
+    rating,
+    comment: (comment || '').slice(0, 300),
+    prenom:  (prenom  || '').slice(0, 40),
+    status:  'visible',
+    createdAt: serverTimestamp(),
+  });
+  return id;
+}
+
+// Derniers avis publiés pour un article, dans un établissement.
+export async function fetchAvisForItem(restoId, menuId, maxCount = 10) {
+  const q = query(
+    collection(db, 'avis'),
+    where('restoId', '==', restoId),
+    where('menuId', '==', menuId),
+    orderBy('createdAt', 'desc'),
+    limit(maxCount)
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
 // ─── Réservations de table ───────────────────────────────

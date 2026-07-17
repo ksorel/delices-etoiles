@@ -49,6 +49,7 @@ export async function submitSalleOrder(tableId, clientUid, operateur = 'especes'
     sessionId,
     clientUid,
     items:         lines,
+    itemIds:       cartItems.map(i => i.id),
     total,
     comment:       '',
     operateur,
@@ -71,6 +72,7 @@ export async function submitLivraisonOrder(livraison, clientUid, cartItems = [])
     type:      'livraison',
     clientUid,
     items:     lines,
+    itemIds:   cartItems.map(i => i.id),
     sous_total,
     total,
     livraison: {
