@@ -664,6 +664,7 @@ onAuthStateChanged(auth, async user => {
     document.getElementById('login-screen').style.display = 'flex';
     document.getElementById('dash-app').style.display     = 'none';
     if (unsubOrders) { try { unsubOrders(); } catch(e) {} unsubOrders = null; }
+    if (window._ai) window._ai.hide();
   }
 });
 

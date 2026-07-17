@@ -638,6 +638,7 @@ onAuthStateChanged(auth, async user => {
       // la session du dashboard. La déconnexion reste manuelle (bouton) ou au login admin.
       document.getElementById('login-screen').style.display = 'flex';
       document.getElementById('admin-app').style.display    = 'none';
+      if (window._ai) window._ai.hide();
       return;
     }
     mySessionRole = token.claims.role;
@@ -662,15 +663,18 @@ onAuthStateChanged(auth, async user => {
     renderRestoSwitcher();
     showPage('dashboard', document.querySelector('.nav-item'));
 
-    // Initialiser l'assistant IA (une seule fois)
+    // Initialiser l'assistant IA (une seule fois), sinon le ré-afficher
     if (!window._ai) {
       setTimeout(() => { initAssistant(); }, 600);
+    } else {
+      window._ai.show();
     }
     // Lancer l'onboarding au premier login uniquement
     setTimeout(() => { startOnboarding('admin'); }, 900);
   } else {
     document.getElementById('login-screen').style.display = 'flex';
     document.getElementById('admin-app').style.display    = 'none';
+    if (window._ai) window._ai.hide();
   }
 });
 
