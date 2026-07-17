@@ -2403,7 +2403,6 @@ function renderReservation() {
         ${menuSectionHtml}
         <div id="rv-err" style="display:none;background:#FEE2E2;color:#991B1B;padding:10px 14px;border-radius:10px;font-size:13px"></div>
         <button id="rv-submit" onclick="window.App.submitReservation()" style="width:100%;padding:14px;background:#8B5CF6;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer">${t('rv_submit')}</button>
-        <p style="font-size:12px;color:#9a8576;text-align:center;line-height:1.5;margin:0">${t('rv_disclaimer')}</p>
       </div>
     </div>`;
 }
