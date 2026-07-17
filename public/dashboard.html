@@ -960,8 +960,8 @@ function buildCard(o) {
   } else if (o.status === 'preparing') {
     actionBtns = `<button class="status-btn btn-ready" onclick="updateStatus('${o.id}','ready')">✅ Prêt</button>`;
   } else if (o.status === 'ready') {
-    if (o.type === 'salle') {
-      // Salle : proposer validation paiement selon mode
+    if (o.type === 'salle' || o.type === 'surplace') {
+      // Salle / sur place : pas de livreur, paiement à l'arrivée du client
       const payStatus = o.paymentStatus || 'pending_cash';
       const operateur = o.operateur || 'especes';
       if (payStatus === 'pending_cash') {
