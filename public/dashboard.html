@@ -271,15 +271,22 @@
       <div style="font-size:12px;color:#7A6356;margin-bottom:6px">
         🔐 Mot de passe oublié ?
       </div>
-      <div style="font-size:13px;font-weight:700;color:#2B1D16">
-        Contactez votre responsable
+      <div style="font-size:13px;font-weight:700;color:#2B1D16;margin-bottom:8px">
+        Contactez le gérant de votre établissement
       </div>
-      <a id="contact-phone-link" href="tel:0779939254"
-         style="display:inline-flex;align-items:center;gap:6px;margin-top:8px;
+      <select id="login-resto-select" onchange="window.onLoginRestoChange()"
+              style="width:100%;padding:8px 10px;border:1px solid #E0D4C8;border-radius:8px;
+                     font-size:13px;color:#2B1D16;background:#fff;margin-bottom:8px">
+        <option value="">— Choisir mon établissement —</option>
+      </select>
+      <a id="contact-phone-link" href="tel:" style="display:none;align-items:center;gap:6px;
                 background:#F26522;color:#fff;padding:8px 18px;border-radius:20px;
-                font-size:13px;font-weight:700;text-decoration:none">
-        📞 <span id="contact-phone-num">0779939254</span>
+                font-size:13px;font-weight:700;text-decoration:none;justify-content:center">
+        📞 <span id="contact-phone-num"></span>
       </a>
+      <div id="contact-phone-empty" style="display:none;font-size:12px;color:#9A8576">
+        Aucun numéro renseigné pour cet établissement.
+      </div>
     </div>
   </div>
 </div>
@@ -433,6 +440,56 @@ window.doLogout = async function() {
   } catch(_) {}
   await signOut(auth);
 };
+
+// Contact affiché sur l'écran de connexion : numéro du gérant de
+// l'établissement choisi par l'employé (restos/{id}.loginContactPhone,
+// lecture publique). Repli sur un numéro global (config/accueil) si
+// l'établissement n'en a pas renseigné.
+let _loginRestos = [];
+let _loginGlobalPhone = '';
+function showLoginContactPhone(phone) {
+  const linkEl  = document.getElementById('contact-phone-link');
+  const numEl   = document.getElementById('contact-phone-num');
+  const emptyEl = document.getElementById('contact-phone-empty');
+  if (phone) {
+    if (numEl)  numEl.textContent = phone;
+    if (linkEl) { linkEl.href = 'tel:' + phone.replace(/\s/g, ''); linkEl.style.display = 'inline-flex'; }
+    if (emptyEl) emptyEl.style.display = 'none';
+  } else {
+    if (linkEl) linkEl.style.display = 'none';
+    if (emptyEl) emptyEl.style.display = 'block';
+  }
+}
+window.onLoginRestoChange = function() {
+  const id = document.getElementById('login-resto-select')?.value || '';
+  try { localStorage.setItem('de_login_resto', id); } catch(_) {}
+  const r = _loginRestos.find(x => x.id === id);
+  showLoginContactPhone((r && r.loginContactPhone) || _loginGlobalPhone || '');
+};
+(async function loadLoginContact() {
+  try {
+    const [restosSnap, accueilSnap] = await Promise.all([
+      getDocs(query(collection(db, 'restos'), orderBy('ordre'))),
+      getDoc(doc(db, 'config', 'accueil')),
+    ]);
+    _loginRestos = restosSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(r => r.actif !== false);
+    _loginGlobalPhone = accueilSnap.exists() ? (accueilSnap.data().loginContactPhone || '') : '';
+    const sel = document.getElementById('login-resto-select');
+    if (sel) {
+      _loginRestos.forEach(r => {
+        const opt = document.createElement('option');
+        opt.value = r.id; opt.textContent = r.nomCourt || r.nom || r.id;
+        sel.appendChild(opt);
+      });
+      let saved = '';
+      try { saved = localStorage.getItem('de_login_resto') || ''; } catch(_) {}
+      if (saved && _loginRestos.some(r => r.id === saved)) {
+        sel.value = saved;
+        window.onLoginRestoChange();
+      }
+    }
+  } catch(e) { /* repli silencieux : le sélecteur reste vide */ }
+})();
 
 onAuthStateChanged(auth, async user => {
   if (user) {
