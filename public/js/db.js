@@ -72,6 +72,7 @@ function mergeCatalogDispo(id, catalog, dispo) {
     price: dispo.price, prixVariable: dispo.prixVariable,
     available: dispo.available, order: dispo.order,
     avgRating: dispo.avgRating || 0, ratingCount: dispo.ratingCount || 0,
+    ratingBreakdown: dispo.ratingBreakdown || null,
   };
   if (dispo.formats != null) item.formats = dispo.formats;
   if (dispo.stockStatus != null) item.stockStatus = dispo.stockStatus;
@@ -283,17 +284,40 @@ export async function hasVerifiedPurchase(restoId, menuId, uid) {
   return !snap.empty;
 }
 
-export async function submitAvis({ restoId, menuId, uid, rating, comment, prenom }) {
-  const id = avisId(restoId, menuId, uid);
-  await setDoc(doc(db, 'avis', id), {
-    restoId, menuId,
-    clientUid: uid,
-    rating,
+// Note (tap rapide, à la Play Store) : crée l'avis s'il n'existe pas encore
+// (commentaire vide), ou met simplement à jour la note en conservant le
+// commentaire déjà écrit le cas échéant.
+export async function setAvisRating({ restoId, menuId, uid, rating }) {
+  const id  = avisId(restoId, menuId, uid);
+  const ref = doc(db, 'avis', id);
+  const existing = await getDoc(ref);
+  if (existing.exists()) {
+    await updateDoc(ref, { rating, updatedAt: serverTimestamp() });
+  } else {
+    await setDoc(ref, {
+      restoId, menuId, clientUid: uid, rating,
+      comment: '', status: 'visible', createdAt: serverTimestamp(),
+    });
+  }
+  return id;
+}
+
+// Avis écrit (note + commentaire) : crée ou met à jour l'avis existant du
+// client, sans toucher à sa date de création d'origine.
+export async function submitAvis({ restoId, menuId, uid, rating, comment }) {
+  const id  = avisId(restoId, menuId, uid);
+  const ref = doc(db, 'avis', id);
+  const existing = await getDoc(ref);
+  const data = {
+    restoId, menuId, clientUid: uid, rating,
     comment: (comment || '').slice(0, 300),
-    prenom:  (prenom  || '').slice(0, 40),
-    status:  'visible',
-    createdAt: serverTimestamp(),
-  });
+    status: 'visible',
+  };
+  if (existing.exists()) {
+    await updateDoc(ref, data);
+  } else {
+    await setDoc(ref, { ...data, createdAt: serverTimestamp() });
+  }
   return id;
 }
 

@@ -1853,7 +1853,7 @@ function renderAvis(c) {
           + '<td style="padding:10px 12px">' + nom + (activeResto==='ALL' ? ' ' + lieuChip(a.restoId) : '') + '</td>'
           + '<td style="padding:10px 12px">' + avisStarsHtml(a.rating) + '</td>'
           + '<td style="padding:10px 12px;max-width:320px">' + (a.comment ? escapeAdminHtml(a.comment) : '<span style="color:#CCC">—</span>') + '</td>'
-          + '<td style="padding:10px 12px;font-size:12px;color:#7A6356">' + (a.prenom ? escapeAdminHtml(a.prenom) : 'Client') + '</td>'
+          + '<td style="padding:10px 12px;font-size:12px;color:#7A6356">Client</td>'
           + '<td style="padding:10px 12px;font-size:12px;color:#7A6356;white-space:nowrap">' + date + '</td>'
           + '<td style="padding:10px 12px"><button class="btn btn-sm btn-danger" onclick="window.Admin.deleteAvis(\x27' + a.id + '\x27)">🗑️</button></td>'
           + '</tr>';

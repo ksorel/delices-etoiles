@@ -218,7 +218,16 @@ service cloud.firestore {
                     && request.resource.data.rating >= 1 && request.resource.data.rating <= 5
                     && request.resource.data.comment.size() <= 300
                     && request.resource.data.status == 'visible';
-      allow update: if false; // immuable une fois publié
+      // Le client peut revenir modifier sa note/son avis (comme sur un store) ;
+      // restoId/menuId/clientUid restent figés (ce sont eux qui composent l'ID).
+      allow update: if isAuth() && resource.data.clientUid == request.auth.uid
+                    && request.resource.data.restoId   == resource.data.restoId
+                    && request.resource.data.menuId    == resource.data.menuId
+                    && request.resource.data.clientUid == resource.data.clientUid
+                    && request.resource.data.rating is int
+                    && request.resource.data.rating >= 1 && request.resource.data.rating <= 5
+                    && request.resource.data.comment.size() <= 300
+                    && request.resource.data.status == 'visible';
       allow delete: if isAdmin() || (isManager() && resource.data.restoId == request.auth.token.restoId);
     }
   }

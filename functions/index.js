@@ -366,20 +366,34 @@ exports.onStockUpdate = region.firestore
 // ─────────────────────────────────────────────────────────
 //  6b. TRIGGERS : Avis client → agrégation note moyenne (menu-dispo)
 // ─────────────────────────────────────────────────────────
-async function applyAvisDelta(restoId, menuId, ratingDelta, countDelta) {
+// addRating/removeRating : note ajoutée/retirée de l'agrégat (création, suppression,
+// ou les deux à la fois pour un changement de note — répartition par étoile incluse,
+// comme l'histogramme d'un store).
+async function applyAvisChange(restoId, menuId, { addRating, removeRating } = {}) {
   const dispoRef = db.collection('menu-dispo').doc(menuId + '_' + restoId);
   await db.runTransaction(async (tx) => {
     const snap = await tx.get(dispoRef);
     const data = snap.exists ? snap.data() : {};
-    const prevCount = data.ratingCount || 0;
-    const prevAvg   = data.avgRating   || 0;
-    const newCount  = Math.max(0, prevCount + countDelta);
-    const newAvg    = newCount === 0 ? 0 : ((prevAvg * prevCount) + ratingDelta) / newCount;
+    let count = data.ratingCount || 0;
+    let sum   = (data.avgRating || 0) * count;
+    const breakdown = Object.assign({ 1:0, 2:0, 3:0, 4:0, 5:0 }, data.ratingBreakdown || {});
+    if (removeRating) {
+      count = Math.max(0, count - 1);
+      sum  -= removeRating;
+      breakdown[removeRating] = Math.max(0, (breakdown[removeRating] || 0) - 1);
+    }
+    if (addRating) {
+      count += 1;
+      sum   += addRating;
+      breakdown[addRating] = (breakdown[addRating] || 0) + 1;
+    }
+    const avg = count === 0 ? 0 : sum / count;
     tx.set(dispoRef, {
       menuItemId: menuId, restoId,
-      avgRating:   newAvg,
-      ratingCount: newCount,
-      updatedAt:   admin.firestore.FieldValue.serverTimestamp(),
+      avgRating:       avg,
+      ratingCount:     count,
+      ratingBreakdown: breakdown,
+      updatedAt:       admin.firestore.FieldValue.serverTimestamp(),
     }, { merge: true });
   });
 }
@@ -389,9 +403,23 @@ exports.onAvisCreate = region.firestore
   .onCreate(async (snap) => {
     const d = snap.data();
     try {
-      await applyAvisDelta(d.restoId, d.menuId, d.rating, 1);
+      await applyAvisChange(d.restoId, d.menuId, { addRating: d.rating });
     } catch (e) {
       console.error('onAvisCreate error:', e.message);
+    }
+    return null;
+  });
+
+exports.onAvisUpdate = region.firestore
+  .document('avis/{avisId}')
+  .onUpdate(async (change) => {
+    const before = change.before.data();
+    const after  = change.after.data();
+    if (before.rating === after.rating) return null;
+    try {
+      await applyAvisChange(after.restoId, after.menuId, { addRating: after.rating, removeRating: before.rating });
+    } catch (e) {
+      console.error('onAvisUpdate error:', e.message);
     }
     return null;
   });
@@ -401,7 +429,7 @@ exports.onAvisDelete = region.firestore
   .onDelete(async (snap) => {
     const d = snap.data();
     try {
-      await applyAvisDelta(d.restoId, d.menuId, -d.rating, -1);
+      await applyAvisChange(d.restoId, d.menuId, { removeRating: d.rating });
     } catch (e) {
       console.error('onAvisDelete error:', e.message);
     }

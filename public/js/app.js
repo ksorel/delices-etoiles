@@ -9,7 +9,7 @@ import { fetchMenu, fetchZones, fetchUpsellRules, getOrCreateTable, fetchPlatDuJ
          createSession, getOpenSessions, updateSessionStatus, getSessionOrders,
          getRestoId, setRestoId, fetchLieux, fetchLieu, fetchAccueilCarousel,
          submitReservation, createOrder, listenReservation, findReservation,
-         fetchAvisForItem, hasVerifiedPurchase, getExistingAvis, submitAvis } from './db.js';
+         fetchAvisForItem, hasVerifiedPurchase, getExistingAvis, submitAvis, setAvisRating } from './db.js';
 import { getDoc, doc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { requestNotificationPermission, listenForegroundMessages } from './fcm.js';
 // Lien partagé vers un article précis (?item=<id>) : ouvert automatiquement
@@ -735,16 +735,16 @@ function renderMenu(container) {
     ? availableMenu
     : availableMenu.filter(m => m.category === activeCat);
   const cardsHtml = items.map(item => `
-    <div class="menu-card" onclick="window.App.openItem('${item.id}')">
+    <div class="menu-card" data-item-id="${item.id}" onclick="window.App.openItem('${item.id}')">
       <div class="card-img">
         ${item.imageUrl
           ? `<img src="${item.imageUrl}" alt="${itemName(item)}" loading="lazy">`
           : `<div class="no-img">🍽️</div>`}
       </div>
+      ${cardRatingHtml(item)}
       <div class="card-body">
         <div class="card-name">${itemName(item)}</div>
         <div class="card-desc">${itemDesc(item)}</div>
-        ${cardRatingHtml(item)}
         <div class="card-price">${menuCardPriceLabel(item)}</div>
       </div>
     </div>`).join('');
@@ -778,6 +778,14 @@ function escapeHtml(s) {
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
   }[c]));
 }
+// Référence de commande affichée au client : DOIT correspondre exactement au
+// numéro affiché côté staff (dashboard.html) — préfixe = 3 premières lettres
+// du restoId en majuscules, suivi des 6 derniers caractères de l'ID Firestore.
+function orderRefLabel(orderId, restoId) {
+  if (!orderId) return '';
+  const code = (restoId || getRestoId() || '').slice(0, 3).toUpperCase();
+  return (code ? code + '-' : '') + orderId.slice(-6).toUpperCase();
+}
 // Rendu des étoiles (arrondi à l'entier le plus proche) pour une moyenne 0-5.
 function starsHtml(avg) {
   const full = Math.round(avg || 0);
@@ -785,10 +793,30 @@ function starsHtml(avg) {
   for (let i = 1; i <= 5; i++) s += (i <= full ? '★' : '☆');
   return s;
 }
-// Petit badge note (carte grille) : uniquement si au moins un avis publié.
+// Bandeau note sous l'image de la carte (style Play Store) : uniquement si au moins un avis publié.
 function cardRatingHtml(item) {
   if (!item.ratingCount) return '';
-  return `<div class="card-rating">${starsHtml(item.avgRating)} <span>(${item.ratingCount})</span></div>`;
+  return `<div class="card-rating">
+    <span class="card-rating-num">${item.avgRating.toFixed(1)}</span>
+    <span class="card-rating-stars">${starsHtml(item.avgRating)}</span>
+    <span class="card-rating-count">(${item.ratingCount})</span>
+  </div>`;
+}
+// Répartition des notes par étoile (histogramme façon store).
+function avisBreakdownHtml(item) {
+  const total = item.ratingCount || 0;
+  const bd = item.ratingBreakdown || {};
+  let html = '';
+  for (let star = 5; star >= 1; star--) {
+    const n   = bd[star] || 0;
+    const pct = total ? Math.round((n / total) * 100) : 0;
+    html += `<div class="avis-bar-row">
+      <span class="avis-bar-label">${star}★</span>
+      <div class="avis-bar-track"><div class="avis-bar-fill" style="width:${pct}%"></div></div>
+      <span class="avis-bar-count">${n}</span>
+    </div>`;
+  }
+  return html;
 }
 // Prix affiché sur la carte menu : fourchette si variantes, sinon prix simple/sur devis
 function menuCardPriceLabel(item) {
@@ -917,9 +945,12 @@ function openItem(itemId) {
         <div class="avis-section" id="avis-section">
           <div class="avis-section-title">${t('avis_section_title')}</div>
           <div class="avis-summary">
-            <span class="avis-summary-stars">${starsHtml(item.avgRating)}</span>
-            <span class="avis-summary-num">${item.ratingCount ? item.avgRating.toFixed(1) : '—'}</span>
-            <span class="avis-summary-count">${item.ratingCount ? (item.ratingCount + ' ' + t('avis_count_suffix')) : t('avis_none')}</span>
+            <div class="avis-summary-left">
+              <div class="avis-summary-num">${item.ratingCount ? item.avgRating.toFixed(1) : '—'}</div>
+              <div class="avis-summary-stars">${starsHtml(item.avgRating)}</div>
+              <div class="avis-summary-count">${item.ratingCount ? (item.ratingCount + ' ' + t('avis_count_suffix')) : t('avis_none')}</div>
+            </div>
+            <div class="avis-breakdown">${avisBreakdownHtml(item)}</div>
           </div>
           <div id="avis-write-zone"></div>
           <div id="avis-list"></div>
@@ -1031,87 +1062,143 @@ async function _doShareItem(itemId) {
     window.prompt(t('share_copy_manual'), url);
   }
 };
-// ─── Avis clients ───────────────────────────────────────────
+// ─── Avis clients (note en un tap + avis écrit optionnel, façon store) ──
 async function loadAvisSection(itemId) {
   const restoId = getRestoId();
   const listEl  = document.getElementById('avis-list');
-  const writeEl = document.getElementById('avis-write-zone');
-  if (!listEl || !writeEl) return;
+  const rateEl  = document.getElementById('avis-write-zone');
+  if (!listEl || !rateEl) return;
   try {
     const avisList = await fetchAvisForItem(restoId, itemId, 10);
     listEl.innerHTML = avisList.map(a => `
       <div class="avis-item">
         <div class="avis-item-head">
-          <span class="avis-item-name">${escapeHtml(a.prenom) || t('avis_anonymous')}</span>
+          <span class="avis-item-name">${t('avis_anonymous')}</span>
           <span class="avis-item-stars">${starsHtml(a.rating)}</span>
         </div>
         ${a.comment ? `<div class="avis-item-comment">${escapeHtml(a.comment)}</div>` : ''}
       </div>`).join('');
   } catch (e) { console.error('[avis] liste:', e); }
 
-  if (!State.uid) { writeEl.innerHTML = ''; return; }
+  if (!State.uid) { rateEl.innerHTML = ''; return; }
   try {
     const [existing, verified] = await Promise.all([
       getExistingAvis(restoId, itemId, State.uid),
       hasVerifiedPurchase(restoId, itemId, State.uid),
     ]);
-    if (existing) {
-      writeEl.innerHTML = `<div class="avis-note-msg">${t('avis_already')}</div>`;
-    } else if (verified) {
-      writeEl.innerHTML = `<button class="avis-cta-btn" onclick="window.App.openAvisForm('${itemId}')">${t('avis_write_cta')}</button>`;
-    } else {
-      writeEl.innerHTML = `<div class="avis-note-msg">${t('avis_locked')}</div>`;
+    if (!verified) {
+      rateEl.innerHTML = `<div class="avis-note-msg">${t('avis_locked')}</div>`;
+      return;
     }
+    window._avisState = { itemId, rating: existing?.rating || 0, comment: existing?.comment || '', _editing: false };
+    rateEl.innerHTML = _avisRateZoneHtml(itemId, window._avisState);
   } catch (e) { console.error('[avis] vérif achat:', e); }
 }
-function _openAvisForm(itemId) {
-  window._avisDraft = { itemId, rating: 0 };
-  const writeEl = document.getElementById('avis-write-zone');
-  if (!writeEl) return;
-  writeEl.innerHTML = `
-    <div class="avis-form">
-      <div class="avis-star-picker" id="avis-star-picker">
-        ${[1,2,3,4,5].map(i => `<span data-n="${i}" onclick="window.App.setAvisStars(${i})">☆</span>`).join('')}
-      </div>
-      <input type="text" id="avis-prenom" maxlength="40" placeholder="${t('avis_name_placeholder')}">
-      <textarea id="avis-comment" maxlength="300" rows="3" placeholder="${t('avis_comment_placeholder')}"></textarea>
-      <div class="avis-form-actions">
-        <button class="btn btn-primary" id="avis-submit-btn" style="flex:1" onclick="window.App.confirmSubmitAvis()">${t('avis_submit')}</button>
-        <button class="btn" style="flex:0 0 auto" onclick="window.App.openItem('${itemId}')">${t('avis_cancel')}</button>
-      </div>
-    </div>`;
+function _avisRateZoneHtml(itemId, state) {
+  const stars = [1,2,3,4,5].map(i =>
+    `<span data-n="${i}" class="${i <= state.rating ? 'on' : ''}" onclick="window.App.rateItem('${itemId}',${i})">${i <= state.rating ? '★' : '☆'}</span>`
+  ).join('');
+  return `
+    <div class="avis-rate-row">
+      <span class="avis-rate-label">${state.rating ? t('avis_your_rating') : t('avis_rate_cta')}</span>
+      <div class="avis-rate-stars" id="avis-rate-stars">${stars}</div>
+    </div>
+    <div id="avis-comment-zone">${_avisCommentZoneHtml(itemId, state)}</div>`;
 }
-function _setAvisStars(n) {
-  if (!window._avisDraft) return;
-  window._avisDraft.rating = n;
-  document.querySelectorAll('#avis-star-picker span').forEach(el => {
-    el.textContent = Number(el.dataset.n) <= n ? '★' : '☆';
-    el.classList.toggle('on', Number(el.dataset.n) <= n);
-  });
+function _avisCommentZoneHtml(itemId, state) {
+  if (!state.rating) return ''; // écrire un avis nécessite d'abord une note, comme sur un store
+  if (state._editing) {
+    return `
+      <div class="avis-form">
+        <textarea id="avis-comment" maxlength="300" rows="3" placeholder="${t('avis_comment_placeholder')}">${escapeHtml(state.comment)}</textarea>
+        <div class="avis-form-actions">
+          <button class="btn btn-primary" id="avis-submit-btn" style="flex:1" onclick="window.App.confirmSubmitAvis('${itemId}')">${t('avis_submit')}</button>
+          <button class="btn" style="flex:0 0 auto" onclick="window.App.cancelAvisComment('${itemId}')">${t('avis_cancel')}</button>
+        </div>
+      </div>`;
+  }
+  return state.comment
+    ? `<div class="avis-my-comment">${escapeHtml(state.comment)}</div>
+       <button class="avis-edit-link" onclick="window.App.editAvisComment('${itemId}')">${t('avis_edit_comment')}</button>`
+    : `<button class="avis-edit-link" onclick="window.App.editAvisComment('${itemId}')">${t('avis_write_cta')}</button>`;
 }
-async function _confirmSubmitAvis() {
-  const draft = window._avisDraft;
-  if (!draft) return;
-  if (!draft.rating) { showToast(t('avis_rating_required')); return; }
+// La carte de la grille menu a déjà été rendue en HTML avant l'ouverture de
+// la fiche article : muter State.menu ne suffit pas, il faut aussi mettre à
+// jour son badge note directement dans le DOM (sinon il faut recharger la page).
+function _updateGridCardRating(itemId) {
+  const item = State.menu.find(m => m.id === itemId);
+  const card = document.querySelector('.menu-card[data-item-id="' + itemId + '"]');
+  if (!item || !card) return;
+  const html = cardRatingHtml(item);
+  const existing = card.querySelector('.card-rating');
+  if (!html) { if (existing) existing.remove(); return; }
+  if (existing) { existing.outerHTML = html; }
+  else { card.querySelector('.card-img')?.insertAdjacentHTML('afterend', html); }
+}
+function _refreshAvisSummary(item) {
+  const numEl   = document.querySelector('#avis-section .avis-summary-num');
+  const starsEl = document.querySelector('#avis-section .avis-summary-stars');
+  const cntEl   = document.querySelector('#avis-section .avis-summary-count');
+  const bdEl    = document.querySelector('#avis-section .avis-breakdown');
+  if (numEl)   numEl.textContent   = item.ratingCount ? item.avgRating.toFixed(1) : '—';
+  if (starsEl) starsEl.textContent = starsHtml(item.avgRating);
+  if (cntEl)   cntEl.textContent   = item.ratingCount ? (item.ratingCount + ' ' + t('avis_count_suffix')) : t('avis_none');
+  if (bdEl)    bdEl.innerHTML      = avisBreakdownHtml(item);
+}
+async function _rateItem(itemId, n) {
+  if (!window._avisState || window._avisState.itemId !== itemId) window._avisState = { itemId, rating: 0, comment: '', _editing: false };
+  const state = window._avisState;
+  const prevRating = state.rating;
+  state.rating = n;
+  const rateEl = document.getElementById('avis-write-zone');
+  if (rateEl) rateEl.innerHTML = _avisRateZoneHtml(itemId, state); // rendu optimiste immédiat
+  try {
+    await setAvisRating({ restoId: getRestoId(), menuId: itemId, uid: State.uid, rating: n });
+    showToast(t('avis_rating_saved'));
+    const item = State.menu.find(m => m.id === itemId);
+    if (item) {
+      const bd = Object.assign({1:0,2:0,3:0,4:0,5:0}, item.ratingBreakdown || {});
+      let count = item.ratingCount || 0;
+      let sum   = (item.avgRating || 0) * count;
+      if (prevRating) { count--; sum -= prevRating; bd[prevRating] = Math.max(0, (bd[prevRating]||0) - 1); }
+      count++; sum += n; bd[n] = (bd[n] || 0) + 1;
+      item.ratingCount = count; item.avgRating = count ? sum / count : 0; item.ratingBreakdown = bd;
+      _refreshAvisSummary(item);
+      _updateGridCardRating(itemId);
+    }
+  } catch (e) {
+    console.error('[avis] note:', e.code || '', e.message || e);
+    // Échec de l'enregistrement : annuler la mise à jour optimiste (l'étoile
+    // ne doit pas rester dorée si la note n'a pas réellement été sauvegardée).
+    state.rating = prevRating;
+    if (rateEl) rateEl.innerHTML = _avisRateZoneHtml(itemId, state);
+    showToast(t('avis_error'));
+  }
+}
+function _editAvisComment(itemId) {
+  if (!window._avisState) return;
+  window._avisState._editing = true;
+  const zone = document.getElementById('avis-comment-zone');
+  if (zone) zone.innerHTML = _avisCommentZoneHtml(itemId, window._avisState);
+}
+function _cancelAvisComment(itemId) {
+  if (!window._avisState) return;
+  window._avisState._editing = false;
+  const zone = document.getElementById('avis-comment-zone');
+  if (zone) zone.innerHTML = _avisCommentZoneHtml(itemId, window._avisState);
+}
+async function _confirmSubmitAvis(itemId) {
+  const state = window._avisState;
+  if (!state) return;
   const btn = document.getElementById('avis-submit-btn');
   if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  const comment = document.getElementById('avis-comment')?.value || '';
   try {
-    await submitAvis({
-      restoId: getRestoId(),
-      menuId:  draft.itemId,
-      uid:     State.uid,
-      rating:  draft.rating,
-      comment: document.getElementById('avis-comment')?.value || '',
-      prenom:  document.getElementById('avis-prenom')?.value || '',
-    });
+    await submitAvis({ restoId: getRestoId(), menuId: itemId, uid: State.uid, rating: state.rating, comment });
+    state.comment = comment;
+    state._editing = false;
     showToast(t('avis_submitted_toast'));
-    window._avisDraft = null;
-    const item = State.menu.find(m => m.id === draft.itemId);
-    if (item) {
-      item.ratingCount = (item.ratingCount || 0) + 1;
-      item.avgRating   = ((item.avgRating || 0) * (item.ratingCount - 1) + draft.rating) / item.ratingCount;
-    }
-    openItem(draft.itemId);
+    loadAvisSection(itemId); // rafraîchir la liste avec le nouvel avis
   } catch (e) {
     console.error('[avis] envoi:', e);
     showToast(t('avis_error'));
@@ -1384,7 +1471,7 @@ const WAVE_MERCHANT_ID  = 'M_REMPLACER'; // ← Remplacer par votre ID Wave Busi
 const OM_MERCHANT_ID    = '';             // ← Orange Money (si disponible)
 function getMobileMoneyUrl(operateur, amount, orderId) {
   const num = '0759731911'; // numéro marchand restaurant
-  const ref = 'DE-' + orderId.slice(-6).toUpperCase();
+  const ref = orderRefLabel(orderId);
   const amt = Math.round(amount);
   if (operateur === 'wave') {
     // Deep link Wave CI — ouvre l'app Wave avec numéro + montant pré-remplis
@@ -1403,7 +1490,7 @@ function getMobileMoneyUrl(operateur, amount, orderId) {
 function showPaymentInstructions(operateur, amount, orderId) {
   const num   = '0759731911';
   const amt   = Math.round(amount).toLocaleString('fr-FR');
-  const ref   = 'DE-' + orderId.slice(-6).toUpperCase();
+  const ref   = orderRefLabel(orderId);
   const payUrl = getMobileMoneyUrl(operateur, amount, orderId);
   const icons = { wave:'🌊', orange:'🟠', mtn:'💛' };
   const names = { wave:'Wave CI', orange:'Orange Money', mtn:'MTN MoMo' };
@@ -1576,7 +1663,7 @@ function renderConfirm(container, orderId, operateur) {
       <div class="confirm-title">${title}</div>
       <div class="confirm-sub">${sub}</div>
       ${payBadge}
-      <div class="order-id">${t('order_number')}${orderId?.slice(-6).toUpperCase()}</div>
+      <div class="order-id">${t('order_number')}${orderRefLabel(orderId)}</div>
       ${(operateur && operateur !== 'especes') ? `<button class="btn btn-primary" style="margin-top:16px;width:100%;max-width:280px;padding:14px 28px;font-size:16px"
               onclick="window.App.reopenPayment()">💳 Revoir le paiement</button>` : ''}
       <button class="btn btn-brown" style="margin-top:${(operateur && operateur !== 'especes') ? '8px' : '16px'};width:100%;max-width:280px;padding:14px 28px;font-size:16px"
@@ -1603,7 +1690,7 @@ function renderTracking(container, orderId) {
   container.innerHTML = `
     <div class="tracking-wrap">
       <div class="tracking-header">
-        <div class="tracking-id">${t('order_number')} <strong>#${orderId.slice(-6).toUpperCase()}</strong></div>
+        <div class="tracking-id">${t('order_number')} <strong>#${orderRefLabel(orderId)}</strong></div>
         <div class="tracking-title" id="tracking-title-dyn">Suivi de commande</div>
         <div class="tracking-sub" id="tracking-sub-dyn">Chargement…</div>
       </div>
@@ -2496,8 +2583,9 @@ function _startHeroCarousel() {
 }
 
 window.App.shareItem = _doShareItem;
-window.App.openAvisForm     = _openAvisForm;
-window.App.setAvisStars     = _setAvisStars;
+window.App.rateItem          = _rateItem;
+window.App.editAvisComment   = _editAvisComment;
+window.App.cancelAvisComment = _cancelAvisComment;
 window.App.confirmSubmitAvis = _confirmSubmitAvis;
 
 // Revenir au sélecteur d'établissement (hors salle). Le panier d'un autre
@@ -3420,22 +3508,47 @@ window.selectEventType = function(type) {
 
 
 // ─── Modale suivi commande ────────────────────────────────
+// Depuis le suivi de commande, aller directement noter un plat commandé
+// (comme "Retour au menu", mais droit sur la fiche article).
+window.App.goRateItem = function(itemId) {
+  document.getElementById('tracking-modal')?.remove();
+  if (window._trackingModalUnsub) { window._trackingModalUnsub(); window._trackingModalUnsub = null; }
+  window.App.navigate('menu');
+  setTimeout(function() { openItem(itemId); }, 300);
+};
 window.App.openTrackingModal = function(orderId) {
   document.getElementById('tracking-modal')?.remove();
   if (window._trackingModalUnsub) { window._trackingModalUnsub(); window._trackingModalUnsub = null; }
-  const STEPS_SALLE = [
+  const isEn = getLang() === 'en';
+  const STEPS_SALLE = isEn ? [
+    { key:'pending',   icon:'📋', label:'Order received',    color:'#F59E0B' },
+    { key:'preparing', icon:'👨‍🍳', label:'Preparing',          color:'#3B82F6' },
+    { key:'ready',     icon:'🍽️', label:'Ready to serve',     color:'#10B981' },
+    { key:'done',      icon:'✅', label:'Order served',       color:'#065F46' },
+  ] : [
     { key:'pending',   icon:'📋', label:'Commande reçue',    color:'#F59E0B' },
     { key:'preparing', icon:'👨‍🍳', label:'En préparation',    color:'#3B82F6' },
     { key:'ready',     icon:'🍽️', label:'Prête à servir',     color:'#10B981' },
     { key:'done',      icon:'✅', label:'Commande servie',    color:'#065F46' },
   ];
-  const STEPS_SURPLACE = [
+  const STEPS_SURPLACE = isEn ? [
+    { key:'pending',   icon:'📋', label:'Order received',    color:'#F59E0B' },
+    { key:'preparing', icon:'👨‍🍳', label:'Preparing',          color:'#3B82F6' },
+    { key:'ready',     icon:'🍽️', label:'Ready',              color:'#10B981' },
+    { key:'done',      icon:'✅', label:'Picked up',          color:'#065F46' },
+  ] : [
     { key:'pending',   icon:'📋', label:'Commande reçue',    color:'#F59E0B' },
     { key:'preparing', icon:'👨‍🍳', label:'En préparation',    color:'#3B82F6' },
     { key:'ready',     icon:'🍽️', label:'Prête',              color:'#10B981' },
     { key:'done',      icon:'✅', label:'Récupérée',          color:'#065F46' },
   ];
-  const STEPS_LIV = [
+  const STEPS_LIV = isEn ? [
+    { key:'pending',    icon:'📋', label:'Order received',       color:'#F59E0B' },
+    { key:'preparing',  icon:'👨‍🍳', label:'Preparing',             color:'#3B82F6' },
+    { key:'ready',      icon:'📦', label:'Ready for delivery',    color:'#10B981' },
+    { key:'delivering', icon:'🚴', label:'On its way to you!',    color:'#3B82F6' },
+    { key:'done',       icon:'🎉', label:'Delivered & paid!',     color:'#065F46' },
+  ] : [
     { key:'pending',    icon:'📋', label:'Commande reçue',        color:'#F59E0B' },
     { key:'preparing',  icon:'👨‍🍳', label:'En préparation',        color:'#3B82F6' },
     { key:'ready',      icon:'📦', label:'Prête pour livraison',   color:'#10B981' },
@@ -3457,12 +3570,12 @@ window.App.openTrackingModal = function(orderId) {
   header.style.cssText = 'padding:0 20px 16px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #F0E8E0';
   header.innerHTML = '<div>'
     + '<div style="display:flex;align-items:center;gap:8px">'
-    +   '<div style="font-size:18px;font-weight:800;color:#2B1D16">📍 Suivi de commande</div>'
+    +   '<div style="font-size:18px;font-weight:800;color:#2B1D16">📍 ' + (isEn ? 'Order tracking' : 'Suivi de commande') + '</div>'
     +   '<div style="width:8px;height:8px;border-radius:50%;background:#10B981;'
-    +     'animation:pulse-dot 1.5s infinite" title="Mis à jour en temps réel"></div>'
+    +     'animation:pulse-dot 1.5s infinite" title="' + (isEn ? 'Updated live' : 'Mis à jour en temps réel') + '"></div>'
     + '</div>'
-    + '<div style="font-size:13px;color:#7A6356;margin-top:2px">N° ' + orderId.slice(-6).toUpperCase()
-    + ' · <span style="color:#10B981;font-size:11px">● En direct</span></div></div>';
+    + '<div style="font-size:13px;color:#7A6356;margin-top:2px">' + (isEn ? 'No. ' : 'N° ') + orderRefLabel(orderId)
+    + ' · <span style="color:#10B981;font-size:11px">● ' + (isEn ? 'Live' : 'En direct') + '</span></div></div>';
   const closeBtn = document.createElement('button');
   closeBtn.textContent = '×';
   closeBtn.style.cssText = 'background:#F0E8E0;border:none;border-radius:50%;width:32px;height:32px;font-size:18px;cursor:pointer';
@@ -3475,7 +3588,7 @@ window.App.openTrackingModal = function(orderId) {
   const body = document.createElement('div');
   body.id = 'tracking-modal-body';
   body.style.cssText = 'padding:20px';
-  body.innerHTML = '<div style="text-align:center;padding:32px"><p>Chargement…</p></div>';
+  body.innerHTML = '<div style="text-align:center;padding:32px"><p>' + (isEn ? 'Loading…' : 'Chargement…') + '</p></div>';
   sheet.appendChild(handle);
   sheet.appendChild(header);
   sheet.appendChild(body);
@@ -3495,7 +3608,13 @@ window.App.openTrackingModal = function(orderId) {
     const isSurplace = order.type === 'surplace';
     const steps  = isLiv ? STEPS_LIV : isSurplace ? STEPS_SURPLACE : STEPS_SALLE;
     const curIdx = steps.findIndex(function(s) { return s.key === status; });
-    const msgs = {
+    const msgs = isEn ? {
+      pending:    'Your order has been received. It will be taken care of shortly.',
+      preparing:  '🔥 The kitchen is preparing your order with care!',
+      ready:      isLiv ? '📦 Ready! The delivery rider is about to leave.' : isSurplace ? '🎉 Ready! You can come pick it up.' : '🎉 Ready! Your server is on the way.',
+      delivering: '🚴 Your delivery rider is on the way. Have your payment ready!',
+      done:       isLiv ? '🎉 Delivered! Thank you and enjoy your meal!' : '✅ Enjoy your meal! Thank you for your visit.',
+    } : {
       pending:    'Votre commande a bien été reçue. Elle sera bientôt prise en charge.',
       preparing:  '🔥 La cuisine prépare votre commande avec soin !',
       ready:      isLiv ? '📦 Prête ! Le livreur va partir.' : isSurplace ? '🎉 Prête ! Vous pouvez venir la récupérer.' : '🎉 Prête ! Le serveur arrive.',
@@ -3521,7 +3640,7 @@ window.App.openTrackingModal = function(orderId) {
         + '<div style="padding-top:8px">'
         + '<div style="font-size:15px;font-weight:' + (isActive ? '800' : isDone ? '600' : '400') + ';'
         + 'color:' + (isActive ? step.color : isDone ? '#2B1D16' : '#B0A8A4') + '">' + step.label + '</div>'
-        + (isActive ? '<div style="font-size:12px;color:' + step.color + ';margin-top:2px">En cours…</div>' : '')
+        + (isActive ? '<div style="font-size:12px;color:' + step.color + ';margin-top:2px">' + (isEn ? 'In progress…' : 'En cours…') + '</div>' : '')
         + '</div></div>';
     });
     body.innerHTML = '<div style="background:#FFF8F5;border-radius:12px;border-left:4px solid #F26522;padding:14px 16px;margin-bottom:20px">'
@@ -3529,8 +3648,30 @@ window.App.openTrackingModal = function(orderId) {
       + '</div>'
       + stepsHtml;
     if (status === 'done') {
+      // Notez vos plats : accès direct à la fiche article (section avis) pour
+      // chacun des plats commandés, sans avoir à les rechercher dans le menu.
+      var ratedIds = {};
+      var rateItems = (order.items || []).filter(function(i) {
+        if (!i.id || i.isUpsell || ratedIds[i.id]) return false;
+        ratedIds[i.id] = true;
+        return true;
+      });
+      if (rateItems.length) {
+        var rateBox = document.createElement('div');
+        rateBox.style.cssText = 'background:#FFF8F0;border-radius:12px;padding:14px 16px;margin-top:8px';
+        rateBox.innerHTML = '<div style="font-size:13px;font-weight:800;color:#2B1D16;margin-bottom:10px">⭐ ' + (isEn ? 'Rate this dish' : 'Noter ce plat') + '</div>'
+          + rateItems.map(function(i) {
+              return '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 0">'
+                + '<span style="font-size:13px;color:#4A3020">' + i.name + '</span>'
+                + '<button onclick="window.App.goRateItem(\x27' + i.id + '\x27)" '
+                +   'style="flex-shrink:0;padding:6px 14px;background:#fff;border:1.5px solid #F26522;color:#F26522;'
+                +   'border-radius:20px;font-size:12px;font-weight:700;cursor:pointer">' + (isEn ? 'Rate' : 'Noter') + '</button>'
+                + '</div>';
+            }).join('');
+        body.appendChild(rateBox);
+      }
       var backBtn = document.createElement('button');
-      backBtn.textContent = '← Retour au menu';
+      backBtn.textContent = isEn ? '← Back to menu' : '← Retour au menu';
       backBtn.style.cssText = 'width:100%;padding:14px;background:#2B1D16;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;margin-top:8px';
       backBtn.addEventListener('click', function() {
         overlay.remove();

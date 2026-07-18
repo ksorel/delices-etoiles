@@ -257,8 +257,13 @@ input, select, textarea { font-family: inherit; }
               overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .card-price { font-size: 15px; font-weight: 800; color: var(--orange); }
 .card-price span { font-size: 11px; font-weight: 500; color: var(--text-muted); }
-.card-rating { font-size: 11px; color: #E5A200; margin-bottom: 4px; letter-spacing: 1px; }
-.card-rating span { color: var(--text-muted); letter-spacing: normal; margin-left: 2px; }
+.card-rating {
+  display: flex; align-items: center; gap: 4px;
+  padding: 5px 10px; font-size: 11px;
+}
+.card-rating-num    { font-weight: 800; color: var(--brown); }
+.card-rating-stars  { color: #E5A200; letter-spacing: 1px; font-size: 10px; }
+.card-rating-count  { color: var(--text-muted); }
 
 /* ─── Modal ──────────────────────────────────────────── */
 .modal-overlay {
@@ -326,29 +331,45 @@ input, select, textarea { font-family: inherit; }
 .share-pill:active { background: var(--orange); color: var(--white); }
 .share-pill-icon { font-size: 15px; }
 
-/* ─── Avis clients ───────────────────────────────────── */
+/* ─── Avis clients (façon store) ─────────────────────── */
 .avis-section { margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--border); }
-.avis-section-title { font-size: 15px; font-weight: 800; color: var(--brown); margin-bottom: 10px; }
-.avis-summary { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
-.avis-summary-stars { font-size: 18px; color: #E5A200; letter-spacing: 2px; }
-.avis-summary-num { font-size: 15px; font-weight: 700; color: var(--brown); }
-.avis-summary-count { font-size: 12px; color: var(--text-muted); }
-.avis-cta-btn {
-  width: 100%; padding: 10px; margin-bottom: 14px;
-  border-radius: 10px; border: 1.5px solid var(--orange);
-  background: var(--white); color: var(--orange);
-  font-size: 13px; font-weight: 700;
-}
+.avis-section-title { font-size: 15px; font-weight: 800; color: var(--brown); margin-bottom: 14px; }
+.avis-summary { display: flex; align-items: center; gap: 20px; margin-bottom: 18px; }
+.avis-summary-left { flex-shrink: 0; text-align: center; width: 76px; }
+.avis-summary-num { font-size: 34px; font-weight: 800; color: var(--brown); line-height: 1.1; }
+.avis-summary-stars { font-size: 14px; color: #E5A200; letter-spacing: 1px; margin: 2px 0; }
+.avis-summary-count { font-size: 11px; color: var(--text-muted); }
+.avis-breakdown { flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.avis-bar-row { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-muted); }
+.avis-bar-label { width: 18px; flex-shrink: 0; }
+.avis-bar-track { flex: 1; height: 6px; border-radius: 4px; background: var(--brown-xlight); overflow: hidden; }
+.avis-bar-fill { height: 100%; background: #E5A200; border-radius: 4px; }
+.avis-bar-count { width: 18px; flex-shrink: 0; text-align: right; }
 .avis-note-msg { font-size: 12px; color: var(--text-muted); margin-bottom: 14px; text-align: center; }
+.avis-rate-row {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  background: var(--brown-xlight); border-radius: 12px; padding: 14px 16px; margin-bottom: 10px;
+  text-align: center;
+}
+.avis-rate-label { font-size: 13px; font-weight: 700; color: var(--brown); }
+.avis-rate-stars { display: flex; gap: 2px; }
+.avis-rate-stars span {
+  font-size: 34px; line-height: 1; color: #ccc; cursor: pointer;
+  padding: 4px; user-select: none; transition: transform .1s;
+}
+.avis-rate-stars span:active { transform: scale(1.25); }
+.avis-rate-stars span.on { color: #E5A200; }
+.avis-edit-link {
+  background: none; border: none; color: var(--orange); font-size: 13px; font-weight: 700;
+  padding: 4px 0; margin-bottom: 14px; cursor: pointer;
+}
+.avis-my-comment { font-size: 13px; color: var(--brown-md); line-height: 1.5; background: var(--brown-xlight); border-radius: 10px; padding: 10px 12px; margin-bottom: 6px; }
 .avis-form { background: var(--brown-xlight); border-radius: 12px; padding: 14px; margin-bottom: 14px; }
-.avis-star-picker { display: flex; gap: 6px; font-size: 26px; color: #ddd; margin-bottom: 10px; cursor: pointer; }
-.avis-star-picker span.on { color: #E5A200; }
-.avis-form input, .avis-form textarea {
+.avis-form textarea {
   width: 100%; border: 1px solid var(--border); border-radius: 8px;
   padding: 8px 10px; font-size: 13px; margin-bottom: 8px; font-family: inherit;
-  box-sizing: border-box;
+  box-sizing: border-box; resize: vertical; min-height: 60px;
 }
-.avis-form textarea { resize: vertical; min-height: 60px; }
 .avis-form-actions { display: flex; gap: 8px; }
 .avis-item { padding: 10px 0; border-bottom: 1px solid var(--border); }
 .avis-item:last-child { border-bottom: none; }
