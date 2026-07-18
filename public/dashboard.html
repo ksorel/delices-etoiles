@@ -1481,10 +1481,19 @@ window.confirmDelivery = async function(orderId, operateur) {
 // ── Exposer updateStatus globalement ─────────────────────
 window.updateStatus = async function(orderId, newStatus) {
   try {
-    await updateDoc(doc(db, 'commandes', orderId), {
-      status: newStatus,
-      updatedAt: serverTimestamp(),
-    });
+    const payload = { status: newStatus, updatedAt: serverTimestamp() };
+    // Salle / sur place : "Servi"/"Récupérée" se fait en direct avec le client
+    // (espèces ou mobile money remis en main propre) — si le paiement n'a pas
+    // été explicitement confirmé avant, on ne laisse pas la commande affichée
+    // comme "paiement en attente" une fois terminée.
+    if (newStatus === 'done') {
+      const o = allOrders.find(x => x.id === orderId);
+      if (o && (o.type === 'salle' || o.type === 'surplace') && o.paymentStatus !== 'paid') {
+        payload.paymentStatus = 'paid';
+        if (!o.operateur) payload.operateur = 'especes';
+      }
+    }
+    await updateDoc(doc(db, 'commandes', orderId), payload);
   } catch(e) {
     alert('Erreur statut : ' + e.message);
   }
@@ -1521,6 +1530,34 @@ window.openStaffOrder = function() {
   document.body.appendChild(overlay);
   overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
 };
+
+// ── Barre d'onglets (.filters) : défilement facile à la souris ────
+// Molette verticale -> défilement horizontal, + glisser-déposer à la souris
+// (le tactile fonctionne déjà nativement). Utile quand il y a beaucoup
+// d'onglets (propriétaire/gérant qui voient tout).
+(function() {
+  var el = document.querySelector('.filters');
+  if (!el) return;
+  el.addEventListener('wheel', function(e) {
+    if (e.deltaY === 0 || e.deltaX !== 0) return;
+    e.preventDefault();
+    el.scrollLeft += e.deltaY;
+  }, { passive: false });
+  var dragging = false, startX = 0, startScroll = 0, moved = false;
+  el.addEventListener('mousedown', function(e) {
+    dragging = true; moved = false;
+    startX = e.pageX; startScroll = el.scrollLeft;
+  });
+  window.addEventListener('mousemove', function(e) {
+    if (!dragging) return;
+    var dx = e.pageX - startX;
+    if (Math.abs(dx) > 4) moved = true;
+    el.scrollLeft = startScroll - dx;
+  });
+  window.addEventListener('mouseup', function() { dragging = false; });
+  // Éviter qu'un glisser interprété comme clic ne déclenche un onglet.
+  el.addEventListener('click', function(e) { if (moved) { e.stopPropagation(); e.preventDefault(); } }, true);
+})();
 </script>
 </body>
 </html>

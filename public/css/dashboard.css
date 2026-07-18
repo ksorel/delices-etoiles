@@ -95,13 +95,21 @@ body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color
   gap: 6px;
   padding: 10px 12px;
   overflow-x: auto;
-  scrollbar-width: none;
   flex-wrap: nowrap;
   background: var(--white);
   border-bottom: 1px solid var(--border);
   -webkit-overflow-scrolling: touch;
+  cursor: grab;
+  /* Scrollbar fine mais visible : au clavier/souris comme au tactile, on voit
+     qu'il y a plus d'onglets à dérouler. */
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
 }
-.filters::-webkit-scrollbar { display: none; }
+.filters:active { cursor: grabbing; }
+.filters::-webkit-scrollbar { height: 6px; }
+.filters::-webkit-scrollbar-track { background: transparent; }
+.filters::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+.filters::-webkit-scrollbar-thumb:hover { background: var(--brown-light, #C9B8A8); }
 .filter-btn {
   flex-shrink: 0;
   padding: 6px 14px;
