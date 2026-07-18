@@ -44,8 +44,24 @@ async function assertOwnEstablishmentEmployee(caller, uid) {
 //  - 'admin' = PROPRIÉTAIRE : accès global, AUCUN restoId
 //  - tous les autres rôles  : rattachés à un établissement (restoId requis)
 // ─────────────────────────────────────────────────────────
-const STAFF_ROLES = ['manager', 'serveur', 'bar', 'cuisine', 'livreur', 'caissier'];
+const STAFF_ROLES = ['manager', 'serveur', 'bar', 'cuisine', 'livreur', 'caissier', 'custom'];
 const ALL_ROLES   = ['admin', ...STAFF_ROLES];
+
+// Rôle 'custom' : modules du dashboard staff cochés un par un par le propriétaire
+// (employees/{uid}.customPermissions), plutôt qu'une matrice de rôle fixe.
+const CUSTOM_TABS  = ['all','pending','preparing','ready','salle','livraison','done','awaiting_payment','expired','reservations'];
+const CUSTOM_STATS = ['pending','prep','ready','done','ca'];
+function sanitizeCustomPermissions(input) {
+  const p = input || {};
+  return {
+    canOrder:  !!p.canOrder,
+    canPay:    !!p.canPay,
+    canStatus: !!p.canStatus,
+    canPlan:   !!p.canPlan,
+    tabs:  Array.isArray(p.tabs)  ? p.tabs.filter(t => CUSTOM_TABS.includes(t))   : [],
+    stats: Array.isArray(p.stats) ? p.stats.filter(s => CUSTOM_STATS.includes(s)) : [],
+  };
+}
 
 // Normalise l'entrée (string unique ou tableau) en tableau de rôles valide.
 function normalizeRoles(input) {
@@ -398,7 +414,7 @@ exports.onAvisDelete = region.firestore
 
 exports.createEmployee = region.https.onCall(async (data, context) => {
   const caller = await checkAdminOrManager(context);
-  const { email, password, role, roles, displayName, username, restoId } = data;
+  const { email, password, role, roles, displayName, username, restoId, customPermissions } = data;
   if (!email || !password || (!role && !(Array.isArray(roles) && roles.length))) {
     throw new functions.https.HttpsError('invalid-argument', 'Email, mot de passe et rôle(s) requis');
   }
@@ -426,6 +442,7 @@ exports.createEmployee = region.https.onCall(async (data, context) => {
       displayName: displayName || username || email.split('@')[0],
       roles: claims.roles, role: claims.role,
       restoId: claims.restoId || null, active: true,
+      ...(claims.roles.includes('custom') ? { customPermissions: sanitizeCustomPermissions(customPermissions) } : {}),
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       createdBy: context.auth.uid,
     });
@@ -440,7 +457,7 @@ exports.createEmployee = region.https.onCall(async (data, context) => {
 
 exports.updateEmployeeRole = region.https.onCall(async (data, context) => {
   const caller = await checkAdminOrManager(context);
-  const { uid, role, roles, restoId } = data;
+  const { uid, role, roles, restoId, customPermissions } = data;
   if (!uid || (!role && !(Array.isArray(roles) && roles.length))) {
     throw new functions.https.HttpsError('invalid-argument', 'UID et rôle(s) requis');
   }
@@ -458,6 +475,9 @@ exports.updateEmployeeRole = region.https.onCall(async (data, context) => {
   await db.collection('employees').doc(uid).update({
     roles: claims.roles, role: claims.role,
     restoId: claims.restoId || null,
+    customPermissions: claims.roles.includes('custom')
+      ? sanitizeCustomPermissions(customPermissions)
+      : admin.firestore.FieldValue.delete(),
     updatedAt: admin.firestore.FieldValue.serverTimestamp(), updatedBy: context.auth.uid,
   });
   return { success: true };

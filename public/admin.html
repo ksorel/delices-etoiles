@@ -367,7 +367,15 @@
       .content td, .content th { padding: 8px 10px !important; }
     }
 
+    /* ── Chargement plein cadre (Chargement…) ─────────────── */
+    .loading { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:30vh; gap:14px; color:var(--muted); }
+    .spinner { width:36px; height:36px; border:3px solid var(--border); border-top-color:var(--orange); border-radius:50%; animation:spin .8s linear infinite; }
+    @keyframes spin { to { transform:rotate(360deg); } }
 
+    /* ── Spinner compact pour boutons en cours d'action ───── */
+    .btn-spin { display:inline-block; width:13px; height:13px; border:2px solid rgba(255,255,255,.4); border-top-color:#fff; border-radius:50%; animation:spin .7s linear infinite; vertical-align:-2px; margin-right:6px; }
+    .btn-spin.dark { border-color:rgba(43,29,22,.25); border-top-color:#2B1D16; }
+    button[disabled] { cursor:not-allowed; opacity:.75; }
   </style>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
   <link rel="stylesheet" href="/css/onboarding.css">
@@ -1469,7 +1477,7 @@ async function renderConfig(c) {
     +   '</div>'
     + '</div>'
 
-    + '<button onclick="window.Admin.saveConfig()" class="btn btn-primary" style="align-self:flex-start">💾 Enregistrer</button>'
+    + '<button onclick="window.Admin.saveConfig(this)" class="btn btn-primary" style="align-self:flex-start">💾 Enregistrer</button>'
     + '<div id="cfg-msg" style="font-size:13px;display:none"></div>'
     + '</div></div>';
 }
@@ -3510,7 +3518,7 @@ window.Admin.openPaiementsModal = async function(devisId) {
       +   '<option value="Wave">Wave</option><option value="Orange Money">Orange Money</option>'
       +   '<option value="MTN MoMo">MTN MoMo</option><option value="Chèque">Chèque</option>'
       +   '<option value="Espèces">Espèces</option></select>'
-      + '<button onclick="window.Admin.ajouterPaiementManuel(\x27' + devisId + '\x27)" '
+      + '<button onclick="window.Admin.ajouterPaiementManuel(\x27' + devisId + '\x27,this)" '
       +   'style="padding:9px 14px;background:#10B981;color:#fff;border:none;border-radius:8px;'
       +   'font-size:13px;font-weight:700;cursor:pointer">+</button>'
       + '</div>';
@@ -3573,10 +3581,11 @@ window.Admin.confirmerPaiement = async function(devisId, paiementId) {
   } catch(e) { toast('Erreur : ' + e.message); }
 };
 
-window.Admin.ajouterPaiementManuel = async function(devisId) {
+window.Admin.ajouterPaiementManuel = async function(devisId, btn) {
   const montant = parseFloat(document.getElementById('pay-add-montant')?.value);
   const moyen   = document.getElementById('pay-add-moyen')?.value;
   if (!montant || montant <= 0) { toast('Montant invalide'); return; }
+  if (btn) setBtnBusy(btn, '');
   try {
     const { collection, addDoc, serverTimestamp }
       = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
@@ -3588,6 +3597,7 @@ window.Admin.ajouterPaiementManuel = async function(devisId) {
     document.getElementById('pay-add-montant').value = '';
     toast('✅ Paiement enregistré');
   } catch(e) { toast('Erreur : ' + e.message); }
+  if (btn) clearBtnBusy(btn);
 };
 
 window.Admin.showAjoutDepense = function() {
@@ -3860,7 +3870,7 @@ window.Admin.saveLieu = async function(isNew) {
   if (!nom) { fail('Le nom affiché est obligatoire'); return; }
   if (isNew && lieux.some(x => x.id === id)) { fail('Cet identifiant existe déjà'); return; }
   if (err) err.style.display = 'none';
-  if (btn) { btn.disabled = true; btn.style.opacity = '.6'; }
+  setBtnBusy(btn, isNew ? 'Création…' : 'Enregistrement…');
   try {
     // Logo : upload si un nouveau fichier est choisi, sinon on garde l'existant.
     let logoUrl = document.getElementById('lieu-logo-url')?.value || '';
@@ -3878,7 +3888,7 @@ window.Admin.saveLieu = async function(isNew) {
     renderEtablissements(document.getElementById('page-content'));
     toast('Établissement enregistré ✓');
   } catch(e) {
-    if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
+    clearBtnBusy(btn);
     fail('Erreur : ' + e.message);
   }
 };
@@ -3946,17 +3956,19 @@ async function renderCarrousel(c) {
     + '<p style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.5">Chaque établissement a son propre numéro de contact (fiche établissement, champ « Contact — écran de connexion staff »), affiché sur l\x27écran de connexion une fois l\x27établissement choisi par l\x27employé. Le numéro ci-dessous ne sert que de repli si l\x27établissement n\x27en a pas renseigné.</p>'
     + '<div style="display:flex;gap:8px;max-width:360px">'
     +   '<input class="form-input" id="cfg-login-phone" type="tel" value="' + cfg.loginContactPhone + '" placeholder="Ex: 0779939254">'
-    +   '<button class="btn btn-primary btn-sm" onclick="window.Admin.saveLoginContactPhone()">Enregistrer</button>'
+    +   '<button class="btn btn-primary btn-sm" onclick="window.Admin.saveLoginContactPhone(this)">Enregistrer</button>'
     + '</div>'
     + '</div>';
 }
 
-window.Admin.saveLoginContactPhone = async function() {
+window.Admin.saveLoginContactPhone = async function(btn) {
   const phone = (document.getElementById('cfg-login-phone')?.value || '').trim();
+  setBtnBusy(btn, 'Enregistrement…');
   try {
     await setDoc(doc(db, 'config', 'accueil'), { loginContactPhone: phone, updatedAt: serverTimestamp() }, { merge: true });
     toast('Numéro de contact mis à jour ✓');
   } catch(e) { toast('Erreur : ' + e.message); }
+  clearBtnBusy(btn);
 };
 
 window.Admin.toggleCarrousel = async function(actif) {
@@ -4082,12 +4094,13 @@ window.Admin.togglePayment = async function(mode, enabled) {
 };
 
 
-window.Admin.saveConfig = async function() {
+window.Admin.saveConfig = async function(btn) {
   if (!activeRestoForWrite()) { toast('⚠️ Choisissez un établissement'); return; }
   const name    = document.getElementById('cfg-name')?.value.trim();
   const phone   = document.getElementById('cfg-phone')?.value.trim();
   const msg     = document.getElementById('cfg-msg');
 
+  setBtnBusy(btn, 'Enregistrement…');
   try {
     await setDoc(doc(db, 'config', activeResto), {
       restaurantName: name,
@@ -4122,6 +4135,7 @@ window.Admin.saveConfig = async function() {
       } catch(e2) {}
     }
   }
+  clearBtnBusy(btn);
 };
 
 
@@ -4167,28 +4181,32 @@ window.Admin.addStockItem = function() {
     const thr  = parseInt(document.getElementById('sk-threshold').value) || 5;
     const cat  = document.getElementById('sk-cat').value;
     if (!name) { toast('⚠️ Nom obligatoire'); return; }
-    // Chercher l'article correspondant dans le menu
-    let menuItemId = null;
-    try {
-      const mSnap = await getDocs(query(collection(db, 'menus'), where('name_fr', '==', name)));
-      if (!mSnap.empty) menuItemId = mSnap.docs[0].id;
-    } catch(e) {}
     const ridStock = activeRestoForWrite();
     if (!ridStock) { toast('⚠️ Choisissez un établissement pour ajouter un stock'); return; }
-    await addDoc(collection(db, 'stocks'), {
-      name, qty, unit, threshold: thr, category: cat,
-      menuItemId, // lien direct avec le menu
-      restoId: ridStock,
-      updatedAt: serverTimestamp()
-    });
-    // Mettre à jour la disponibilité (pour CET établissement) si stock = 0
-    if (qty === 0 && menuItemId) {
-      await setDoc(doc(db, 'menu-dispo', menuItemId + '_' + ridStock),
-        { menuItemId, restoId: ridStock, available: false, stockStatus: 'rupture' }, { merge: true });
-    }
-    document.getElementById('stock-modal').remove();
-    toast('✅ Article ajouté' + (menuItemId ? ' et lié au menu ✓' : ' (non trouvé dans le menu)'));
-    loadStocksPage();
+    const skBtn = document.getElementById('sk-save');
+    setBtnBusy(skBtn, 'Ajout…');
+    try {
+      // Chercher l'article correspondant dans le menu
+      let menuItemId = null;
+      try {
+        const mSnap = await getDocs(query(collection(db, 'menus'), where('name_fr', '==', name)));
+        if (!mSnap.empty) menuItemId = mSnap.docs[0].id;
+      } catch(e) {}
+      await addDoc(collection(db, 'stocks'), {
+        name, qty, unit, threshold: thr, category: cat,
+        menuItemId, // lien direct avec le menu
+        restoId: ridStock,
+        updatedAt: serverTimestamp()
+      });
+      // Mettre à jour la disponibilité (pour CET établissement) si stock = 0
+      if (qty === 0 && menuItemId) {
+        await setDoc(doc(db, 'menu-dispo', menuItemId + '_' + ridStock),
+          { menuItemId, restoId: ridStock, available: false, stockStatus: 'rupture' }, { merge: true });
+      }
+      document.getElementById('stock-modal').remove();
+      toast('✅ Article ajouté' + (menuItemId ? ' et lié au menu ✓' : ' (non trouvé dans le menu)'));
+      loadStocksPage();
+    } catch(e) { clearBtnBusy(skBtn); toast('Erreur : ' + e.message); }
   }, err => { if (err.code !== 'permission-denied') console.error('onSnapshot err:', err); });
 };
 
@@ -4230,7 +4248,76 @@ const ROLE_INFO = {
   cuisine:  { label:'CUISINE',      icon:'👨‍🍳', color:'#10B981' },
   livreur:  { label:'LIVREUR',      icon:'🚴', color:'#F59E0B' },
   caissier: { label:'CAISSIER',     icon:'💳', color:'#EC4899' },
+  custom:   { label:'PERSONNALISÉ', icon:'🎛️', color:'#6366F1' },
 };
+
+// Modules cochables pour le rôle "personnalisé" (dashboard staff uniquement).
+const CUSTOM_MODULE_ACTIONS = [
+  { id:'canOrder',  label:'Prendre des commandes' },
+  { id:'canPay',    label:'Encaisser les paiements' },
+  { id:'canStatus', label:'Changer le statut des commandes' },
+  { id:'canPlan',   label:'Accès au plan de salle' },
+];
+const CUSTOM_MODULE_TABS = [
+  { id:'all',              label:'Toutes' },
+  { id:'pending',          label:'⏳ En attente' },
+  { id:'preparing',        label:'🔥 En préparation' },
+  { id:'ready',            label:'✅ Prêtes' },
+  { id:'salle',            label:'🪑 Salle' },
+  { id:'livraison',        label:'🚴 Livraison' },
+  { id:'done',             label:'✓ Servies' },
+  { id:'awaiting_payment', label:'💳 Paiement à confirmer' },
+  { id:'expired',          label:'⏰ Expirées' },
+  { id:'reservations',     label:'📅 Réservations' },
+];
+const CUSTOM_MODULE_STATS = [
+  { id:'pending', label:'En attente' },
+  { id:'prep',    label:'En préparation' },
+  { id:'ready',   label:'Prêtes' },
+  { id:'done',    label:'Servies' },
+  { id:'ca',      label:'Chiffre d\x27affaires' },
+];
+function _customModulesHTML(perms) {
+  perms = perms || {};
+  const tabs  = Array.isArray(perms.tabs)  ? perms.tabs  : [];
+  const stats = Array.isArray(perms.stats) ? perms.stats : [];
+  const section = (title, items, checkedList, name) =>
+    '<div style="margin-bottom:10px">'
+    + '<div style="font-size:12px;font-weight:700;color:var(--brown);margin-bottom:6px">' + title + '</div>'
+    + '<div style="display:flex;flex-wrap:wrap;gap:6px">'
+    + items.map(it => {
+        const on = name === 'action' ? !!perms[it.id] : checkedList.includes(it.id);
+        return '<label style="cursor:pointer;display:flex;align-items:center;gap:5px;padding:5px 10px;border-radius:8px;'
+          + 'font-size:12px;border:1.5px solid ' + (on ? '#6366F1' : '#E0D4C8') + ';background:' + (on ? '#6366F122' : '#fff') + ';color:' + (on ? '#6366F1' : '#7A6356') + '">'
+          + '<input type="checkbox" data-custom="' + name + '" value="' + it.id + '"' + (on ? ' checked' : '') + ' onchange="window.Admin._onCustomModuleToggle(this)" style="width:14px;height:14px">'
+          + it.label + '</label>';
+      }).join('')
+    + '</div></div>';
+  return '<div id="custom-modules-wrap" style="background:var(--bg);border-radius:10px;padding:14px;margin-top:8px">'
+    + section('Actions autorisées', CUSTOM_MODULE_ACTIONS, [], 'action')
+    + section('Onglets visibles', CUSTOM_MODULE_TABS, tabs, 'tabs')
+    + section('Cases de synthèse', CUSTOM_MODULE_STATS, stats, 'stats')
+    + '</div>';
+}
+window.Admin._onCustomModuleToggle = function(el) {
+  const on = el.checked;
+  el.closest('label').style.borderColor = on ? '#6366F1' : '#E0D4C8';
+  el.closest('label').style.background  = on ? '#6366F122' : '#fff';
+  el.closest('label').style.color       = on ? '#6366F1' : '#7A6356';
+};
+function _readCustomPermissions(root) {
+  const box = (root || document);
+  const val = (name) => Array.from(box.querySelectorAll('input[data-custom="' + name + '"]:checked')).map(x => x.value);
+  const actionOn = (id) => box.querySelector('input[data-custom="action"][value="' + id + '"]')?.checked || false;
+  return {
+    canOrder:  actionOn('canOrder'),
+    canPay:    actionOn('canPay'),
+    canStatus: actionOn('canStatus'),
+    canPlan:   actionOn('canPlan'),
+    tabs:  val('tabs'),
+    stats: val('stats'),
+  };
+}
 
 // ── Puces de rôles multi-sélection (Propriétaire exclusif) ──
 // Une session gérant ne voit jamais la puce Propriétaire (ne peut pas se
@@ -4268,9 +4355,14 @@ function _refreshRoleChips(container) {
     lab.style.color        = on ? info.color : '#7A6356';
   });
   const roles = _getSelectedRoles(container);
-  const needResto = roles.length > 0 && !roles.includes('admin');
+  // Un gérant ne crée/modifie que du staff de son propre établissement (imposé
+  // côté functions) : le choix n'a pas lieu d'être affiché, seul le propriétaire
+  // doit sélectionner l'établissement.
+  const needResto = mySessionRole !== 'manager' && roles.length > 0 && !roles.includes('admin');
   const wrap = document.getElementById('emp-resto-wrap') || document.getElementById('edit-resto-wrap');
   if (wrap) wrap.style.display = needResto ? '' : 'none';
+  const customWrap = document.getElementById('emp-custom-wrap') || document.getElementById('edit-custom-wrap');
+  if (customWrap) customWrap.style.display = roles.includes('custom') ? '' : 'none';
 }
 function _getSelectedRoles(container) {
   return Array.from(container.querySelectorAll('input:checked')).map(function(x){ return x.value; });
@@ -4411,6 +4503,10 @@ window.Admin.showAddEmployee = async function() {
           </select>
           <div style="font-size:11px;color:#9A8576;margin-top:6px">Le propriétaire a accès à tous les établissements ; les autres rôles sont rattachés à un seul lieu.</div>
         </div>
+        <div id="emp-custom-wrap" style="display:none">
+          <label style="font-size:12px;font-weight:700;color:#7A6356;text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:6px">Modules du rôle personnalisé</label>
+          ${_customModulesHTML(null)}
+        </div>
         <div>
           <label style="font-size:12px;font-weight:700;color:#7A6356;text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:6px">Identifiant <span style="color:#F26522">*</span></label>
           <input class="form-input" id="emp-username" type="text" placeholder="Ex: cuisine01, serveur-jean"
@@ -4487,13 +4583,14 @@ window.Admin.saveEmployee = async function() {
   // L'identifiant devient un email interne fictif (Firebase Auth exige un email).
   const email = username + '@delices-etoiles.staff';
 
-  btn.disabled = true; btn.textContent = 'Création…';
+  setBtnBusy(btn, 'Création…');
   try {
     const fn  = httpsCallable(functions, 'createEmployee');
     await fn({
       email, password: pass, roles,
       displayName: name || username, username,
       restoId: isOwner ? null : restoId,
+      customPermissions: roles.includes('custom') ? _readCustomPermissions(document.getElementById('emp-custom-wrap')) : undefined,
     });
     document.getElementById('emp-modal')?.remove();
     toast('✅ Employé créé avec succès');
@@ -4501,7 +4598,7 @@ window.Admin.saveEmployee = async function() {
   } catch(e) {
     err.textContent = e.message || 'Erreur lors de la création';
     err.style.display = 'block';
-    btn.disabled = false; btn.textContent = 'Créer le compte';
+    clearBtnBusy(btn);
   }
 };
 
@@ -4515,6 +4612,13 @@ window.Admin.editEmployee = async function(uid, currentRole, name, currentResto)
   const currentRoles = String(currentRole || '').split(',').map(function(s){return s.trim();}).filter(Boolean);
 
   const restoOpts = await _restoOptionsHTML(currentResto);
+  let existingCustomPerms = null;
+  if (currentRoles.includes('custom')) {
+    try {
+      const snap = await getDoc(doc(db, 'employees', uid));
+      if (snap.exists()) existingCustomPerms = snap.data().customPermissions || null;
+    } catch(e) {}
+  }
 
   modal.innerHTML = ''
     + '<div style="max-width:400px;width:100%;background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 20px 60px rgba(43,29,22,.3);max-height:92vh;display:flex;flex-direction:column">'
@@ -4535,6 +4639,10 @@ window.Admin.editEmployee = async function(uid, currentRole, name, currentResto)
     +     '<div id="edit-resto-wrap" style="margin-top:16px;display:' + (currentRole === 'admin' ? 'none' : 'block') + '">'
     +       '<label style="display:block;font-size:11px;font-weight:700;color:#7A6356;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Établissement</label>'
     +       '<select id="edit-resto" class="form-input" style="width:100%;padding:10px 14px;border:2px solid #E0D4C8;border-radius:10px;font-size:14px;outline:none;cursor:pointer">' + restoOpts + '</select>'
+    +     '</div>'
+    +     '<div id="edit-custom-wrap" style="margin-top:16px;display:' + (currentRoles.includes('custom') ? 'block' : 'none') + '">'
+    +       '<label style="display:block;font-size:11px;font-weight:700;color:#7A6356;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Modules du rôle personnalisé</label>'
+    +       _customModulesHTML(existingCustomPerms)
     +     '</div>'
     +   '</div>'
     +   '<div style="padding:12px 24px 20px;display:flex;gap:10px;justify-content:flex-end;flex-shrink:0">'
@@ -4573,18 +4681,23 @@ window.Admin.saveRole = async function(uid) {
   const roles   = _getSelectedRoles(document.getElementById('edit-roles'));
   const isOwner = roles.includes('admin');
   const restoId = document.getElementById('edit-resto')?.value || '';
+  const btn     = document.getElementById('save-role-btn');
   if (!roles.length) { toast('⚠️ Sélectionnez au moins un rôle'); return; }
   if (!isOwner && !restoId) {
     toast('⚠️ Sélectionnez un établissement pour ce(s) rôle(s)');
     return;
   }
+  setBtnBusy(btn, 'Enregistrement…');
   try {
     const fn = httpsCallable(functions, 'updateEmployeeRole');
-    await fn({ uid, roles, restoId: isOwner ? null : restoId });
+    await fn({
+      uid, roles, restoId: isOwner ? null : restoId,
+      customPermissions: roles.includes('custom') ? _readCustomPermissions(document.getElementById('edit-custom-wrap')) : undefined,
+    });
     document.getElementById('edit-modal')?.remove();
     toast('✅ Rôle(s) mis à jour');
     renderPage(currentPage);
-  } catch(e) { toast('Erreur : ' + e.message); }
+  } catch(e) { toast('Erreur : ' + e.message); clearBtnBusy(btn); }
 };
 
 window.Admin.toggleEmployee = async function(uid, disabled) {
@@ -4884,7 +4997,7 @@ function showItemModal(item) {
     }
 
     // Image : upload fichier ou URL (photo = fiche catalogue, partagée)
-    btn.disabled = true;
+    setBtnBusy(btn, 'Enregistrement…');
     const fileInput = document.getElementById('m-img-file');
     const file = fileInput.files[0];
     if (file) {
@@ -4907,7 +5020,7 @@ function showItemModal(item) {
         msg.textContent = 'Photo uploadée ✓';
       } catch(e) {
         toast('Erreur upload : ' + e.message);
-        btn.disabled = false;
+        clearBtnBusy(btn);
         return;
       }
     } else {
@@ -4917,7 +5030,7 @@ function showItemModal(item) {
 
     try {
       const rid = id ? (item?.restoId || activeRestoForWrite()) : activeRestoForWrite();
-      if (!rid) { toast('⚠️ Choisissez un établissement (pas « Tous ») pour créer un article'); btn.disabled = false; return; }
+      if (!rid) { toast('⚠️ Choisissez un établissement (pas « Tous ») pour créer un article'); clearBtnBusy(btn); return; }
 
       let articleId = id;
       if (id) {
@@ -4934,7 +5047,7 @@ function showItemModal(item) {
       toast('Article enregistré ✓');
     } catch(e) {
       toast('Erreur : ' + e.message);
-      btn.disabled = false;
+      clearBtnBusy(btn);
     }
   };
 }
@@ -5013,12 +5126,13 @@ async function showActivateExistingModal() {
           <input type="checkbox" id="ae-available" checked style="width:18px;height:18px;accent-color:#F26522">
           <span style="font-size:13px">Disponible immédiatement</span>
         </label>
-        <button class="btn btn-primary" onclick="window.Admin._saveActivateItem('${item.id}')">✓ Activer pour cet établissement</button>
+        <button class="btn btn-primary" id="ae-save-btn" onclick="window.Admin._saveActivateItem('${item.id}')">✓ Activer pour cet établissement</button>
       </div>`;
     zone.scrollIntoView({ behavior:'smooth', block:'nearest' });
   };
 
   window.Admin._saveActivateItem = async (id) => {
+    const btn = document.getElementById('ae-save-btn');
     const item = candidates.find(c => c.id === id);
     if (!item) return;
     const hasVariantes = Array.isArray(item.variantes) && item.variantes.length > 0;
@@ -5037,6 +5151,7 @@ async function showActivateExistingModal() {
       dispoData.price = price;
       dispoData.prixVariable = price === 0;
     }
+    setBtnBusy(btn, 'Activation…');
     try {
       await setDoc(doc(db,'menu-dispo', id + '_' + activeResto), dispoData, { merge: true });
       overlay.remove();
@@ -5045,6 +5160,7 @@ async function showActivateExistingModal() {
       toast('Article activé pour cet établissement ✓');
     } catch(e) {
       toast('Erreur : ' + e.message);
+      clearBtnBusy(btn);
     }
   };
 }
@@ -5058,14 +5174,14 @@ function showZoneModal() {
       <div class="form-group" style="margin-bottom:10px"><label class="form-label">Région</label><input class="form-input" id="z-region" placeholder="Grand-Bassam ou Abidjan"></div>
       <div class="form-group" style="margin-bottom:16px"><label class="form-label">Frais (FCFA) *</label><input class="form-input" id="z-frais" type="number" placeholder="1500"></div>
       <div style="display:flex;gap:8px">
-        <button class="btn btn-primary" onclick="window.Admin._saveZone()">Enregistrer</button>
+        <button class="btn btn-primary" onclick="window.Admin._saveZone(this)">Enregistrer</button>
         <button class="btn btn-secondary" onclick="this.closest('[style*=fixed]').remove()">Annuler</button>
       </div>
     </div>`;
   document.body.appendChild(overlay);
   // overlay.onclick désactivé — fermeture uniquement via bouton
 
-  window.Admin._saveZone = async () => {
+  window.Admin._saveZone = async (btn) => {
     const data = {
       name:   document.getElementById('z-name').value.trim(),
       region: document.getElementById('z-region').value.trim(),
@@ -5075,9 +5191,12 @@ function showZoneModal() {
     if (!data.name || !data.frais) { toast('Nom et frais obligatoires'); return; }
     const rid = activeRestoForWrite();
     if (!rid) { toast('⚠️ Choisissez un établissement pour créer une zone'); return; }
-    await addDoc(collection(db,'zones-livraison'), { ...data, restoId: rid });
-    overlay.remove();
-    await loadData(); renderPage(currentPage); toast('Zone ajoutée ✓');
+    setBtnBusy(btn, 'Enregistrement…');
+    try {
+      await addDoc(collection(db,'zones-livraison'), { ...data, restoId: rid });
+      overlay.remove();
+      await loadData(); renderPage(currentPage); toast('Zone ajoutée ✓');
+    } catch(e) { clearBtnBusy(btn); toast('Erreur : ' + e.message); }
   };
 }
 
@@ -5105,26 +5224,29 @@ function showRuleModal() {
         </div>
       </div>
       <div style="display:flex;gap:8px">
-        <button class="btn btn-primary" onclick="window.Admin._saveRule()">Enregistrer</button>
+        <button class="btn btn-primary" onclick="window.Admin._saveRule(this)">Enregistrer</button>
         <button class="btn btn-secondary" onclick="this.closest('[style*=fixed]').remove()">Annuler</button>
       </div>
     </div>`;
   document.body.appendChild(overlay);
   // overlay.onclick désactivé — fermeture uniquement via bouton
 
-  window.Admin._saveRule = async () => {
+  window.Admin._saveRule = async (btn) => {
     const checked = [...overlay.querySelectorAll('input[type=checkbox]:checked')].map(i=>i.value);
     if (!checked.length) { toast('Sélectionnez au moins un article'); return; }
     const rid = activeRestoForWrite();
     if (!rid) { toast('⚠️ Choisissez un établissement pour créer une règle'); return; }
-    await addDoc(collection(db,'upselling-rules'), {
-      triggerCategory: document.getElementById('r-cat').value,
-      type:            document.getElementById('r-type').value,
-      itemIds:         checked,
-      restoId:         rid,
-    });
-    overlay.remove();
-    await loadData(); renderPage(currentPage); toast('Règle ajoutée ✓');
+    setBtnBusy(btn, 'Enregistrement…');
+    try {
+      await addDoc(collection(db,'upselling-rules'), {
+        triggerCategory: document.getElementById('r-cat').value,
+        type:            document.getElementById('r-type').value,
+        itemIds:         checked,
+        restoId:         rid,
+      });
+      overlay.remove();
+      await loadData(); renderPage(currentPage); toast('Règle ajoutée ✓');
+    } catch(e) { clearBtnBusy(btn); toast('Erreur : ' + e.message); }
   };
 }
 
@@ -5133,6 +5255,23 @@ function toast(msg) {
   const el = document.getElementById('toast');
   el.textContent = msg; el.classList.add('show');
   setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+// ── État "en cours" pour un bouton d'action de modale ──────
+// Affiche un spinner + libellé et désactive le bouton pendant l'attente
+// d'une action asynchrone (enregistrement, envoi…). clearBtnBusy restaure
+// l'état initial — utile après une erreur (en cas de succès, la modale se
+// ferme généralement avant qu'on en ait besoin).
+function setBtnBusy(btn, label) {
+  if (!btn) return;
+  if (btn.dataset.origHtml == null) btn.dataset.origHtml = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="btn-spin"></span>' + (label || 'Patientez…');
+}
+function clearBtnBusy(btn) {
+  if (!btn) return;
+  btn.disabled = false;
+  if (btn.dataset.origHtml != null) { btn.innerHTML = btn.dataset.origHtml; delete btn.dataset.origHtml; }
 }
 // Fermer sidebar après navigation sur mobile
 (function() {

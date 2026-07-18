@@ -520,6 +520,16 @@ onAuthStateChanged(auth, async user => {
     currentRoles = (Array.isArray(token.claims.roles) && token.claims.roles.length)
       ? token.claims.roles : [currentRole];
 
+    // Rôle "personnalisé" : modules cochés par le propriétaire (employees/{uid}.customPermissions),
+    // au lieu d'une matrice de rôle fixe — voir ROLES_CONFIG.custom plus bas.
+    window._customPermissions = null;
+    if (currentRoles.includes('custom')) {
+      try {
+        const snap = await getDoc(doc(db, 'employees', user.uid));
+        if (snap.exists()) window._customPermissions = snap.data().customPermissions || null;
+      } catch(e) { console.warn('customPermissions:', e); }
+    }
+
     // Rafraîchir le token toutes les 55min pour éviter l'expiration silencieuse
     if (window._tokenRefreshInterval) clearInterval(window._tokenRefreshInterval);
     window._tokenRefreshInterval = setInterval(async () => {
@@ -622,6 +632,17 @@ onAuthStateChanged(auth, async user => {
       livreur:  { canOrder: false, canPay: false, canStatus: true,  canPlan: false, filterAuto: 'livraison',  masquePlan: true,  tabs: ['livraison','preparing','ready','done','awaiting_payment'], stats: ['prep','ready','done'] },
       caissier: { canOrder: false, canPay: true,  canStatus: false, canPlan: true,  filterAuto: null,         masquePlan: false, tabs: ['all','salle','livraison','done','awaiting_payment','expired'], stats: ['pending','done','ca'] },
     };
+    // Rôle "personnalisé" : modules cochés un par un par le propriétaire
+    // (employees/{uid}.customPermissions, chargé plus haut dans window._customPermissions).
+    if (window._customPermissions) {
+      const cp = window._customPermissions;
+      ROLES_CONFIG.custom = {
+        canOrder: !!cp.canOrder, canPay: !!cp.canPay, canStatus: !!cp.canStatus, canPlan: !!cp.canPlan,
+        filterAuto: null, masquePlan: !cp.canPlan,
+        tabs:  Array.isArray(cp.tabs)  && cp.tabs.length  ? cp.tabs  : ['all'],
+        stats: Array.isArray(cp.stats) && cp.stats.length ? cp.stats : [],
+      };
+    }
     // Fusion des rôles : union des onglets/stats/permissions
     function mergeRoleConfigs(roles) {
       const cfgs = (roles || []).map(r => ROLES_CONFIG[r]).filter(Boolean);
@@ -652,6 +673,7 @@ onAuthStateChanged(auth, async user => {
       cuisine:  { label: 'CUISINE',        color: '#10B981', bg: 'rgba(16,185,129,.2)', icon: '👨‍🍳' },
       livreur:  { label: 'LIVREUR',        color: '#F59E0B', bg: 'rgba(245,158,11,.2)', icon: '🚴' },
       caissier: { label: 'CAISSIER',       color: '#EC4899', bg: 'rgba(236,72,153,.2)', icon: '💳' },
+      custom:   { label: 'PERSONNALISÉ',   color: '#6366F1', bg: 'rgba(99,102,241,.2)', icon: '🎛️' },
     };
     // Supprimer l'ancien badge si existant
     document.getElementById('role-badge')?.remove();

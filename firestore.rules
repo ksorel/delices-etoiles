@@ -4,7 +4,7 @@ service cloud.firestore {
 
     // ─── Helpers ───────────────────────────────────────────────
     function isAuth()    { return request.auth != null; }
-    function isStaff()   { return isAuth() && request.auth.token.role in ['admin','manager','serveur','bar','cuisine','livreur','caissier']; }
+    function isStaff()   { return isAuth() && request.auth.token.role in ['admin','manager','serveur','bar','cuisine','livreur','caissier','custom']; }
     function isAdmin()   { return isAuth() && request.auth.token.role == 'admin'; }
     function isOwner()   { return isAdmin(); }                                   // admin = propriétaire (global)
     function isManager() { return isAuth() && request.auth.token.role == 'manager'; }
@@ -151,7 +151,10 @@ service cloud.firestore {
 
     // ─── Employés (lecture admin globale, ou gérant scopé à son établissement) ─
     match /employees/{uid} {
-      allow read:  if isAdmin() || (isManager() && resource.data.restoId == request.auth.token.restoId);
+      // Lecture propre : un employé au rôle "personnalisé" doit pouvoir lire ses
+      // propres permissions (employees/{uid}.customPermissions) au login.
+      allow read:  if isAdmin() || (isManager() && resource.data.restoId == request.auth.token.restoId)
+                   || request.auth.uid == uid;
       allow write: if false; // Géré par Cloud Functions uniquement (createEmployee, etc.)
     }
 

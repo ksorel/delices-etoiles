@@ -1076,7 +1076,7 @@ function _openAvisForm(itemId) {
       <input type="text" id="avis-prenom" maxlength="40" placeholder="${t('avis_name_placeholder')}">
       <textarea id="avis-comment" maxlength="300" rows="3" placeholder="${t('avis_comment_placeholder')}"></textarea>
       <div class="avis-form-actions">
-        <button class="btn btn-primary" style="flex:1" onclick="window.App.confirmSubmitAvis()">${t('avis_submit')}</button>
+        <button class="btn btn-primary" id="avis-submit-btn" style="flex:1" onclick="window.App.confirmSubmitAvis()">${t('avis_submit')}</button>
         <button class="btn" style="flex:0 0 auto" onclick="window.App.openItem('${itemId}')">${t('avis_cancel')}</button>
       </div>
     </div>`;
@@ -1093,6 +1093,8 @@ async function _confirmSubmitAvis() {
   const draft = window._avisDraft;
   if (!draft) return;
   if (!draft.rating) { showToast(t('avis_rating_required')); return; }
+  const btn = document.getElementById('avis-submit-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
   try {
     await submitAvis({
       restoId: getRestoId(),
@@ -1113,6 +1115,7 @@ async function _confirmSubmitAvis() {
   } catch (e) {
     console.error('[avis] envoi:', e);
     showToast(t('avis_error'));
+    if (btn) { btn.disabled = false; btn.textContent = t('avis_submit'); }
   }
 }
 function setCategory(cat) {
