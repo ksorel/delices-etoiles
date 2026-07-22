@@ -567,10 +567,35 @@ exports.setUserRole = region.https.onCall(async (data, context) => {
 // ─────────────────────────────────────────────────────────
 //  7. ASSISTANT IA — Proxy Anthropic (évite CORS)
 // ─────────────────────────────────────────────────────────
+// Anti-abus : chaque appel coûte du crédit API Anthropic ; un client anonyme
+// pourrait boucler dessus sans limite. Compteur par uid, fenêtre glissante.
+const ASSISTANT_RATE_LIMIT     = 20;                // requêtes
+const ASSISTANT_RATE_WINDOW_MS = 60 * 60 * 1000;     // par heure
+
+async function checkAssistantRateLimit(uid) {
+  const ref = db.collection('assistant-usage').doc(uid);
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const now  = Date.now();
+    const data = snap.exists ? snap.data() : {};
+    const windowStart = data.windowStart || 0;
+    if (now - windowStart > ASSISTANT_RATE_WINDOW_MS) {
+      tx.set(ref, { count: 1, windowStart: now });
+      return;
+    }
+    if ((data.count || 0) >= ASSISTANT_RATE_LIMIT) {
+      throw new functions.https.HttpsError('resource-exhausted',
+        "Trop de messages envoyés à l'assistant. Réessayez dans quelques minutes.");
+    }
+    tx.set(ref, { count: data.count + 1, windowStart }, { merge: true });
+  });
+}
+
 exports.askAssistant = region.https.onCall(async (data, context) => {
   if (!context.auth) {
     throw new functions.https.HttpsError('unauthenticated', 'Non authentifié');
   }
+  await checkAssistantRateLimit(context.auth.uid);
 
   const { messages, system } = data;
   const apiKey = functions.config().anthropic?.key;
