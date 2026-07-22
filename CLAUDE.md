@@ -64,6 +64,12 @@ scripts/               # backfill-restoid.js, bootstrap-owner.js, seed-restos.js
 6. **Pas de sur-ingénierie** : livrer par petits blocs sûrs, valider, puis enchaîner. Ne jamais empiler
    plusieurs gros changements risqués (surtout auth/claims) dans une seule livraison.
 7. **Toujours proposer avant de coder** les fonctionnalités importantes, puis coder après validation.
+8. **Échapper tout texte libre saisi par le client** avant de l'injecter dans `innerHTML` (nom, note,
+   commentaire, adresse…) via une fonction `escapeHtml()` — présente dans `app.js` **et** `dashboard.html`
+   (le dashboard affiche des champs écrits par des clients anonymes : réservations, commandes, livraison).
+9. **`.gitignore` doit rester en UTF-8 sans BOM.** PowerShell (`Out-File`/`Add-Content` sans `-Encoding utf8`)
+   écrit en UTF-16 par défaut ; un `.gitignore` partiellement UTF-16 rend ses dernières lignes invisibles
+   pour Git (motifs ignorés silencieusement). Toujours vérifier après modif : `git check-ignore -v <fichier>`.
 
 ## 5. Architecture
 
@@ -81,7 +87,7 @@ scripts/               # backfill-restoid.js, bootstrap-owner.js, seed-restos.js
 
 ### Rôles (multi-rôles)
 - Un employé peut avoir **plusieurs rôles**. Custom claims = `{ role: <principal>, roles: [...], restoId }`.
-  - `role` (principal) est **conservé pour la sécurité** (règles Firestore `isAdmin()`/`isStaff()`, `checkAdmin` des functions).
+  - `role` (principal) est **conservé pour la sécurité** (règles Firestore `isAdmin()`/`isStaff()`, `checkAdminOrManager` des functions).
   - `roles[]` sert à l'**affichage/permissions** du dashboard (union des vues).
   - **PROPRIÉTAIRE (`admin`)** = global, exclusif, sans `restoId`.
 - Rôles : `admin` (propriétaire), `manager` (gérant), `serveur`, `bar`, `cuisine`, `livreur`, `caissier`.

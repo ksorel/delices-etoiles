@@ -179,9 +179,13 @@ exports.onNewOrder = region.firestore
 exports.paymentWebhook = functions.https.onRequest(async (req, res) => {
   if (req.method !== 'POST') { res.status(405).send('Method Not Allowed'); return; }
 
-  const secret = req.headers['x-webhook-secret'];
   const expectedSecret = functions.config().payment?.webhook_secret;
-  if (expectedSecret && secret !== expectedSecret) {
+  if (!expectedSecret) {
+    console.error('paymentWebhook: payment.webhook_secret non configuré — requête refusée');
+    res.status(500).send('Webhook non configuré'); return;
+  }
+  const secret = req.headers['x-webhook-secret'];
+  if (secret !== expectedSecret) {
     res.status(403).send('Forbidden'); return;
   }
 
