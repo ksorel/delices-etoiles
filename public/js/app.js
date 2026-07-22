@@ -8,7 +8,7 @@ import { t, initLang, getLang, setLang, itemName, itemDesc } from './i18n.js';
 import { fetchMenu, fetchZones, fetchUpsellRules, getOrCreateTable, fetchPlatDuJour, listenOrder,
          createSession, getOpenSessions, updateSessionStatus, getSessionOrders,
          getRestoId, setRestoId, fetchLieux, fetchLieu, fetchAccueilCarousel,
-         submitReservation, createOrder, listenReservation, findReservation,
+         submitReservation, createOrder, listenReservation, findReservation, findOrder,
          fetchAvisForItem, hasVerifiedPurchase, getExistingAvis, submitAvis, setAvisRating } from './db.js';
 import { getDoc, doc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { requestNotificationPermission, listenForegroundMessages } from './fcm.js';
@@ -2739,6 +2739,15 @@ function renderServiceChoice() {
         <span style="width:30px;height:30px;border-radius:50%;background:#8B5CF61a;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">🔍</span>
         <span style="font-size:13px;font-weight:700;color:#6B3FD4">${t('rv_lookup_link')}</span>
       </button>
+      <button type="button" onclick="window.App.openOrderLookup()"
+        style="display:flex;align-items:center;justify-content:center;gap:10px;width:100%;margin-top:10px;
+               background:#fff;border:1.5px dashed #F8C4A0;border-radius:16px;padding:13px 16px;
+               cursor:pointer;transition:border-color .15s,background-color .15s"
+        onmouseover="this.style.borderColor='#F26522';this.style.backgroundColor='#FFF6F0'"
+        onmouseout="this.style.borderColor='#F8C4A0';this.style.backgroundColor='#fff'">
+        <span style="width:30px;height:30px;border-radius:50%;background:#F265221a;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">📦</span>
+        <span style="font-size:13px;font-weight:700;color:#D6480F">${t('ord_lookup_link')}</span>
+      </button>
     </div>
     ${buildContactBlock()}`;
 }
@@ -3728,6 +3737,64 @@ window.App.openLookupDatePicker = function(displayEl) {
       displayEl.value = _dpFormatDisplay(y, m, dNum, getLang());
     },
   });
+};
+// ─── Suivi de commande sans historique local (recherche par téléphone) ─
+window.App.openOrderLookup = function() {
+  document.getElementById('ord-lookup-modal')?.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'ord-lookup-modal';
+  overlay.className = 'modal-overlay center';
+  overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+  const L = 'display:block;font-size:12px;font-weight:700;color:#7a6a55;margin-bottom:6px';
+  const I = 'width:100%;padding:12px 14px;border:1.5px solid #E0D4C8;border-radius:10px;font-size:14px;box-sizing:border-box;transition:border-color .15s';
+  overlay.innerHTML = ''
+    + '<div class="modal centered" style="max-width:360px">'
+    +   '<div style="padding:24px 22px">'
+    +     '<div style="width:52px;height:52px;border-radius:50%;margin:0 auto 14px;background:linear-gradient(135deg,#F26522,#FF8A4C);'
+    +          'display:flex;align-items:center;justify-content:center;font-size:24px;box-shadow:0 6px 16px rgba(242,101,34,.28)">📦</div>'
+    +     '<div style="font-size:17px;font-weight:800;color:#2B1D16;margin-bottom:4px;text-align:center">' + t('ord_lookup_title') + '</div>'
+    +     '<p style="font-size:13px;color:#7a6a55;margin:0 0 18px;text-align:center;line-height:1.5">' + t('ord_lookup_sub') + '</p>'
+    +     '<div style="display:flex;flex-direction:column;gap:14px">'
+    +       '<div><label style="' + L + '">' + t('telephone') + ' *</label>'
+    +         '<input id="ordl-tel" type="tel" style="' + I + '" placeholder="+225 07 00 00 00 00" '
+    +         'onfocus="this.style.borderColor=\x27#F26522\x27" onblur="this.style.borderColor=\x27#E0D4C8\x27" '
+    +         'onkeydown="if(event.key===\x27Enter\x27){window.App.submitOrderLookup()}"></div>'
+    +       '<div id="ordl-err" style="display:none;background:#FEE2E2;color:#991B1B;padding:10px 14px;border-radius:10px;font-size:13px"></div>'
+    +       '<button id="ordl-submit" onclick="window.App.submitOrderLookup()" '
+    +         'style="width:100%;padding:14px;background:linear-gradient(135deg,#F26522,#FF7A3D);color:#fff;border:none;border-radius:12px;'
+    +         'font-size:15px;font-weight:700;cursor:pointer;box-shadow:0 6px 14px rgba(242,101,34,.3)">'
+    +         t('ord_lookup_submit') + '</button>'
+    +       '<button type="button" onclick="document.getElementById(\x27ord-lookup-modal\x27).remove()" '
+    +         'style="width:100%;padding:10px;background:none;border:none;color:#7a6a55;font-size:13px;cursor:pointer">'
+    +         t('ord_lookup_cancel') + '</button>'
+    +     '</div>'
+    +   '</div>'
+    + '</div>';
+  document.body.appendChild(overlay);
+  setTimeout(() => document.getElementById('ordl-tel')?.focus(), 100);
+};
+window.App.submitOrderLookup = async function() {
+  const tel   = (document.getElementById('ordl-tel')?.value || '').trim();
+  const errEl = document.getElementById('ordl-err');
+  if (!tel) {
+    errEl.textContent = t('ord_lookup_missing'); errEl.style.display = 'block';
+    return;
+  }
+  const btn = document.getElementById('ordl-submit');
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  try {
+    const results = await findOrder(getRestoId(), tel);
+    if (!results.length) {
+      errEl.textContent = t('ord_lookup_notfound'); errEl.style.display = 'block';
+      if (btn) { btn.disabled = false; btn.textContent = t('ord_lookup_submit'); }
+      return;
+    }
+    document.getElementById('ord-lookup-modal')?.remove();
+    window.App.openTrackingModal(results[0].id);
+  } catch(e) {
+    errEl.textContent = t('ord_lookup_notfound'); errEl.style.display = 'block';
+    if (btn) { btn.disabled = false; btn.textContent = t('ord_lookup_submit'); }
+  }
 };
 window.App.submitReservationLookup = async function() {
   const tel  = (document.getElementById('rvl-tel')?.value || '').trim();

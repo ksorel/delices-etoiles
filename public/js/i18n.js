@@ -81,6 +81,13 @@ const translations = {
     rv_lookup_cancel:    'Annuler',
     rv_lookup_missing:   'Veuillez renseigner le téléphone et la date.',
     rv_lookup_notfound:  'Aucune réservation trouvée pour ce téléphone et cette date.',
+    ord_lookup_link:     "J'ai déjà commandé, suivre ma commande",
+    ord_lookup_title:    'Retrouver ma commande',
+    ord_lookup_sub:      'Indiquez le téléphone utilisé lors de la commande (livraison ou sur place).',
+    ord_lookup_submit:   'Rechercher',
+    ord_lookup_cancel:   'Annuler',
+    ord_lookup_missing:  'Veuillez renseigner le téléphone.',
+    ord_lookup_notfound: 'Aucune commande trouvée pour ce téléphone.',
 
     // Bloc "Nous contacter"
     contact_title:     'Nous contacter',
@@ -347,6 +354,13 @@ const translations = {
     rv_lookup_cancel:    'Cancel',
     rv_lookup_missing:   'Please fill in the phone number and date.',
     rv_lookup_notfound:  'No reservation found for this phone number and date.',
+    ord_lookup_link:     "I've already ordered, track my order",
+    ord_lookup_title:    'Find my order',
+    ord_lookup_sub:      'Enter the phone number used for the order (delivery or dine-in).',
+    ord_lookup_submit:   'Search',
+    ord_lookup_cancel:   'Cancel',
+    ord_lookup_missing:  'Please fill in the phone number.',
+    ord_lookup_notfound: 'No order found for this phone number.',
 
     // "Contact us" block
     contact_title:     'Contact us',

@@ -357,6 +357,21 @@ export async function findReservation(restoId, telephone, date) {
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
+// Retrouver les commandes d'un client par téléphone (livraison/sur place — la
+// commande en salle via QR table n'a pas de téléphone), la plus récente d'abord.
+// ⚠️ Index composite requis : restoId ASC, telephone ASC, createdAt DESC
+export async function findOrder(restoId, telephone) {
+  const q = query(
+    collection(db, 'commandes'),
+    where('restoId', '==', rid(restoId)),
+    where('telephone', '==', telephone),
+    orderBy('createdAt', 'desc'),
+    limit(5)
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
 // Dashboard : écoute des réservations d'un établissement.
 export function listenReservations(callback, restoId) {
   const conds = [orderBy('createdAt', 'desc')];
