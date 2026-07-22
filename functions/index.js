@@ -93,14 +93,13 @@ function buildRoleClaims(input, restoId) {
 // ─────────────────────────────────────────────────────────
 //  1. TRIGGER : Nouvelle commande → Notification WhatsApp
 // ─────────────────────────────────────────────────────────
-exports.onNewOrder = region.firestore
+exports.onNewOrder = region.runWith({ secrets: ['WHATSAPP_TOKEN', 'WHATSAPP_PHONE_ID', 'WHATSAPP_STAFF_NUMBERS'] }).firestore
   .document('commandes/{orderId}')
   .onCreate(async (snap, context) => {
     const order = { id: context.params.orderId, ...snap.data() };
-    const config = functions.config();
-    if (!config.whatsapp?.token) return null;
+    if (!process.env.WHATSAPP_TOKEN) return null;
 
-    const staffNumbers = (config.whatsapp.staff_numbers || '').split(',').filter(Boolean);
+    const staffNumbers = (process.env.WHATSAPP_STAFF_NUMBERS || '').split(',').filter(Boolean);
     if (!staffNumbers.length) return null;
 
     const itemsList = (order.items || [])
@@ -113,9 +112,9 @@ exports.onNewOrder = region.firestore
     for (const number of staffNumbers) {
       try {
         await axios.post(
-          `https://graph.facebook.com/v18.0/${config.whatsapp.phone_id}/messages`,
+          `https://graph.facebook.com/v18.0/${process.env.WHATSAPP_PHONE_ID}/messages`,
           { messaging_product: 'whatsapp', to: number.trim(), type: 'text', text: { body: msg } },
-          { headers: { Authorization: `Bearer ${config.whatsapp.token}`, 'Content-Type': 'application/json' } }
+          { headers: { Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`, 'Content-Type': 'application/json' } }
         );
       } catch (e) { console.error('WhatsApp error:', e.message); }
     }
@@ -176,12 +175,12 @@ exports.onNewOrder = region.firestore
 // ─────────────────────────────────────────────────────────
 //  2. WEBHOOK : Confirmation paiement Mobile Money
 // ─────────────────────────────────────────────────────────
-exports.paymentWebhook = region.https.onRequest(async (req, res) => {
+exports.paymentWebhook = region.runWith({ secrets: ['PAYMENT_WEBHOOK_SECRET'] }).https.onRequest(async (req, res) => {
   if (req.method !== 'POST') { res.status(405).send('Method Not Allowed'); return; }
 
-  const expectedSecret = functions.config().payment?.webhook_secret;
+  const expectedSecret = process.env.PAYMENT_WEBHOOK_SECRET;
   if (!expectedSecret) {
-    console.error('paymentWebhook: payment.webhook_secret non configuré — requête refusée');
+    console.error('paymentWebhook: PAYMENT_WEBHOOK_SECRET non configuré — requête refusée');
     res.status(500).send('Webhook non configuré'); return;
   }
   const secret = req.headers['x-webhook-secret'];
@@ -209,12 +208,11 @@ exports.paymentWebhook = region.https.onRequest(async (req, res) => {
 // ─────────────────────────────────────────────────────────
 //  3. CRON : Rapport quotidien par email
 // ─────────────────────────────────────────────────────────
-exports.dailyReport = region.pubsub
+exports.dailyReport = region.runWith({ secrets: ['EMAIL_USER', 'EMAIL_PASS', 'EMAIL_DEST'] }).pubsub
   .schedule('59 23 * * *')
   .timeZone('Africa/Abidjan')
   .onRun(async (_context) => {
-    const config = functions.config();
-    if (!config.email?.user) {
+    if (!process.env.EMAIL_USER) {
       console.warn('Email non configuré — skipping report');
       return null;
     }
@@ -233,12 +231,12 @@ exports.dailyReport = region.pubsub
 
     const transporter = nodemailer.createTransport({
       service: 'gmail',
-      auth: { user: config.email.user, pass: config.email.pass },
+      auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
     });
 
     await transporter.sendMail({
-      from: config.email.user,
-      to: config.email.dest,
+      from: process.env.EMAIL_USER,
+      to: process.env.EMAIL_DEST,
       subject: `Rapport Délices Étoiles — ${today.toLocaleDateString('fr-FR')}`,
       html: `<h2>Rapport du jour</h2>
              <p>Commandes : <strong>${orders.length}</strong></p>
@@ -591,18 +589,18 @@ async function checkAssistantRateLimit(uid) {
   });
 }
 
-exports.askAssistant = region.https.onCall(async (data, context) => {
+exports.askAssistant = region.runWith({ secrets: ['ANTHROPIC_KEY'] }).https.onCall(async (data, context) => {
   if (!context.auth) {
     throw new functions.https.HttpsError('unauthenticated', 'Non authentifié');
   }
   await checkAssistantRateLimit(context.auth.uid);
 
   const { messages, system } = data;
-  const apiKey = functions.config().anthropic?.key;
+  const apiKey = process.env.ANTHROPIC_KEY;
 
   if (!apiKey) {
     throw new functions.https.HttpsError('failed-precondition',
-      'Clé API Anthropic non configurée. Exécutez : firebase functions:config:set anthropic.key=sk-...');
+      'Clé API Anthropic non configurée. Exécutez : firebase functions:secrets:set ANTHROPIC_KEY');
   }
 
   try {
@@ -650,14 +648,13 @@ exports.askAssistant = region.https.onCall(async (data, context) => {
 // ─────────────────────────────────────────────────────────
 //  8. TRIGGER : Nouvelle demande devis traiteur
 // ─────────────────────────────────────────────────────────
-exports.onNewDevis = region.firestore
+exports.onNewDevis = region.runWith({ secrets: ['WHATSAPP_TOKEN', 'WHATSAPP_PHONE_ID', 'WHATSAPP_STAFF_NUMBERS'] }).firestore
   .document('devis/{devisId}')
   .onCreate(async (snap, context) => {
     const devis = snap.data();
-    const config = functions.config();
-    if (!config.whatsapp?.token) return null;
+    if (!process.env.WHATSAPP_TOKEN) return null;
 
-    const staffNumbers = (config.whatsapp.staff_numbers || '').split(',').filter(Boolean);
+    const staffNumbers = (process.env.WHATSAPP_STAFF_NUMBERS || '').split(',').filter(Boolean);
     if (!staffNumbers.length) return null;
 
     const eventLabels = {
@@ -678,9 +675,9 @@ exports.onNewDevis = region.firestore
     for (const number of staffNumbers) {
       try {
         await axios.post(
-          'https://graph.facebook.com/v18.0/' + config.whatsapp.phone_id + '/messages',
+          'https://graph.facebook.com/v18.0/' + process.env.WHATSAPP_PHONE_ID + '/messages',
           { messaging_product:'whatsapp', to:number.trim(), type:'text', text:{body:msg} },
-          { headers:{ Authorization:'Bearer '+config.whatsapp.token,'Content-Type':'application/json' } }
+          { headers:{ Authorization:'Bearer '+process.env.WHATSAPP_TOKEN,'Content-Type':'application/json' } }
         );
       } catch(e) { console.error('WhatsApp devis error:', e.message); }
     }
@@ -690,6 +687,19 @@ exports.onNewDevis = region.firestore
 // ─────────────────────────────────────────────────────────
 //  9. UPLOAD FICHIER DEVIS — via Admin SDK (contourne rules)
 // ─────────────────────────────────────────────────────────
+// Limites alignées sur le formulaire client (public/js/app.js, handleTraiteurFile) :
+// 5 Mo max, types acceptés = .pdf/.doc/.docx/.jpg/.jpeg/.png. Le client applique déjà
+// ces règles côté UI, mais un appel direct à l'endpoint peut les contourner — on les
+// revérifie ici côté serveur.
+const DEVIS_MAX_SIZE = 5 * 1024 * 1024;
+const DEVIS_ALLOWED_MIME = [
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'image/jpeg',
+  'image/png',
+];
+
 exports.uploadDevisFile = region.https.onRequest(async (req, res) => {
   res.set('Access-Control-Allow-Origin', 'https://delices-etoiles.web.app');
   res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -712,16 +722,23 @@ exports.uploadDevisFile = region.https.onRequest(async (req, res) => {
   if (!fileData || !fileName) {
     res.status(400).json({ error: { message: 'Fichier manquant' } }); return;
   }
+  if (!DEVIS_ALLOWED_MIME.includes(mimeType)) {
+    res.status(400).json({ error: { message: 'Type de fichier non autorisé (PDF, Word, JPG ou PNG uniquement)' } }); return;
+  }
+
+  const buffer = Buffer.from(fileData, 'base64');
+  if (buffer.length > DEVIS_MAX_SIZE) {
+    res.status(400).json({ error: { message: 'Fichier trop volumineux (max 5 Mo)' } }); return;
+  }
 
   try {
     const bucket   = admin.storage().bucket();
     const safeName = Date.now() + '_' + fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
     const filePath = 'devis/' + safeName;
     const fileRef  = bucket.file(filePath);
-    const buffer   = Buffer.from(fileData, 'base64');
 
     await fileRef.save(buffer, {
-      metadata: { contentType: mimeType || 'application/octet-stream' },
+      metadata: { contentType: mimeType },
     });
     await fileRef.makePublic();
 

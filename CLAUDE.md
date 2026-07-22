@@ -143,6 +143,14 @@ custom claims d'abord → écritures de données → backfill → règles strict
   (admin → `{ role:'admin', roles:['admin'] }`, global).
 - Trigger de notification WhatsApp sur nouvelle commande.
 - **Toute modif des functions nécessite un redéploiement `--only functions`.**
+- **Secrets** : `functions.config()` est déprécié (coupure définitive prévue mars 2027) — migré vers
+  **Google Secret Manager**, exposé en `process.env.X` via `.runWith({ secrets: [...] })` sur chaque
+  function qui en a besoin. Secrets utilisés : `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_ID`,
+  `WHATSAPP_STAFF_NUMBERS` (notifs WhatsApp), `EMAIL_USER`/`EMAIL_PASS`/`EMAIL_DEST` (rapport
+  quotidien), `ANTHROPIC_KEY` (assistant IA), `PAYMENT_WEBHOOK_SECRET` (webhook paiement — celui-ci
+  **doit** être configuré sinon `paymentWebhook` refuse toute requête, fail-closed).
+  Pour définir/mettre à jour un secret : `npx firebase-tools functions:secrets:set NOM_DU_SECRET`
+  (invite interactive — jamais coller la valeur en clair dans une commande ou un fichier commité).
 
 ## 9. Commandes de déploiement
 
