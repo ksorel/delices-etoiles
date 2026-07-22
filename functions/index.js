@@ -176,7 +176,7 @@ exports.onNewOrder = region.firestore
 // ─────────────────────────────────────────────────────────
 //  2. WEBHOOK : Confirmation paiement Mobile Money
 // ─────────────────────────────────────────────────────────
-exports.paymentWebhook = functions.https.onRequest(async (req, res) => {
+exports.paymentWebhook = region.https.onRequest(async (req, res) => {
   if (req.method !== 'POST') { res.status(405).send('Method Not Allowed'); return; }
 
   const expectedSecret = functions.config().payment?.webhook_secret;
@@ -711,7 +711,7 @@ exports.uploadDevisFile = region.https.onRequest(async (req, res) => {
 // ─────────────────────────────────────────────────────────
 //  TRAITEUR — Notifications J-7 et J-1
 // ─────────────────────────────────────────────────────────
-exports.traiteurReminders = functions.pubsub
+exports.traiteurReminders = region.pubsub
   .schedule('every day 08:00')
   .timeZone('Africa/Abidjan')
   .onRun(async () => {
