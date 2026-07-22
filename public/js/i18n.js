@@ -88,6 +88,8 @@ const translations = {
     ord_lookup_cancel:   'Annuler',
     ord_lookup_missing:  'Veuillez renseigner le téléphone.',
     ord_lookup_notfound: 'Aucune commande trouvée pour ce téléphone.',
+    ord_lookup_pick_title: 'Quelle commande suivre ?',
+    ord_lookup_pick_sub:   'Plusieurs commandes trouvées pour ce numéro.',
 
     // Bloc "Nous contacter"
     contact_title:     'Nous contacter',
@@ -361,6 +363,8 @@ const translations = {
     ord_lookup_cancel:   'Cancel',
     ord_lookup_missing:  'Please fill in the phone number.',
     ord_lookup_notfound: 'No order found for this phone number.',
+    ord_lookup_pick_title: 'Which order do you want to track?',
+    ord_lookup_pick_sub:   'Several orders found for this number.',
 
     // "Contact us" block
     contact_title:     'Contact us',

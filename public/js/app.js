@@ -3789,12 +3789,62 @@ window.App.submitOrderLookup = async function() {
       if (btn) { btn.disabled = false; btn.textContent = t('ord_lookup_submit'); }
       return;
     }
-    document.getElementById('ord-lookup-modal')?.remove();
-    window.App.openTrackingModal(results[0].id);
+    if (results.length === 1) {
+      document.getElementById('ord-lookup-modal')?.remove();
+      window.App.openTrackingModal(results[0].id);
+    } else {
+      renderOrderLookupChoices(results);
+    }
   } catch(e) {
     errEl.textContent = t('ord_lookup_notfound'); errEl.style.display = 'block';
     if (btn) { btn.disabled = false; btn.textContent = t('ord_lookup_submit'); }
   }
+};
+// Plusieurs commandes trouvées pour ce téléphone : petit menu de choix.
+const ORD_LOOKUP_STATUS = {
+  pending:   { label: 'En attente',     color: '#F59E0B' },
+  preparing: { label: 'En préparation', color: '#3B82F6' },
+  ready:     { label: 'Prête',          color: '#10B981' },
+  done:      { label: 'Terminée',       color: '#7a6a55' },
+};
+function renderOrderLookupChoices(results) {
+  const modal = document.querySelector('#ord-lookup-modal .modal');
+  if (!modal) return;
+  const rows = results.map(o => {
+    const icon   = o.type === 'livraison' ? '🚴' : o.type === 'surplace' ? '🍽️' : '🧾';
+    const meta   = ORD_LOOKUP_STATUS[o.status] || ORD_LOOKUP_STATUS.pending;
+    const when   = o.createdAt?.toDate?.()
+      ? o.createdAt.toDate().toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) + ' · '
+        + o.createdAt.toDate().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+      : '';
+    return ''
+      + '<div role="button" tabindex="0" onclick="window.App.chooseOrderLookupResult(\x27' + o.id + '\x27)" '
+      +   'style="display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:#fff;'
+      +   'border:1.5px solid #F0E4D8;border-radius:14px;padding:12px 14px;cursor:pointer;transition:border-color .15s,background-color .15s" '
+      +   'onmouseover="this.style.borderColor=\x27#F26522\x27;this.style.backgroundColor=\x27#FFF6F0\x27" '
+      +   'onmouseout="this.style.borderColor=\x27#F0E4D8\x27;this.style.backgroundColor=\x27#fff\x27">'
+      +   '<span style="width:38px;height:38px;border-radius:50%;background:#F265221a;display:flex;align-items:center;'
+      +       'justify-content:center;font-size:17px;flex-shrink:0">' + icon + '</span>'
+      +   '<span style="flex:1;min-width:0">'
+      +     '<span style="display:block;font-size:14px;font-weight:800;color:#2B1D16">#' + orderRefLabel(o.id, o.restoId) + '</span>'
+      +     '<span style="display:block;font-size:12px;color:#7a6a55">' + when + (o.total ? ' · ' + formatFCFA(o.total) : '') + '</span>'
+      +   '</span>'
+      +   '<span style="font-size:11px;font-weight:700;color:' + meta.color + ';white-space:nowrap">' + meta.label + '</span>'
+      + '</div>';
+  }).join('');
+  modal.innerHTML = ''
+    + '<div style="padding:22px">'
+    +   '<div style="font-size:16px;font-weight:800;color:#2B1D16;margin-bottom:2px">' + t('ord_lookup_pick_title') + '</div>'
+    +   '<p style="font-size:12.5px;color:#7a6a55;margin:0 0 14px">' + t('ord_lookup_pick_sub') + '</p>'
+    +   '<div style="display:flex;flex-direction:column;gap:10px;max-height:320px;overflow-y:auto">' + rows + '</div>'
+    +   '<button type="button" onclick="document.getElementById(\x27ord-lookup-modal\x27).remove()" '
+    +     'style="width:100%;margin-top:14px;padding:10px;background:none;border:none;color:#7a6a55;font-size:13px;cursor:pointer">'
+    +     t('ord_lookup_cancel') + '</button>'
+    + '</div>';
+}
+window.App.chooseOrderLookupResult = function(orderId) {
+  document.getElementById('ord-lookup-modal')?.remove();
+  window.App.openTrackingModal(orderId);
 };
 window.App.submitReservationLookup = async function() {
   const tel  = (document.getElementById('rvl-tel')?.value || '').trim();
