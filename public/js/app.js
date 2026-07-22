@@ -2730,12 +2730,15 @@ function renderServiceChoice() {
         ${_svcCard('livraison','🚴', t('service_livraison'), '#F26522')}
         ${_svcCard('reserver','📅', t('service_reserver'), '#8B5CF6')}
       </div>
-      <div style="text-align:center;margin-top:18px">
-        <button type="button" onclick="window.App.openReservationLookup()"
-                style="background:none;border:none;color:#8B5CF6;font-size:13px;font-weight:700;cursor:pointer;text-decoration:underline">
-          🔍 ${t('rv_lookup_link')}
-        </button>
-      </div>
+      <button type="button" onclick="window.App.openReservationLookup()"
+        style="display:flex;align-items:center;justify-content:center;gap:10px;width:100%;margin-top:18px;
+               background:#fff;border:1.5px dashed #C9B8ED;border-radius:16px;padding:13px 16px;
+               cursor:pointer;transition:border-color .15s,background-color .15s"
+        onmouseover="this.style.borderColor='#8B5CF6';this.style.backgroundColor='#FAF7FF'"
+        onmouseout="this.style.borderColor='#C9B8ED';this.style.backgroundColor='#fff'">
+        <span style="width:30px;height:30px;border-radius:50%;background:#8B5CF61a;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">🔍</span>
+        <span style="font-size:13px;font-weight:700;color:#6B3FD4">${t('rv_lookup_link')}</span>
+      </button>
     </div>
     ${buildContactBlock()}`;
 }
