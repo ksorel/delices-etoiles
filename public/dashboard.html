@@ -872,7 +872,7 @@ function updateStats() {
     if (isExpired(o)) continue;   // les expirées ne comptent pas dans les stats actives
     counts[o.status] = (counts[o.status] || 0) + 1;
     if (o.status === 'done') ca += o.total || 0;
-    if (o.paymentStatus === 'awaiting_payment') awaitingPay++;
+    if (o.paymentStatus === 'awaiting_payment' || o.paymentStatus === 'failed') awaitingPay++;
   }
   document.getElementById('s-pending').textContent = counts.pending;
   document.getElementById('s-prep').textContent    = counts.preparing;
@@ -907,7 +907,7 @@ function renderOrders() {
     filtered = filtered.filter(o => !isExpired(o));
     if (activeFilter === 'salle')     filtered = filtered.filter(o => o.type === 'salle');
     else if (activeFilter === 'livraison') filtered = filtered.filter(o => o.type === 'livraison');
-    else if (activeFilter === 'awaiting_payment') filtered = filtered.filter(o => o.paymentStatus === 'awaiting_payment');
+    else if (activeFilter === 'awaiting_payment') filtered = filtered.filter(o => o.paymentStatus === 'awaiting_payment' || o.paymentStatus === 'failed');
     else if (['pending','preparing','ready','done'].includes(activeFilter))
       filtered = filtered.filter(o => o.status === activeFilter);
   }
@@ -1050,15 +1050,26 @@ function buildCard(o) {
 
   // Boutons selon statut + mode paiement
   let actionBtns = '';
+  // Source de vérité de l'opérateur mobile money : top-level une fois confirmé,
+  // sinon repli sur livraison.operateur (seul champ posé à la création pour les commandes en livraison).
+  const effOperateur = o.operateur || (o.livraison && o.livraison.operateur) || 'especes';
+  const paymentPending = o.paymentStatus === 'awaiting_payment' || o.paymentStatus === 'failed';
+  const payRowHtml = paymentPending ? `
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;background:${o.paymentStatus === 'failed' ? '#FEE2E2' : '#FEF3C7'};border-radius:6px;padding:6px 8px;margin-bottom:6px">
+      <span style="font-size:11px;font-weight:700;color:${o.paymentStatus === 'failed' ? '#991B1B' : '#854F0B'}">${o.paymentStatus === 'failed' ? '❌ Échec — ' : '📱 '}${effOperateur.toUpperCase()}</span>
+      <button class="status-btn" style="background:#DBEAFE;color:#1D4ED8;padding:4px 10px;font-size:11px"
+        onclick="confirmPayment('${o.id}','${effOperateur}')">✓ Paiement reçu</button>
+    </div>` : '';
+
   if (o.status === 'pending') {
-    actionBtns = `<button class="status-btn btn-start" onclick="updateStatus('${o.id}','preparing')">🔥 Commencer</button>`;
+    actionBtns = payRowHtml + `<button class="status-btn btn-start" onclick="updateStatus('${o.id}','preparing')">🔥 Commencer</button>`;
   } else if (o.status === 'preparing') {
-    actionBtns = `<button class="status-btn btn-ready" onclick="updateStatus('${o.id}','ready')">✅ Prêt</button>`;
+    actionBtns = payRowHtml + `<button class="status-btn btn-ready" onclick="updateStatus('${o.id}','ready')">✅ Prêt</button>`;
   } else if (o.status === 'ready') {
     if (o.type === 'salle' || o.type === 'surplace') {
       // Salle / sur place : pas de livreur, paiement à l'arrivée du client
       const payStatus = o.paymentStatus || 'pending_cash';
-      const operateur = o.operateur || 'especes';
+      const operateur = effOperateur;
       if (payStatus === 'pending_cash') {
         actionBtns = `
           <div style="display:flex;flex-direction:column;gap:6px;width:100%">
@@ -1070,10 +1081,11 @@ function buildCard(o) {
                 onclick="updateStatus('${o.id}','done')">✓ Servi</button>
             </div>
           </div>`;
-      } else if (payStatus === 'awaiting_payment') {
+      } else if (payStatus === 'awaiting_payment' || payStatus === 'failed') {
+        const failedTag = payStatus === 'failed' ? '❌ Échec — ' : '';
         actionBtns = `
           <div style="display:flex;flex-direction:column;gap:6px;width:100%">
-            <div style="font-size:11px;font-weight:700;color:#854F0B;margin-bottom:2px">📱 ${operateur.toUpperCase()} — En attente paiement</div>
+            <div style="font-size:11px;font-weight:700;color:#854F0B;margin-bottom:2px">${failedTag}📱 ${operateur.toUpperCase()} — En attente paiement</div>
             <div style="display:flex;gap:6px">
               <button class="status-btn" style="background:#DBEAFE;color:#1D4ED8;flex:1"
                 onclick="confirmPayment('${o.id}','${operateur}')">✓ Paiement confirmé</button>
@@ -1091,9 +1103,16 @@ function buildCard(o) {
       }
     } else {
       // Livraison : ready → en route
-      const livOperateur = o.operateur || 'especes';
+      const livOperateur = effOperateur;
       const livPayStatus = o.paymentStatus || 'pending_cash';
-      if (livPayStatus === 'pending_cash') {
+      if (livPayStatus === 'paid') {
+        actionBtns = `
+          <div style="display:flex;flex-direction:column;gap:6px;width:100%">
+            <div style="font-size:11px;font-weight:700;color:#0F6E56">✅ Payé (${livOperateur.toUpperCase()})</div>
+            <button class="status-btn" style="background:#3B82F6;color:#fff;width:100%"
+              onclick="updateStatus('${o.id}','delivering')">🚴 Parti en livraison</button>
+          </div>`;
+      } else if (livPayStatus === 'pending_cash') {
         actionBtns = `
           <div style="display:flex;flex-direction:column;gap:6px;width:100%">
             <div style="font-size:11px;font-weight:700;color:#7A6356">💵 Paiement espèces à la livraison</div>
@@ -1101,9 +1120,10 @@ function buildCard(o) {
               onclick="updateStatus('${o.id}','delivering')">🚴 Parti en livraison</button>
           </div>`;
       } else {
+        const failedTag = livPayStatus === 'failed' ? '❌ Échec — ' : '';
         actionBtns = `
           <div style="display:flex;flex-direction:column;gap:6px;width:100%">
-            <div style="font-size:11px;font-weight:700;color:#854F0B">📱 ${livOperateur.toUpperCase()} — Vérifier paiement</div>
+            <div style="font-size:11px;font-weight:700;color:#854F0B">${failedTag}📱 ${livOperateur.toUpperCase()} — Vérifier paiement</div>
             <button class="status-btn" style="background:#3B82F6;color:#fff;width:100%"
               onclick="updateStatus('${o.id}','delivering')">🚴 Parti en livraison</button>
           </div>`;
@@ -1111,9 +1131,21 @@ function buildCard(o) {
     }
   } else if (o.status === 'delivering') {
     // En route → confirmation livraison + encaissement
-    const livOp = o.operateur || 'especes';
+    const livOp = effOperateur;
     const livTotal = o.total || 0;
-    if (livOp === 'especes') {
+    const livPayStatus2 = o.paymentStatus || 'pending_cash';
+    if (livPayStatus2 === 'paid') {
+      actionBtns = `
+        <div style="display:flex;flex-direction:column;gap:8px;width:100%">
+          <div style="background:#ECFDF5;border-radius:8px;padding:8px;text-align:center">
+            <div style="font-size:12px;color:#0F6E56;font-weight:700">✅ Déjà payé (${livOp.toUpperCase()})</div>
+          </div>
+          <button class="status-btn" style="background:#10B981;color:#fff;font-weight:800"
+            onclick="confirmDelivery('${o.id}','${livOp}',${livTotal})">
+            ✅ Livré
+          </button>
+        </div>`;
+    } else if (livOp === 'especes') {
       actionBtns = `
         <div style="display:flex;flex-direction:column;gap:8px;width:100%">
           <div style="background:#FFF8F0;border-radius:8px;padding:10px;text-align:center">
@@ -1126,10 +1158,11 @@ function buildCard(o) {
           </button>
         </div>`;
     } else {
+      const failedTag = livPayStatus2 === 'failed' ? '❌ Échec — ' : '';
       actionBtns = `
         <div style="display:flex;flex-direction:column;gap:8px;width:100%">
           <div style="background:#FFF8F0;border-radius:8px;padding:8px;text-align:center">
-            <div style="font-size:12px;color:#7A6356">📱 Paiement ${livOp.toUpperCase()} attendu</div>
+            <div style="font-size:12px;color:#7A6356">${failedTag}📱 Paiement ${livOp.toUpperCase()} attendu</div>
           </div>
           <button class="status-btn" style="background:#10B981;color:#fff;font-weight:800"
             onclick="confirmDelivery('${o.id}','${livOp}',${livTotal})">
@@ -1154,7 +1187,7 @@ function buildCard(o) {
     <div class="order-card status-${o.status}" id="card-${o.id}">
       <div class="order-head">
         <div>
-          <div class="order-id">#${num} ${sessionBadge}${staffBadge}${isExpired(o) ? ' <span style="background:#F3E8E2;color:#8A6D5B;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px">⏰ expirée</span>' : ''}${o.paymentStatus === 'awaiting_payment' ? ' <span style="background:#FEE2E2;color:#DC2626;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px">💳 Paiement à confirmer</span>' : ''}</div>
+          <div class="order-id">#${num} ${sessionBadge}${staffBadge}${isExpired(o) ? ' <span style="background:#F3E8E2;color:#8A6D5B;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px">⏰ expirée</span>' : ''}${o.paymentStatus === 'awaiting_payment' ? ' <span style="background:#FEE2E2;color:#DC2626;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px">💳 Paiement à confirmer</span>' : o.paymentStatus === 'failed' ? ' <span style="background:#FEE2E2;color:#991B1B;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px">❌ Paiement échoué</span>' : ''}</div>
           <div class="order-time">${time}</div>
         </div>
         <span class="order-type ${o.type}">${o.type === 'salle' ? `🪑 Table ${o.tableId || ''}` : o.type === 'surplace' ? `🍽️ Sur place${o.surplace ? ' · ' + (o.surplace.date || '') + ' ' + (o.surplace.heure || '') : ''}` : '🚴 Livraison'}</span>
