@@ -660,8 +660,8 @@ function renderPDJCarousel(slides, lang) {
   ).join('');
   const navHtml = slides.length > 1 ? `
     <div class="pdj-nav-overlay">
-      <button class="pdj-nav prev" onclick="window.App.pdjPrev()">‹</button>
-      <button class="pdj-nav next" onclick="window.App.pdjNext()">›</button>
+      <button class="pdj-nav prev" onclick="window.App.pdjPrev()" aria-label="${getLang()==='en'?'Previous':'Précédent'}">‹</button>
+      <button class="pdj-nav next" onclick="window.App.pdjNext()" aria-label="${getLang()==='en'?'Next':'Suivant'}">›</button>
       <div class="pdj-dots" id="pdj-dots">${dotsHtml}</div>
     </div>` : '';
   return `
@@ -747,7 +747,7 @@ function renderMenu(container) {
     ? `<span class="mode-badge salle">📅 ${t('service_reserver')}</span> ${t('rv_choosing_menu')}`
     : `<span class="mode-badge livraison">${t('mode_livraison')}</span> ${t('banner_livraison')}`;
   const backToReservationBar = State.mode === 'reservation'
-    ? `<button onclick="window.App.backToReservation()" style="display:flex;align-items:center;gap:6px;width:100%;padding:12px 16px;background:#8B5CF6;color:#fff;border:none;font-size:14px;font-weight:700;cursor:pointer">${t('rv_back_to_form')}</button>`
+    ? `<button onclick="window.App.backToReservation()" style="display:flex;align-items:center;gap:6px;width:100%;padding:12px 16px;background:var(--orange);color:#fff;border:none;font-size:14px;font-weight:700;cursor:pointer">${t('rv_back_to_form')}</button>`
     : '';
   // Items visibles : indisponibles masqués ; en LIVRAISON on retire en plus les
   // articles « sur place uniquement » (boissons en emballage consigné).
@@ -995,9 +995,9 @@ function openItem(itemId) {
         ${formatHtml}
         <div class="option-group">
           <div class="qty-control">
-            <button class="qty-btn" onclick="window.App.changeQty(-1)">−</button>
+            <button class="qty-btn" onclick="window.App.changeQty(-1)" aria-label="${getLang()==='en'?'Decrease quantity':'Diminuer la quantité'}">−</button>
             <span class="qty-num" id="item-qty">1</span>
-            <button class="qty-btn" onclick="window.App.changeQty(1)">+</button>
+            <button class="qty-btn" onclick="window.App.changeQty(1)" aria-label="${getLang()==='en'?'Increase quantity':'Augmenter la quantité'}">+</button>
           </div>
         </div>
         <div class="comment-wrap">
@@ -1142,14 +1142,18 @@ async function loadAvisSection(itemId) {
   if (!listEl || !rateEl) return;
   try {
     const avisList = await fetchAvisForItem(restoId, itemId, 10);
-    listEl.innerHTML = avisList.map(a => `
+    listEl.innerHTML = avisList.length ? avisList.map(a => `
       <div class="avis-item">
         <div class="avis-item-head">
           <span class="avis-item-name">${t('avis_anonymous')}</span>
           <span class="avis-item-stars">${starsHtml(a.rating)}</span>
         </div>
         ${a.comment ? `<div class="avis-item-comment">${escapeHtml(a.comment)}</div>` : ''}
-      </div>`).join('');
+      </div>`).join('') : `
+      <div style="text-align:center;padding:20px 10px;color:var(--text-muted)">
+        <div style="font-size:32px;margin-bottom:6px">💬</div>
+        <div style="font-size:13px">${t('avis_none')}</div>
+      </div>`;
   } catch (e) { console.error('[avis] liste:', e); }
 
   if (!State.uid) {
@@ -1322,11 +1326,11 @@ function renderCart(container) {
           ${opts ? `<div class="cart-item-opts">${opts}</div>` : ''}
           <div class="cart-item-price">${formatFCFA(item.price * item.qty)}</div>
           <div class="cart-item-actions">
-            <button class="qty-btn" style="width:28px;height:28px;font-size:16px"
-                    onclick="window.App.updateQty('${item.uid}',-1)">−</button>
+            <button class="qty-btn" style="width:32px;height:32px;font-size:16px"
+                    onclick="window.App.updateQty('${item.uid}',-1)" aria-label="${getLang()==='en'?'Decrease quantity':'Diminuer la quantité'}">−</button>
             <span style="font-weight:700;font-size:14px">${item.qty}</span>
-            <button class="qty-btn" style="width:28px;height:28px;font-size:16px"
-                    onclick="window.App.updateQty('${item.uid}',1)">+</button>
+            <button class="qty-btn" style="width:32px;height:32px;font-size:16px"
+                    onclick="window.App.updateQty('${item.uid}',1)" aria-label="${getLang()==='en'?'Increase quantity':'Augmenter la quantité'}">+</button>
             <button class="remove-btn" onclick="window.App.removeItem('${item.uid}')">${t('remove')}</button>
           </div>
         </div>
@@ -1768,7 +1772,7 @@ function renderConfirm(container, orderId, operateur) {
               onclick="window.App.openTrackingModal('${orderId}')">
         📍 Suivre ma commande
       </button>
-      <button class="btn btn-secondary" style="margin-top:8px;width:100%;max-width:280px;padding:12px 24px"
+      <button type="button" style="margin-top:14px;background:none;border:none;color:var(--text-muted);font-size:13px;font-weight:600;text-decoration:underline;cursor:pointer;padding:8px"
               onclick="window.App.navigate('menu')">${t('back_menu')}</button>
     </div>`;
 }
@@ -2885,10 +2889,10 @@ function renderReservation() {
       <div style="display:flex;justify-content:space-between;padding-top:6px;margin-top:6px;border-top:1px solid #F0E8E0;font-weight:800;font-size:13px">
         <span>${t('rv_total_indicatif')}</span><span style="color:var(--orange)">${formatFCFA(getTotal())}</span>
       </div>
-      <button type="button" onclick="window.App.editReservationMenu()" style="margin-top:10px;width:100%;padding:8px;background:none;border:1.5px solid #8B5CF6;color:#8B5CF6;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer">${t('rv_edit_selection')}</button>
+      <button type="button" onclick="window.App.editReservationMenu()" style="margin-top:10px;width:100%;padding:8px;background:none;border:1.5px solid var(--orange);color:var(--orange-dark);border-radius:10px;font-size:13px;font-weight:700;cursor:pointer">${t('rv_edit_selection')}</button>
     </div>
   ` : `
-    <button type="button" onclick="window.App.editReservationMenu()" style="width:100%;padding:12px;background:#F5F0FF;border:1.5px dashed #8B5CF6;color:#8B5CF6;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer">${t('rv_choose_menu')}</button>
+    <button type="button" onclick="window.App.editReservationMenu()" style="width:100%;padding:12px;background:var(--orange-light);border:1.5px dashed var(--orange);color:var(--orange-dark);border-radius:12px;font-size:14px;font-weight:700;cursor:pointer">${t('rv_choose_menu')}</button>
   `;
   view.innerHTML = `
     <div style="max-width:480px;margin:0 auto;padding:18px 16px 40px">
@@ -2909,7 +2913,7 @@ function renderReservation() {
         <div><label style="${L}">${t('rv_note')}</label><textarea id="rv-note" rows="2" style="${_SVC_INPUT};resize:vertical" placeholder="${t('rv_note_ph')}">${d.note||''}</textarea></div>
         ${menuSectionHtml}
         <div id="rv-err" style="display:none;background:#FEE2E2;color:#991B1B;padding:10px 14px;border-radius:10px;font-size:13px"></div>
-        <button id="rv-submit" onclick="window.App.submitReservation()" style="width:100%;padding:14px;background:#8B5CF6;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer">${t('rv_submit')}</button>
+        <button id="rv-submit" onclick="window.App.submitReservation()" style="width:100%;padding:14px;background:var(--orange);color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer">${t('rv_submit')}</button>
       </div>
     </div>`;
 }
@@ -3701,8 +3705,10 @@ window.App.openTrackingModal = function(orderId) {
     + '<div style="font-size:13px;color:#7A6356;margin-top:2px">' + (isEn ? 'No. ' : 'N° ') + orderRefLabel(orderId)
     + ' · <span style="color:#10B981;font-size:11px">● ' + (isEn ? 'Live' : 'En direct') + '</span></div></div>';
   const closeBtn = document.createElement('button');
-  closeBtn.textContent = '×';
-  closeBtn.style.cssText = 'background:#F0E8E0;border:none;border-radius:50%;width:32px;height:32px;font-size:18px;cursor:pointer';
+  closeBtn.className = 'modal-close-btn';
+  closeBtn.textContent = '✕';
+  closeBtn.title = isEn ? 'Close' : 'Fermer';
+  closeBtn.setAttribute('aria-label', isEn ? 'Close' : 'Fermer');
   closeBtn.addEventListener('click', function() {
     overlay.remove();
     if (window._trackingModalUnsub) { window._trackingModalUnsub(); window._trackingModalUnsub = null; }
@@ -3712,7 +3718,7 @@ window.App.openTrackingModal = function(orderId) {
   const body = document.createElement('div');
   body.id = 'tracking-modal-body';
   body.style.cssText = 'padding:20px';
-  body.innerHTML = '<div style="text-align:center;padding:32px"><p>' + (isEn ? 'Loading…' : 'Chargement…') + '</p></div>';
+  body.innerHTML = '<div class="loading"><div class="spinner"></div><p>' + (isEn ? 'Loading…' : 'Chargement…') + '</p></div>';
   sheet.appendChild(handle);
   sheet.appendChild(header);
   sheet.appendChild(body);
@@ -3831,7 +3837,7 @@ window.App.openReservationLookup = function() {
     +       '</div>'
     +       '<div id="rvl-err" style="display:none;background:#FEE2E2;color:#991B1B;padding:10px 14px;border-radius:10px;font-size:13px"></div>'
     +       '<button id="rvl-submit" onclick="window.App.submitReservationLookup()" '
-    +         'style="width:100%;padding:14px;background:#8B5CF6;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer">'
+    +         'style="width:100%;padding:14px;background:var(--orange);color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer">'
     +         t('rv_lookup_submit') + '</button>'
     +       '<button type="button" onclick="document.getElementById(\x27rv-lookup-modal\x27).remove()" '
     +         'style="width:100%;padding:10px;background:none;border:none;color:#7a6a55;font-size:13px;cursor:pointer">'
@@ -4019,8 +4025,10 @@ window.App.openReservationTrackingModal = function(reservationId) {
     + '</div>'
     + '<div style="font-size:13px;color:#7A6356;margin-top:2px"><span style="color:#10B981;font-size:11px">● ' + t('rv_track_live') + '</span></div></div>';
   const closeBtn = document.createElement('button');
-  closeBtn.textContent = '×';
-  closeBtn.style.cssText = 'background:#F0E8E0;border:none;border-radius:50%;width:32px;height:32px;font-size:18px;cursor:pointer';
+  closeBtn.className = 'modal-close-btn';
+  closeBtn.textContent = '✕';
+  closeBtn.title = getLang() === 'en' ? 'Close' : 'Fermer';
+  closeBtn.setAttribute('aria-label', getLang() === 'en' ? 'Close' : 'Fermer');
   closeBtn.addEventListener('click', function() {
     overlay.remove();
     if (window._rvTrackingUnsub) { window._rvTrackingUnsub(); window._rvTrackingUnsub = null; }
@@ -4029,7 +4037,7 @@ window.App.openReservationTrackingModal = function(reservationId) {
   const body = document.createElement('div');
   body.id = 'reservation-tracking-body';
   body.style.cssText = 'padding:20px';
-  body.innerHTML = '<div style="text-align:center;padding:32px"><p>Chargement…</p></div>';
+  body.innerHTML = '<div class="loading"><div class="spinner"></div><p>Chargement…</p></div>';
   sheet.appendChild(handle);
   sheet.appendChild(header);
   sheet.appendChild(body);

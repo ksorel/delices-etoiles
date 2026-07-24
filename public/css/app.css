@@ -105,7 +105,7 @@ input, select, textarea { font-family: inherit; }
 }
 .icon-btn:hover { background: rgba(255,255,255,.15); }
 .lang-btn { letter-spacing: .5px; }
-.cart-icon { font-size: 18px; }
+.cart-icon { display: flex; }
 
 .badge {
   position: absolute;
@@ -255,7 +255,7 @@ input, select, textarea { font-family: inherit; }
 .card-name  { font-size: 13px; font-weight: 700; color: var(--brown); margin-bottom: 2px; line-height: 1.3; }
 .card-desc  { font-size: 11px; color: var(--text-muted); margin-bottom: 8px; line-height: 1.4;
               overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-.card-price { font-size: 15px; font-weight: 800; color: var(--orange); }
+.card-price { font-size: 15px; font-weight: 800; color: var(--orange-dark); }
 .card-price span { font-size: 11px; font-weight: 500; color: var(--text-muted); }
 .card-rating {
   display: flex; align-items: center; gap: 4px;
@@ -304,7 +304,7 @@ input, select, textarea { font-family: inherit; }
 .modal-body { padding: 20px; }
 .modal-name  { font-size: 20px; font-weight: 800; color: var(--brown); margin-bottom: 6px; }
 .modal-desc  { font-size: 14px; color: var(--text-muted); line-height: 1.6; margin-bottom: 16px; }
-.modal-price { font-size: 22px; font-weight: 800; color: var(--orange); }
+.modal-price { font-size: 22px; font-weight: 800; color: var(--orange-dark); }
 
 .modal-price-row {
   display: flex;
@@ -379,17 +379,19 @@ input, select, textarea { font-family: inherit; }
 .avis-item-date { font-size: 11px; color: var(--text-muted); }
 .avis-item-comment { font-size: 13px; color: var(--brown-md); line-height: 1.5; }
 
-.close-btn {
-  position: absolute;
-  top: 12px; right: 12px;
-  width: 32px; height: 32px;
+.close-btn, .modal-close-btn {
+  width: 40px; height: 40px;
   background: rgba(255,255,255,.9);
   border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   font-size: 18px;
   color: var(--brown);
   box-shadow: var(--shadow);
+  flex-shrink: 0;
+  transition: transform .1s;
 }
+.close-btn:active, .modal-close-btn:active { transform: scale(.9); }
+.close-btn { position: absolute; top: 12px; right: 12px; }
 .modal-img-wrap { position: relative; }
 
 /* ─── Options ────────────────────────────────────────── */
@@ -443,7 +445,7 @@ input, select, textarea { font-family: inherit; }
   background: var(--orange-light);
 }
 .upsell-chip-name  { font-size: 12px; font-weight: 700; color: var(--brown); }
-.upsell-chip-price { font-size: 11px; color: var(--orange); font-weight: 600; }
+.upsell-chip-price { font-size: 11px; color: var(--orange-dark); font-weight: 600; }
 
 /* ─── Comment field ──────────────────────────────────── */
 .comment-wrap { margin-top: 12px; }
@@ -470,16 +472,18 @@ input, select, textarea { font-family: inherit; }
   margin-bottom: 16px;
 }
 .qty-btn {
-  width: 36px; height: 36px;
+  width: 40px; height: 40px;
   border-radius: 50%;
   background: var(--brown-xlight);
   color: var(--brown);
   font-size: 20px;
   font-weight: 700;
   display: flex; align-items: center; justify-content: center;
-  transition: background .15s;
+  transition: background .15s, transform .1s;
+  flex-shrink: 0;
 }
 .qty-btn:hover { background: var(--brown-light); }
+.qty-btn:active { transform: scale(.92); }
 .qty-num { font-size: 18px; font-weight: 800; color: var(--brown); min-width: 24px; text-align: center; }
 
 /* ─── Primary button ─────────────────────────────────── */
@@ -492,10 +496,18 @@ input, select, textarea { font-family: inherit; }
   font-weight: 700;
   text-align: center;
   transition: all .18s;
+  /* Repli par défaut si aucune variante (.btn-primary/.btn-secondary/.btn-brown)
+     n'est appliquée — sinon un bouton "nu" est quasi invisible à côté d'un
+     bouton plein (ex: "Annuler" à côté de "Publier"). */
+  background: var(--white);
+  color: var(--brown);
+  border: 1.5px solid var(--border);
 }
+.btn-sm { padding: 10px; font-size: 13px; width: auto; display: inline-block; }
 .btn-primary {
   background: var(--orange);
   color: var(--white);
+  border-color: var(--orange);
 }
 .btn-primary:hover  { background: var(--orange-dark); }
 .btn-primary:active { transform: scale(.98); }
@@ -504,10 +516,13 @@ input, select, textarea { font-family: inherit; }
   color: var(--brown);
   border: 1.5px solid var(--border);
 }
+.btn-secondary:active { transform: scale(.98); }
 .btn-brown {
   background: var(--brown);
   color: var(--white);
+  border-color: var(--brown);
 }
+.btn-brown:active { transform: scale(.98); }
 .btn:disabled { opacity: .5; pointer-events: none; }
 
 /* ─── Cart view ──────────────────────────────────────── */
@@ -542,9 +557,14 @@ input, select, textarea { font-family: inherit; }
 .cart-item-info { flex: 1; }
 .cart-item-name  { font-size: 14px; font-weight: 700; color: var(--brown); margin-bottom: 2px; }
 .cart-item-opts  { font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
-.cart-item-price { font-size: 15px; font-weight: 800; color: var(--orange); }
+.cart-item-price { font-size: 15px; font-weight: 800; color: var(--orange-dark); }
 .cart-item-actions { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
-.remove-btn { font-size: 11px; color: var(--error); font-weight: 600; }
+.remove-btn {
+  font-size: 12px; color: var(--error); font-weight: 600;
+  padding: 10px 8px; margin: -10px -8px; /* agrandit la zone de clic sans décaler le texte visuellement */
+  transition: opacity .15s;
+}
+.remove-btn:active { opacity: .5; }
 
 .cart-summary {
   background: var(--white);
@@ -919,7 +939,7 @@ input, select, textarea { font-family: inherit; }
 }
 .eta-icon { font-size: 24px; }
 .eta-label { font-size: 12px; color: var(--text-muted); }
-.eta-value { font-size: 16px; font-weight: 800; color: var(--orange); }
+.eta-value { font-size: 16px; font-weight: 800; color: var(--orange-dark); }
 
 /* Items recap */
 .tracking-items {
