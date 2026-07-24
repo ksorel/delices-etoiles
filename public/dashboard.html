@@ -259,11 +259,6 @@
   }
 }
 </style>
-
-<style>
-:root { --status-btns-display: flex; }
-.status-btns { display: var(--status-btns-display) !important; }
-</style>
 </head>
 <body>
 
@@ -438,11 +433,17 @@ let currentRole = '';   // Rôle principal de l'utilisateur connecté
 let currentRoles = [];  // Tous les rôles de l'utilisateur (pour l'union des vues)
 let currentRestoId = null; // Établissement de l'employé (null = propriétaire, voit tout)
 let currentUser = null; // Utilisateur Firebase courant
+// Permissions courantes (recalculées à chaque connexion) — module-scope pour
+// que buildCard() puisse les lire directement et n'afficher que les boutons
+// autorisés (un rôle peut avoir canPay sans canStatus, ex: caissier).
+let canChangeStatus = true;
+let canEncaisser = true;
 let activeFilter = 'all';
 let soundEnabled = true;
 let unsubOrders  = null;
 let allReservations = [];
 let unsubReservations = null;
+let unsubFloorPlan = null;
 const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAA' +
   'EAAQAAgD4AAAB9AAACABAAZGF0YUoGAACBhYqFbF1fdJiVkHBcWGiVkIl' +
   'uYVhijpOLeGdcaIuPjH5sYWx/jI2Bf25la3yLjYiBdWpseo6Phn9yam5+' +
@@ -472,6 +473,8 @@ window.doLogout = async function() {
     await disableNetwork(db);
     if (unsubOrders) { try { unsubOrders(); } catch(e) {} unsubOrders = null; }
     if (unsubReservations) { try { unsubReservations(); } catch(e) {} unsubReservations = null; }
+    if (unsubFloorPlan) { try { unsubFloorPlan(); } catch(e) {} unsubFloorPlan = null; }
+    if (window._traiteurAlertUnsub) { try { window._traiteurAlertUnsub(); } catch(e) {} window._traiteurAlertUnsub = null; }
   } catch(e) {}
   // Réinitialiser l'état local pour qu'un autre utilisateur ne voie rien de la
   // session précédente (établissement, commandes/réservations en mémoire, rôle).
@@ -642,11 +645,12 @@ onAuthStateChanged(auth, async user => {
         } catch(e) { console.error(e); }
       };
 
-      // Bouton test visible pour les admins
+      // Bouton test visible pour les admins uniquement (réinitialisé à chaque
+      // connexion, sinon restait visible pour un profil suivant sur le même appareil)
       const testBtn = document.getElementById('traiteur-test-btn');
       if (testBtn && currentUser) {
         const tk = await currentUser.getIdTokenResult();
-        if (tk.claims.role === 'admin') testBtn.style.display = 'block';
+        testBtn.style.display = tk.claims.role === 'admin' ? 'block' : 'none';
       }
 
       window._testTraiteurAlert = async function() {
@@ -665,7 +669,7 @@ onAuthStateChanged(auth, async user => {
             createdAt: new Date(),
           });
           alert('Notification test créée !');
-        } catch(e) { alert('Erreur : ' + e.message); }
+        } catch(e) { console.error('[testTraiteurAlert]', e); alert('Erreur, réessayez.'); }
       };
     })();
 
@@ -709,8 +713,8 @@ onAuthStateChanged(auth, async user => {
     }
     const roleConfig   = mergeRoleConfigs(currentRoles);
     const canOrder     = roleConfig.canOrder;
-    const canEncaisser = roleConfig.canPay;
-    const canChangeStatus = roleConfig.canStatus;
+    canEncaisser       = roleConfig.canPay;
+    canChangeStatus    = roleConfig.canStatus;
 
     // Afficher le(s) rôle(s) en évidence dans le header — masqué sur petit
     // écran de téléphone via CSS (@media max-width:600px), où la largeur
@@ -749,25 +753,23 @@ onAuthStateChanged(auth, async user => {
     const planBtn = document.getElementById('fp-btn');
     if (planBtn) planBtn.style.display = roleConfig.masquePlan ? 'none' : '';
 
-    // Onglets (filtres) visibles selon le rôle
-    if (roleConfig.tabs) {
-      document.querySelectorAll('.filter-btn[data-filter]').forEach(b => {
-        b.style.display = roleConfig.tabs.includes(b.dataset.filter) ? '' : 'none';
-      });
+    // Onglets (filtres) visibles selon le rôle — toujours réévalués (y compris
+    // quand tabs est null, admin/gérant) pour ne pas hériter d'un masquage
+    // laissé par un rôle plus restrictif connecté juste avant sur cet appareil.
+    document.querySelectorAll('.filter-btn[data-filter]').forEach(b => {
+      b.style.display = (!roleConfig.tabs || roleConfig.tabs.includes(b.dataset.filter)) ? '' : 'none';
+    });
+    if (roleConfig.tabs && typeof activeFilter !== 'undefined' && !roleConfig.tabs.includes(activeFilter)) {
       // Si l'onglet actuellement actif est masqué pour ce rôle, basculer sur un onglet autorisé
-      if (typeof activeFilter !== 'undefined' && !roleConfig.tabs.includes(activeFilter)) {
-        const firstKey = roleConfig.filterAuto || roleConfig.tabs[0];
-        const b = document.querySelector('.filter-btn[data-filter="' + firstKey + '"]');
-        if (b) setFilter(firstKey, b);
-      }
+      const firstKey = roleConfig.filterAuto || roleConfig.tabs[0];
+      const b = document.querySelector('.filter-btn[data-filter="' + firstKey + '"]');
+      if (b) setFilter(firstKey, b);
     }
 
-    // Cases de synthèse visibles selon le rôle
-    if (roleConfig.stats) {
-      document.querySelectorAll('.stat-card[data-stat]').forEach(c => {
-        c.style.display = roleConfig.stats.includes(c.dataset.stat) ? '' : 'none';
-      });
-    }
+    // Cases de synthèse visibles selon le rôle — même raison, toujours réévaluées.
+    document.querySelectorAll('.stat-card[data-stat]').forEach(c => {
+      c.style.display = (!roleConfig.stats || roleConfig.stats.includes(c.dataset.stat)) ? '' : 'none';
+    });
 
     // Filtre automatique selon le rôle
     if (roleConfig.filterAuto) {
@@ -777,10 +779,12 @@ onAuthStateChanged(auth, async user => {
       }, 600);
     }
 
-    // Caissier : masquer les boutons de changement de statut cuisine dans les cartes
-    // (réinitialisé à chaque connexion — sinon un profil sans ce rôle héritait
-    // encore du masquage laissé par une session caissier précédente).
-    document.documentElement.style.setProperty('--status-btns-display', canChangeStatus ? 'flex' : 'none');
+    // Le filtrage des boutons "statut cuisine" vs "paiement" se fait
+    // maintenant bouton par bouton dans buildCard() via canChangeStatus /
+    // canEncaisser (module-scope, mis à jour ci-dessus) — un caissier a
+    // canPay sans canStatus, il doit voir les boutons de paiement mais pas
+    // ceux de changement de statut cuisine (l'ancien mécanisme, une seule
+    // variable CSS masquant tout le bloc, cachait les deux à la fois).
     // Badge "CAISSIER" séparé retiré du header : redondant avec le badge de
     // rôle déjà affiché (qui inclut CAISSIER), et supprime le nettoyage
     // d'une éventuelle ancienne version encore en cache côté client.
@@ -794,6 +798,9 @@ onAuthStateChanged(auth, async user => {
     document.getElementById('login-screen').style.display = 'flex';
     document.getElementById('dash-app').style.display     = 'none';
     if (unsubOrders) { try { unsubOrders(); } catch(e) {} unsubOrders = null; }
+    if (unsubReservations) { try { unsubReservations(); } catch(e) {} unsubReservations = null; }
+    if (unsubFloorPlan) { try { unsubFloorPlan(); } catch(e) {} unsubFloorPlan = null; }
+    if (window._traiteurAlertUnsub) { try { window._traiteurAlertUnsub(); } catch(e) {} window._traiteurAlertUnsub = null; }
     if (window._ai) window._ai.hide();
   }
 });
@@ -820,8 +827,11 @@ async function initDashboard() {
   } catch(e) { console.warn('Menu load:', e); }
 
   // Écouter les changements du plan de salle de l'établissement en temps réel
+  // (désabonnement du précédent d'abord — initDashboard() est rappelé à chaque
+  // connexion, sinon chaque nouvelle session empilait un listener de plus).
+  if (unsubFloorPlan) { try { unsubFloorPlan(); } catch(e) {} }
   const _layoutId = currentRestoId ? 'layout-' + currentRestoId : 'layout';
-  onSnapshot(doc(db,'floor-plan',_layoutId), snap => {
+  unsubFloorPlan = onSnapshot(doc(db,'floor-plan',_layoutId), snap => {
     if (snap.exists()) {
       window._floorPlanTables = snap.data().tables || [];
     }
@@ -1016,8 +1026,8 @@ function renderReservationCard(r) {
   const when = (r.date || '') + (r.heure ? ' à ' + r.heure : '');
   const actions = r.status === 'pending'
     ? '<div style="display:flex;gap:8px;padding:10px 14px;border-top:1px solid var(--bg)">'
-      + '<button onclick="confirmReservation(\'' + r.id + '\')" style="flex:1;padding:9px;border:none;border-radius:8px;background:#ECFDF5;color:#059669;font-weight:700;font-size:13px;cursor:pointer">✅ Confirmer</button>'
-      + '<button onclick="refuseReservation(\'' + r.id + '\')" style="flex:1;padding:9px;border:none;border-radius:8px;background:#FEE2E2;color:#991B1B;font-weight:700;font-size:13px;cursor:pointer">✕ Refuser</button>'
+      + '<button onclick="confirmReservation(\'' + r.id + '\')" style="flex:1;min-height:44px;padding:9px;border:none;border-radius:8px;background:#ECFDF5;color:#059669;font-weight:700;font-size:13px;cursor:pointer">✅ Confirmer</button>'
+      + '<button onclick="refuseReservation(\'' + r.id + '\')" style="flex:1;min-height:44px;padding:9px;border:none;border-radius:8px;background:#FEE2E2;color:#991B1B;font-weight:700;font-size:13px;cursor:pointer">✕ Refuser</button>'
       + '</div>' : '';
   const itemsHtml = (r.items && r.items.length)
     ? '<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--bg)">'
@@ -1043,12 +1053,12 @@ function renderReservationCard(r) {
 }
 window.confirmReservation = async function(id) {
   try { await updateDoc(doc(db, 'reservations', id), { status: 'confirmed', updatedAt: serverTimestamp() }); showToast('Réservation confirmée ✓'); }
-  catch(e) { showToast('Erreur : ' + e.message); }
+  catch(e) { console.error('[confirmReservation]', e); showToast('Erreur, réessayez.'); }
 };
 window.refuseReservation = async function(id) {
   if (!confirm('Refuser cette réservation ?')) return;
   try { await updateDoc(doc(db, 'reservations', id), { status: 'refused', updatedAt: serverTimestamp() }); showToast('Réservation refusée'); }
-  catch(e) { showToast('Erreur : ' + e.message); }
+  catch(e) { console.error('[refuseReservation]', e); showToast('Erreur, réessayez.'); }
 };
 
 function buildCard(o) {
@@ -1111,14 +1121,14 @@ function buildCard(o) {
   const payRowHtml = paymentPending ? `
     <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;background:${o.paymentStatus === 'failed' ? '#FEE2E2' : '#FEF3C7'};border-radius:6px;padding:6px 8px;margin-bottom:6px">
       <span style="font-size:11px;font-weight:700;color:${o.paymentStatus === 'failed' ? '#991B1B' : '#854F0B'}">${o.paymentStatus === 'failed' ? '❌ Échec — ' : '📱 '}${effOperateur.toUpperCase()}</span>
-      <button class="status-btn" style="background:#DBEAFE;color:#1D4ED8;padding:4px 10px;font-size:11px"
-        onclick="confirmPayment('${o.id}','${effOperateur}')">✓ Paiement reçu</button>
+      ${canEncaisser ? `<button class="status-btn" style="background:#DBEAFE;color:#1D4ED8;padding:4px 10px;font-size:11px"
+        onclick="confirmPayment('${o.id}','${effOperateur}')">✓ Paiement reçu</button>` : ''}
     </div>` : '';
 
   if (o.status === 'pending') {
-    actionBtns = payRowHtml + `<button class="status-btn btn-start" onclick="updateStatus('${o.id}','preparing')">🔥 Commencer</button>`;
+    actionBtns = payRowHtml + (canChangeStatus ? `<button class="status-btn btn-start" onclick="updateStatus('${o.id}','preparing')">🔥 Commencer</button>` : '');
   } else if (o.status === 'preparing') {
-    actionBtns = payRowHtml + `<button class="status-btn btn-ready" onclick="updateStatus('${o.id}','ready')">✅ Prêt</button>`;
+    actionBtns = payRowHtml + (canChangeStatus ? `<button class="status-btn btn-ready" onclick="updateStatus('${o.id}','ready')">✅ Prêt</button>` : '');
   } else if (o.status === 'ready') {
     if (o.type === 'salle' || o.type === 'surplace') {
       // Salle / sur place : pas de livreur, paiement à l'arrivée du client
@@ -1129,10 +1139,10 @@ function buildCard(o) {
           <div style="display:flex;flex-direction:column;gap:6px;width:100%">
             <div style="font-size:11px;font-weight:700;color:#7A6356;margin-bottom:2px">💵 Paiement espèces</div>
             <div style="display:flex;gap:6px">
-              <button class="status-btn" style="background:#D1FAE5;color:#065F46;flex:1"
-                onclick="confirmPayment('${o.id}','especes')">💵 Espèces reçues</button>
-              <button class="status-btn btn-done" style="flex:1"
-                onclick="updateStatus('${o.id}','done')">✓ Servi</button>
+              ${canEncaisser ? `<button class="status-btn" style="background:#D1FAE5;color:#065F46;flex:1"
+                onclick="confirmPayment('${o.id}','especes')">💵 Espèces reçues</button>` : ''}
+              ${canChangeStatus ? `<button class="status-btn btn-done" style="flex:1"
+                onclick="updateStatus('${o.id}','done')">✓ Servi</button>` : ''}
             </div>
           </div>`;
       } else if (payStatus === 'awaiting_payment' || payStatus === 'failed') {
@@ -1141,18 +1151,18 @@ function buildCard(o) {
           <div style="display:flex;flex-direction:column;gap:6px;width:100%">
             <div style="font-size:11px;font-weight:700;color:#854F0B;margin-bottom:2px">${failedTag}📱 ${operateur.toUpperCase()} — En attente paiement</div>
             <div style="display:flex;gap:6px">
-              <button class="status-btn" style="background:#DBEAFE;color:#1D4ED8;flex:1"
-                onclick="confirmPayment('${o.id}','${operateur}')">✓ Paiement confirmé</button>
-              <button class="status-btn btn-done" style="flex:1"
-                onclick="updateStatus('${o.id}','done')">✓ Servi</button>
+              ${canEncaisser ? `<button class="status-btn" style="background:#DBEAFE;color:#1D4ED8;flex:1"
+                onclick="confirmPayment('${o.id}','${operateur}')">✓ Paiement confirmé</button>` : ''}
+              ${canChangeStatus ? `<button class="status-btn btn-done" style="flex:1"
+                onclick="updateStatus('${o.id}','done')">✓ Servi</button>` : ''}
             </div>
           </div>`;
       } else if (payStatus === 'paid') {
         actionBtns = `
           <div style="display:flex;gap:6px">
             <div style="font-size:11px;color:#0F6E56;font-weight:700;flex:1">✅ Payé (${operateur})</div>
-            <button class="status-btn btn-done" style="flex:1"
-              onclick="updateStatus('${o.id}','done')">✓ Servi</button>
+            ${canChangeStatus ? `<button class="status-btn btn-done" style="flex:1"
+              onclick="updateStatus('${o.id}','done')">✓ Servi</button>` : ''}
           </div>`;
       }
     } else {
@@ -1163,23 +1173,23 @@ function buildCard(o) {
         actionBtns = `
           <div style="display:flex;flex-direction:column;gap:6px;width:100%">
             <div style="font-size:11px;font-weight:700;color:#0F6E56">✅ Payé (${livOperateur.toUpperCase()})</div>
-            <button class="status-btn" style="background:#3B82F6;color:#fff;width:100%"
-              onclick="updateStatus('${o.id}','delivering')">🚴 Parti en livraison</button>
+            ${canChangeStatus ? `<button class="status-btn" style="background:#3B82F6;color:#fff;width:100%"
+              onclick="updateStatus('${o.id}','delivering')">🚴 Parti en livraison</button>` : ''}
           </div>`;
       } else if (livPayStatus === 'pending_cash') {
         actionBtns = `
           <div style="display:flex;flex-direction:column;gap:6px;width:100%">
             <div style="font-size:11px;font-weight:700;color:#7A6356">💵 Paiement espèces à la livraison</div>
-            <button class="status-btn" style="background:#3B82F6;color:#fff;width:100%"
-              onclick="updateStatus('${o.id}','delivering')">🚴 Parti en livraison</button>
+            ${canChangeStatus ? `<button class="status-btn" style="background:#3B82F6;color:#fff;width:100%"
+              onclick="updateStatus('${o.id}','delivering')">🚴 Parti en livraison</button>` : ''}
           </div>`;
       } else {
         const failedTag = livPayStatus === 'failed' ? '❌ Échec — ' : '';
         actionBtns = `
           <div style="display:flex;flex-direction:column;gap:6px;width:100%">
             <div style="font-size:11px;font-weight:700;color:#854F0B">${failedTag}📱 ${livOperateur.toUpperCase()} — Vérifier paiement</div>
-            <button class="status-btn" style="background:#3B82F6;color:#fff;width:100%"
-              onclick="updateStatus('${o.id}','delivering')">🚴 Parti en livraison</button>
+            ${canChangeStatus ? `<button class="status-btn" style="background:#3B82F6;color:#fff;width:100%"
+              onclick="updateStatus('${o.id}','delivering')">🚴 Parti en livraison</button>` : ''}
           </div>`;
       }
     }
@@ -1341,8 +1351,8 @@ async function renderFloorPlanModal(tables) {
           <div style="font-size:16px;font-weight:800;color:#2B1D16">🗺️ Plan de salle — Vue en direct</div>
           ${urgentCount > 0 ? `<div style="font-size:12px;color:#EF4444;font-weight:700">⚡ ${urgentCount} table(s) à servir maintenant !</div>` : '<div style="font-size:12px;color:#6B7280">Cliquez sur une table pour voir ses commandes</div>'}
         </div>
-        <button onclick="document.getElementById('floor-plan-modal').remove()"
-          style="background:#F5F0EB;border:none;border-radius:50%;width:32px;height:32px;font-size:18px;cursor:pointer">×</button>
+        <button onclick="document.getElementById('floor-plan-modal').remove()" title="Fermer" aria-label="Fermer"
+          style="background:#F5F0EB;border:none;border-radius:50%;width:40px;height:40px;font-size:18px;cursor:pointer;flex-shrink:0">×</button>
       </div>
       <div class="fp-modal-body">
         <div class="fp-dash-grid" style="grid-template-columns:repeat(${maxCol},72px)">
@@ -1431,83 +1441,7 @@ window.showSessionInvoice = async function(sessionId, tableId) {
       .pay{font-size:13px;color:#7A6356;margin-top:8px}
       .footer{margin-top:24px;text-align:center;font-size:11px;color:#7A6356}
       @media print{button{display:none}}
-    
-/* ── Plan de salle dashboard ──────────────────────────── */
-.fp-modal-overlay {
-  position:fixed;inset:0;background:rgba(43,29,22,.6);z-index:300;
-  display:flex;align-items:center;justify-content:center;padding:16px;
-}
-.fp-modal {
-  background:#fff;border-radius:16px;
-  width:100%;max-width:720px;max-height:90vh;
-  display:flex;flex-direction:column;overflow:hidden;
-}
-.fp-modal-head {
-  padding:14px 20px;border-bottom:1px solid #E0D4C8;
-  display:flex;align-items:center;justify-content:space-between;flex-shrink:0;
-}
-.fp-modal-body {
-  overflow:auto;padding:16px;flex:1;
-}
-.fp-dash-grid {
-  display:inline-grid;gap:6px;
-}
-.fp-dash-cell {
-  width:72px; height:64px;
-  border-radius:10px;
-  display:flex; flex-direction:column;
-  align-items:center; justify-content:center;
-  padding:3px 5px;
-  cursor:pointer;
-  transition:transform .15s, box-shadow .15s;
-  position:relative;
-  color:#fff;
-  overflow:hidden;
-}
-.fp-dash-cell .fp-cell-name {
-  font-size:11px; font-weight:800;
-  text-align:center; line-height:1.1;
-  width:100%; overflow:hidden;
-  text-overflow:ellipsis; white-space:nowrap;
-}
-.fp-dash-cell .fp-cell-status {
-  font-size:9px; opacity:.85; margin-top:2px;
-  white-space:nowrap;
-}
-.fp-dash-cell:hover { transform:scale(1.05);box-shadow:0 4px 12px rgba(0,0,0,.2); }
-.fp-dash-cell.libre    { background:#D1D5DB;color:#6B7280; }
-.fp-dash-cell.pending  { background:#F59E0B; }
-.fp-dash-cell.preparing{ background:#3B82F6; }
-.fp-dash-cell.ready    { background:#EF4444;animation:fp-pulse 1s ease-in-out infinite; }
-.fp-dash-cell.done     { background:#10B981; }
-.fp-badge-count {
-  position:absolute;top:4px;right:4px;
-  background:rgba(255,255,255,.3);
-  border-radius:8px;font-size:9px;
-  padding:1px 4px;font-weight:800;
-}
-@keyframes fp-pulse {
-  0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.4)}
-  50%{box-shadow:0 0 0 8px rgba(239,68,68,0)}
-}
-.fp-legend-dash {
-  display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;font-size:12px;
-}
-.fp-legend-dash span {
-  display:flex;align-items:center;gap:5px;
-}
-.fp-dot-sm {
-  width:12px;height:12px;border-radius:3px;flex-shrink:0;
-}
-</style>
-
-
-
-
-<style>
-:root { --status-btns-display: flex; }
-.status-btns { display: var(--status-btns-display) !important; }
-</style>
+    </style>
 </head><body>
     <h1>⭐ Délices Étoiles</h1>
     <div class="sub">Grand-Bassam · Resto & Traiteur<br>${date}</div>
@@ -1551,7 +1485,8 @@ window.confirmPayment = async function(orderId, operateur) {
     });
     showToast('Paiement confirmé ✓');
   } catch(e) {
-    alert('Erreur paiement : ' + e.message);
+    console.error('[confirmPayment]', e);
+    alert('Impossible de confirmer le paiement. Réessayez.');
   }
 };
 
@@ -1567,7 +1502,8 @@ window.confirmDelivery = async function(orderId, operateur) {
     });
     showToast('Livraison confirmée ✓');
   } catch(e) {
-    alert('Erreur livraison : ' + e.message);
+    console.error('[confirmDelivery]', e);
+    alert('Impossible de confirmer la livraison. Réessayez.');
   }
 };
 
@@ -1588,7 +1524,8 @@ window.updateStatus = async function(orderId, newStatus) {
     }
     await updateDoc(doc(db, 'commandes', orderId), payload);
   } catch(e) {
-    alert('Erreur statut : ' + e.message);
+    console.error('[updateStatus]', e);
+    alert("Impossible de mettre à jour le statut. Réessayez.");
   }
 };
 

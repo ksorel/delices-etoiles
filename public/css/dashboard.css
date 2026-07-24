@@ -338,7 +338,7 @@ body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color
 
 /* Status buttons */
 .btn        { min-height: 40px; padding: 10px 14px; border-radius: 8px; border: none; font-size: 13px; font-weight: 700; cursor: pointer; transition: all .15s; }
-.btn-sm     { min-height: 36px; padding: 8px 12px; font-size: 12px; }
+.btn-sm     { min-height: 40px; padding: 8px 12px; font-size: 12px; }
 .btn-start  { background: #EFF6FF; color: #1D4ED8; }
 .btn-ready  { background: #FEF3C7; color: #D97706; }
 .btn-done   { background: #ECFDF5; color: #059669; }
