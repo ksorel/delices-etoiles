@@ -678,11 +678,11 @@ onAuthStateChanged(auth, async user => {
     const ROLES_CONFIG = {
       admin:    { canOrder: true,  canPay: true,  canStatus: true,  canPlan: true,  filterAuto: null,         masquePlan: false, tabs: null, stats: null },
       manager:  { canOrder: true,  canPay: true,  canStatus: true,  canPlan: true,  filterAuto: null,         masquePlan: false, tabs: null, stats: null },
-      serveur:  { canOrder: true,  canPay: false, canStatus: true,  canPlan: true,  filterAuto: null,         masquePlan: false, tabs: ['all','pending','preparing','ready','salle','done','awaiting_payment','expired','reservations'], stats: ['pending','prep','ready','done'] },
-      bar:      { canOrder: true,  canPay: false, canStatus: true,  canPlan: true,  filterAuto: null,         masquePlan: true,  tabs: ['all','pending','preparing','ready','expired'], stats: ['pending','prep','ready'] },
+      serveur:  { canOrder: true,  canPay: false, canStatus: true,  canPlan: true,  filterAuto: 'pending',    masquePlan: false, tabs: ['all','pending','preparing','ready','salle','done','awaiting_payment','expired','reservations'], stats: ['pending','prep','ready','done'] },
+      bar:      { canOrder: true,  canPay: false, canStatus: true,  canPlan: true,  filterAuto: 'pending',    masquePlan: true,  tabs: ['all','pending','preparing','ready','expired'], stats: ['pending','prep','ready'] },
       cuisine:  { canOrder: false, canPay: false, canStatus: true,  canPlan: false, filterAuto: 'preparing',  masquePlan: true,  tabs: ['pending','preparing','ready'], stats: ['pending','prep','ready'] },
       livreur:  { canOrder: false, canPay: false, canStatus: true,  canPlan: false, filterAuto: 'livraison',  masquePlan: true,  tabs: ['livraison','preparing','ready','done','awaiting_payment'], stats: ['prep','ready','done'] },
-      caissier: { canOrder: false, canPay: true,  canStatus: false, canPlan: true,  filterAuto: null,         masquePlan: false, tabs: ['all','salle','livraison','done','awaiting_payment','expired'], stats: ['pending','done','ca'] },
+      caissier: { canOrder: false, canPay: true,  canStatus: false, canPlan: true,  filterAuto: 'awaiting_payment', masquePlan: false, tabs: ['all','salle','livraison','done','awaiting_payment','expired'], stats: ['pending','done','ca'] },
     };
     // Rôle "personnalisé" : modules cochés un par un par le propriétaire
     // (employees/{uid}.customPermissions, chargé plus haut dans window._customPermissions).
