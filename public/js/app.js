@@ -2822,10 +2822,8 @@ function renderServiceChoice() {
   const view = document.getElementById('view');
   if (!view) return;
   updateHeader();
-  const nom = State.resto?.nom || State.resto?.commune || '';
   view.innerHTML = `
     <div style="max-width:520px;margin:0 auto;padding:22px 16px 40px">
-      <h2 style="text-align:center;font-size:20px;font-weight:800;color:#2B1D16;margin:6px 0 22px">${nom}</h2>
       <div style="display:flex;flex-direction:column;gap:14px">
         ${_svcCard('surplace','🍽️', t('service_surplace'), '#0EA5E9')}
         ${_svcCard('livraison','🚴', t('service_livraison'), '#F26522')}
