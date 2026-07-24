@@ -439,6 +439,7 @@ let currentUser = null; // Utilisateur Firebase courant
 let canChangeStatus = true;
 let canEncaisser = true;
 let activeFilter = 'all';
+let tableFilterId = null; // Filtre additionnel "table" posé depuis le plan de salle (voir filterByTable)
 let soundEnabled = true;
 let unsubOrders  = null;
 let allReservations = [];
@@ -628,13 +629,13 @@ onAuthStateChanged(auth, async user => {
           + '<span style="font-size:20px">' + (a.daysLeft === 1 ? '🚨' : '⚠️') + '</span>'
           + '<div>'
           + '<div style="font-size:13px;font-weight:700">'
-          + a.typeEv + ' — ' + a.clientNom
-          + ' <span style="font-weight:400;opacity:.8">(' + a.nbPersonnes + ' pers.)</span></div>'
-          + '<div style="font-size:12px;opacity:.85">Prestation ' + a.label + ' · ' + a.lieu + '</div>'
+          + escapeHtml(a.typeEv) + ' — ' + escapeHtml(a.clientNom)
+          + ' <span style="font-weight:400;opacity:.8">(' + Number(a.nbPersonnes || 0) + ' pers.)</span></div>'
+          + '<div style="font-size:12px;opacity:.85">Prestation ' + escapeHtml(a.label) + ' · ' + escapeHtml(a.lieu) + '</div>'
           + '</div></div>'
-          + '<button onclick="window._dismissAlert(\x27' + a.id + '\x27)" '
-          + 'style="background:rgba(255,255,255,.2);border:none;color:#fff;padding:5px 12px;'
-          + 'border-radius:6px;cursor:pointer;font-size:12px;font-weight:600">✓ Vu</button>'
+          + '<button onclick="window._dismissAlert(\x27' + a.id + '\x27)" title="Marquer comme vu" '
+          + 'style="background:rgba(255,255,255,.2);border:none;color:#fff;padding:5px 12px;min-height:40px;'
+          + 'border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;flex-shrink:0">✓ Vu</button>'
           + '</div>'
         ).join('');
       }, err => { if (err.code !== 'permission-denied') console.error(err); });
@@ -976,6 +977,8 @@ function renderOrders() {
       filtered = filtered.filter(o => o.status === activeFilter);
   }
 
+  if (tableFilterId) filtered = filtered.filter(o => String(o.tableId) === String(tableFilterId));
+
   if (!filtered.length) {
     grid.innerHTML = `
       <div class="empty-state">
@@ -1023,7 +1026,7 @@ function renderReservationCard(r) {
     refused:  { label:'✕ Refusée',    color:'#991B1B', bg:'#FEE2E2' },
   };
   const st = stMap[r.status] || stMap.pending;
-  const when = (r.date || '') + (r.heure ? ' à ' + r.heure : '');
+  const when = escapeHtml((r.date || '') + (r.heure ? ' à ' + r.heure : ''));
   const actions = r.status === 'pending'
     ? '<div style="display:flex;gap:8px;padding:10px 14px;border-top:1px solid var(--bg)">'
       + '<button onclick="confirmReservation(\'' + r.id + '\')" style="flex:1;min-height:44px;padding:9px;border:none;border-radius:8px;background:#ECFDF5;color:#059669;font-weight:700;font-size:13px;cursor:pointer">✅ Confirmer</button>'
@@ -1034,7 +1037,7 @@ function renderReservationCard(r) {
       + '<div style="font-size:11px;font-weight:700;color:#7A6356;text-transform:uppercase;margin-bottom:4px">🍽️ Plats souhaités (indicatif)</div>'
       + r.items.map(function(i) {
           return '<div style="display:flex;justify-content:space-between;font-size:12px;color:#2B1D16;padding:2px 0">'
-            + '<span>' + escapeHtml(i.name) + ' ×' + i.qty + '</span>'
+            + '<span>' + escapeHtml(i.name) + ' ×' + Number(i.qty || 0) + '</span>'
             + '<span style="color:var(--muted)">' + new Intl.NumberFormat('fr-FR').format(i.subtotal || 0) + ' F</span></div>';
         }).join('')
       + '</div>'
@@ -1042,7 +1045,7 @@ function renderReservationCard(r) {
   return '<div class="order-card">'
     + '<div class="order-card-head">'
     +   '<div><div class="order-id">📅 ' + escapeHtml(r.nom || '—') + '</div>'
-    +   '<div class="order-time">' + when + (r.personnes ? ' · ' + r.personnes + ' pers.' : '') + '</div></div>'
+    +   '<div class="order-time">' + when + (r.personnes ? ' · ' + Number(r.personnes) + ' pers.' : '') + '</div></div>'
     +   '<span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:12px;background:' + st.bg + ';color:' + st.color + '">' + st.label + '</span>'
     + '</div>'
     + '<div style="padding:10px 14px;font-size:13px;color:#2B1D16">'
@@ -1254,7 +1257,7 @@ function buildCard(o) {
           <div class="order-id">#${num} ${sessionBadge}${staffBadge}${isExpired(o) ? ' <span style="background:#F3E8E2;color:#8A6D5B;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px">⏰ expirée</span>' : ''}${o.paymentStatus === 'awaiting_payment' ? ' <span style="background:#FEE2E2;color:#DC2626;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px">💳 Paiement à confirmer</span>' : o.paymentStatus === 'failed' ? ' <span style="background:#FEE2E2;color:#991B1B;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px">❌ Paiement échoué</span>' : ''}</div>
           <div class="order-time">${time}</div>
         </div>
-        <span class="order-type ${o.type}">${o.type === 'salle' ? `🪑 Table ${o.tableId || ''}` : o.type === 'surplace' ? `🍽️ Sur place${o.surplace ? ' · ' + (o.surplace.date || '') + ' ' + (o.surplace.heure || '') : ''}` : '🚴 Livraison'}</span>
+        <span class="order-type ${o.type}">${o.type === 'salle' ? `🪑 Table ${escapeHtml(tableDisplayName)}` : o.type === 'surplace' ? `🍽️ Sur place${o.surplace ? ' · ' + escapeHtml((o.surplace.date || '') + ' ' + (o.surplace.heure || '')) : ''}` : '🚴 Livraison'}</span>
       </div>
       <div class="order-items">${itemsHtml}</div>
       <div class="order-footer">
@@ -1281,7 +1284,7 @@ window.showFloorPlan = async function() {
   } catch(e) {}
 
   if (!tables.length) {
-    alert('Aucun plan de salle configuré. Allez dans Admin → Plan de salle pour le créer.');
+    showToast('Aucun plan de salle configuré (Admin → Plan de salle)');
     return;
   }
 
@@ -1331,9 +1334,9 @@ async function renderFloorPlanModal(tables) {
       const shortLabel = liveLabel.length > 8 ? liveLabel.slice(0,7)+'…' : liveLabel;
       return `<div class="fp-dash-cell ${cls}"
         onclick="window.filterByTable('${tid}','${liveLabel.replace(/'/g, '')}')"
-        title="${liveLabel}">
+        title="${escapeHtml(liveLabel)}">
         ${badge}
-        <div class="fp-cell-name">${shortLabel}</div>
+        <div class="fp-cell-name">${escapeHtml(shortLabel)}</div>
         <div class="fp-cell-status">${statusText}</div>
       </div>`;
     }).join('')
@@ -1374,6 +1377,7 @@ window.filterByTable = function(tableId, tableLabel) {
   document.getElementById('floor-plan-modal')?.remove();
 
   const label = tableLabel || tableId;
+  tableFilterId = tableId;
 
   // Bandeau avec nom complet
   document.getElementById('table-filter-banner')?.remove();
@@ -1383,11 +1387,11 @@ window.filterByTable = function(tableId, tableLabel) {
   banner.innerHTML = `
     <span style="display:flex;align-items:center;gap:8px">
       <span style="font-size:18px">📍</span>
-      <span>${label}</span>
+      <span>${escapeHtml(label)}</span>
     </span>
-    <button onclick="window.clearTableFilter()"
+    <button onclick="window.clearTableFilter()" title="Tout afficher"
       style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);
-             color:#fff;border-radius:12px;padding:5px 12px;font-size:12px;cursor:pointer;
+             color:#fff;border-radius:12px;padding:5px 12px;min-height:40px;font-size:12px;cursor:pointer;
              white-space:nowrap">
       ✕ Tout afficher
     </button>`;
@@ -1396,12 +1400,13 @@ window.filterByTable = function(tableId, tableLabel) {
   if (filtersEl) filtersEl.parentNode.insertBefore(banner, filtersEl);
 
   document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-  renderOrders(allOrders.filter(o => String(o.tableId) === String(tableId)));
+  renderOrders();
 };
 
 window.clearTableFilter = function() {
+  tableFilterId = null;
   document.getElementById('table-filter-banner')?.remove();
-  renderOrders(allOrders);
+  renderOrders();
   document.querySelector('.filter-btn')?.classList.add('active');
 };
 
@@ -1550,7 +1555,8 @@ const STAFF_CAT_LABELS = {
   desserts: 'Desserts', entrees: 'Entrées', riz: 'Riz', volailles: 'Volailles',
   poissons: 'Poissons', spaghetti: 'Spaghetti', viandes: 'Viandes',
 };
-let _staffMenuCache  = {};   // { [restoId]: items[] }
+let _staffMenuCache  = {};   // { [restoId]: { items:[], ts } }
+const STAFF_MENU_TTL_MS = 5 * 60 * 1000; // au-delà, on recharge (prix/dispo modifiés par l'admin en cours de service)
 let _staffOrderState = null; // { restoId, cart:[], activeCat, expandedId, menu:[] }
 
 function _fmtFCFA(n) { return new Intl.NumberFormat('fr-FR').format(n || 0) + ' FCFA'; }
@@ -1560,9 +1566,10 @@ function _staffVariantRangeLabel(item) {
   return min === max ? _fmtFCFA(min) : (_fmtFCFA(min) + ' – ' + _fmtFCFA(max));
 }
 async function _staffLoadMenu(restoId) {
-  if (_staffMenuCache[restoId]) return _staffMenuCache[restoId];
+  const cached = _staffMenuCache[restoId];
+  if (cached && (Date.now() - cached.ts) < STAFF_MENU_TTL_MS) return cached.items;
   const items = (await fetchMenu(restoId)).filter(function(i){ return i.available !== false; });
-  _staffMenuCache[restoId] = items;
+  _staffMenuCache[restoId] = { items: items, ts: Date.now() };
   return items;
 }
 
