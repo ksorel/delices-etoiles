@@ -2829,24 +2829,26 @@ function renderServiceChoice() {
         ${_svcCard('livraison','🚴', t('service_livraison'), '#F26522')}
         ${_svcCard('reserver','📅', t('service_reserver'), '#8B5CF6')}
       </div>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:18px">
       <button type="button" onclick="window.App.openReservationLookup()"
-        style="display:flex;align-items:center;justify-content:center;gap:10px;width:100%;margin-top:18px;
+        style="display:flex;align-items:center;justify-content:center;gap:10px;flex:1 1 auto;min-width:max-content;
                background:#fff;border:1.5px dashed #C9B8ED;border-radius:16px;padding:13px 16px;
                cursor:pointer;transition:border-color .15s,background-color .15s"
         onmouseover="this.style.borderColor='#8B5CF6';this.style.backgroundColor='#FAF7FF'"
         onmouseout="this.style.borderColor='#C9B8ED';this.style.backgroundColor='#fff'">
         <span style="width:30px;height:30px;border-radius:50%;background:#8B5CF61a;display:flex;align-items:center;justify-content:center;color:#6B3FD4;flex-shrink:0"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
-        <span style="font-size:13px;font-weight:700;color:#6B3FD4">${t('rv_lookup_link')}</span>
+        <span style="font-size:13px;font-weight:700;color:#6B3FD4;white-space:nowrap">${t('rv_lookup_link')}</span>
       </button>
       <button type="button" onclick="window.App.openOrderLookup()"
-        style="display:flex;align-items:center;justify-content:center;gap:10px;width:100%;margin-top:10px;
+        style="display:flex;align-items:center;justify-content:center;gap:10px;flex:1 1 auto;min-width:max-content;
                background:#fff;border:1.5px dashed #F8C4A0;border-radius:16px;padding:13px 16px;
                cursor:pointer;transition:border-color .15s,background-color .15s"
         onmouseover="this.style.borderColor='#F26522';this.style.backgroundColor='#FFF6F0'"
         onmouseout="this.style.borderColor='#F8C4A0';this.style.backgroundColor='#fff'">
         <span style="width:30px;height:30px;border-radius:50%;background:#F265221a;display:flex;align-items:center;justify-content:center;color:#D6480F;flex-shrink:0"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></span>
-        <span style="font-size:13px;font-weight:700;color:#D6480F">${t('ord_lookup_link')}</span>
+        <span style="font-size:13px;font-weight:700;color:#D6480F;white-space:nowrap">${t('ord_lookup_link')}</span>
       </button>
+      </div>
     </div>
     ${buildContactBlock()}`;
 }
