@@ -324,6 +324,12 @@ body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color
   font-size: 11px; font-weight: 700; padding: 3px 9px;
   border-radius: 12px; white-space: nowrap;
 }
+/* Couleur par type — sans ça, ces badges n'avaient ni fond ni couleur de
+   texte (juste du texte flottant), invisibles au coup d'œil rapide sur
+   une grille de cartes. */
+.order-type.salle      { background: #E0E7FF; color: #4338CA; }
+.order-type.livraison  { background: #FFF7ED; color: #C2410C; }
+.order-type.surplace   { background: #ECFDF5; color: #047857; }
 .order-footer {
   padding: 8px 14px;
   border-top: 1px solid var(--bg);
