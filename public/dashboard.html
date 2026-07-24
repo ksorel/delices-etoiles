@@ -914,7 +914,11 @@ async function showEstablishmentName() {
       const cfg = await getDoc(doc(db, 'config', currentRestoId));
       const c   = cfg.exists() ? (cfg.data().contacts || {}) : {};
       const hrs = cfg.exists() ? Number(cfg.data().orderExpiryHours) : NaN;
-      if (!isNaN(hrs)) { ORDER_EXPIRY_MS = hrs > 0 ? hrs * 3600 * 1000 : Infinity; updateStats(); renderOrders(); }
+      // Toujours réévalué (avec repli sur le défaut 2h) — sinon un établissement
+      // sans config héritait du délai laissé par un établissement précédent
+      // connecté sur le même appareil.
+      ORDER_EXPIRY_MS = !isNaN(hrs) ? (hrs > 0 ? hrs * 3600 * 1000 : Infinity) : (2 * 3600 * 1000);
+      updateStats(); renderOrders();
       const tel = c.tel1 || c.tel2;
       if (tel && titleEl && !document.getElementById('dash-contact')) {
         const link = document.createElement('a');
@@ -923,7 +927,7 @@ async function showEstablishmentName() {
         link.style.cssText = 'display:inline-flex;align-items:center;gap:5px;margin-top:4px;'
           + 'background:rgba(255,255,255,.12);color:#fff;padding:3px 10px;border-radius:14px;'
           + 'font-size:11px;font-weight:700;text-decoration:none;width:fit-content';
-        link.innerHTML = '📞 ' + (c.tel1_label || 'Responsable') + ' · ' + tel;
+        link.innerHTML = '📞 ' + escapeHtml(c.tel1_label || 'Responsable') + ' · ' + escapeHtml(tel);
         (document.getElementById('dash-resto') || titleEl).after(link);
       }
     } catch (_) {}
@@ -1054,14 +1058,27 @@ function renderReservationCard(r) {
     +   itemsHtml
     + '</div>' + actions + '</div>';
 }
+// Anti double-tap : un employé sur tablette qui appuie deux fois vite sur un
+// bouton d'action (statut, paiement, réservation) déclenchait deux écritures
+// Firestore pour la même transition — la seconde ignorée tant que la
+// première est en cours.
+const _inFlight = new Set();
 window.confirmReservation = async function(id) {
+  const key = 'resa:' + id;
+  if (_inFlight.has(key)) return;
+  _inFlight.add(key);
   try { await updateDoc(doc(db, 'reservations', id), { status: 'confirmed', updatedAt: serverTimestamp() }); showToast('Réservation confirmée ✓'); }
   catch(e) { console.error('[confirmReservation]', e); showToast('Erreur, réessayez.'); }
+  finally { _inFlight.delete(key); }
 };
 window.refuseReservation = async function(id) {
   if (!confirm('Refuser cette réservation ?')) return;
+  const key = 'resa:' + id;
+  if (_inFlight.has(key)) return;
+  _inFlight.add(key);
   try { await updateDoc(doc(db, 'reservations', id), { status: 'refused', updatedAt: serverTimestamp() }); showToast('Réservation refusée'); }
   catch(e) { console.error('[refuseReservation]', e); showToast('Erreur, réessayez.'); }
+  finally { _inFlight.delete(key); }
 };
 
 function buildCard(o) {
@@ -1412,6 +1429,13 @@ window.clearTableFilter = function() {
 
 
 window.showSessionInvoice = async function(sessionId, tableId) {
+  // Ouvrir la fenêtre tout de suite, en synchrone dans le clic (sinon les
+  // navigateurs bloquent le popup une fois passé le premier `await` — le
+  // clic n'est alors plus considéré comme le geste utilisateur direct).
+  const w = window.open('', '_blank', 'width=400,height=600');
+  if (!w) { showToast('Autorisez les fenêtres popup pour imprimer la facture'); return; }
+  w.document.write('<p style="font-family:sans-serif;padding:20px">Chargement…</p>');
+
   // Récupérer toutes les commandes de la session
   const q = query(
     collection(db, 'commandes'),
@@ -1429,11 +1453,10 @@ window.showSessionInvoice = async function(sessionId, tableId) {
   });
 
   const itemsHtml = allItems.map(i =>
-    `<tr><td>${i.name}</td><td style="text-align:center">×${i.qty}</td>
+    `<tr><td>${escapeHtml(i.name)}</td><td style="text-align:center">×${Number(i.qty||0)}</td>
      <td style="text-align:right;font-weight:700">${new Intl.NumberFormat('fr-FR').format(i.subtotal||0)} FCFA</td></tr>`
   ).join('');
 
-  const w = window.open('', '_blank', 'width=400,height=600');
   w.document.write(`<!DOCTYPE html><html><head><title>Facture #${sessionId}</title>
     <style>
       body{font-family:Arial,sans-serif;padding:24px;max-width:360px;margin:0 auto;color:#2B1D16}
@@ -1481,6 +1504,9 @@ window.showSessionInvoice = async function(sessionId, tableId) {
 
 // ── Confirmation de paiement (espèces ou mobile money) ────
 window.confirmPayment = async function(orderId, operateur) {
+  const key = 'pay:' + orderId;
+  if (_inFlight.has(key)) return;
+  _inFlight.add(key);
   try {
     await updateDoc(doc(db, 'commandes', orderId), {
       paymentStatus: 'paid',
@@ -1492,11 +1518,14 @@ window.confirmPayment = async function(orderId, operateur) {
   } catch(e) {
     console.error('[confirmPayment]', e);
     alert('Impossible de confirmer le paiement. Réessayez.');
-  }
+  } finally { _inFlight.delete(key); }
 };
 
 // ── Livraison + paiement confirmés en une seule action ────
 window.confirmDelivery = async function(orderId, operateur) {
+  const key = 'delivery:' + orderId;
+  if (_inFlight.has(key)) return;
+  _inFlight.add(key);
   try {
     await updateDoc(doc(db, 'commandes', orderId), {
       status: 'done',
@@ -1509,11 +1538,14 @@ window.confirmDelivery = async function(orderId, operateur) {
   } catch(e) {
     console.error('[confirmDelivery]', e);
     alert('Impossible de confirmer la livraison. Réessayez.');
-  }
+  } finally { _inFlight.delete(key); }
 };
 
 // ── Exposer updateStatus globalement ─────────────────────
 window.updateStatus = async function(orderId, newStatus) {
+  const key = 'status:' + orderId;
+  if (_inFlight.has(key)) return;
+  _inFlight.add(key);
   try {
     const payload = { status: newStatus, updatedAt: serverTimestamp() };
     // Salle / sur place : "Servi"/"Récupérée" se fait en direct avec le client
@@ -1531,7 +1563,7 @@ window.updateStatus = async function(orderId, newStatus) {
   } catch(e) {
     console.error('[updateStatus]', e);
     alert("Impossible de mettre à jour le statut. Réessayez.");
-  }
+  } finally { _inFlight.delete(key); }
 };
 
 // NOTE : le code ci-dessous (son, prise de commande staff, défilement des
