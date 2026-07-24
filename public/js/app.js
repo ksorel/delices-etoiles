@@ -17,16 +17,20 @@ import { requestNotificationPermission, listenForegroundMessages } from './fcm.j
 let _itemFromUrl = null;
 try { _itemFromUrl = new URLSearchParams(window.location.search).get('item') || null; } catch (_) {}
 // ─── Panier inline (cart.js supprimé) ───────────────────────
-const CART_KEY = 'de_cart';
+// Clé isolée par établissement (getRestoId() résolu au moment de l'appel,
+// pas figé au chargement du module) : sinon un client qui scanne un QR
+// d'un autre lieu (ou change d'établissement via le sélecteur) récupérait
+// silencieusement le panier — donc les prix — d'un établissement différent.
+function _cartKey() { return 'de_cart_' + getRestoId(); }
 let _cartItems = [];
 function initCart() {
   try {
-    const raw = localStorage.getItem(CART_KEY);
+    const raw = localStorage.getItem(_cartKey());
     _cartItems = raw ? JSON.parse(raw) : [];
   } catch { _cartItems = []; }
 }
 function _cartPersist() {
-  localStorage.setItem(CART_KEY, JSON.stringify(_cartItems));
+  localStorage.setItem(_cartKey(), JSON.stringify(_cartItems));
 }
 function addItem(item, opts = {}) {
   const qty = opts.qty || 1;
@@ -61,6 +65,35 @@ function removeItem(uid) {
 }
 function clearCart() { _cartItems = []; _cartPersist(); }
 import { initUpselling, getUpsells, isBoisson, hasFormats, getPrixForFormat, getFormatLabels, hasVariantes, getVariantesRange } from './upselling.js';
+// Revalide le panier contre le menu tout juste rechargé (State.menu) avant
+// paiement : un article ajouté lors d'une visite précédente (panier persisté
+// en localStorage) peut avoir changé de prix ou être devenu indisponible
+// depuis. Retire les articles indisponibles, corrige les prix périmés, et
+// retourne la liste des changements (vide = rien à signaler).
+function _revalidateCart() {
+  const changes = [];
+  for (const item of getItems()) {
+    const live = (State.menu || []).find(m => m.id === item.id);
+    if (!live || live.available === false) {
+      changes.push(itemName(item) + (getLang() === 'en' ? ' is no longer available' : " n'est plus disponible"));
+      removeItem(item.uid);
+      continue;
+    }
+    let currentPrice = live.price;
+    if (item.variant && Array.isArray(live.variantes)) {
+      const v = live.variantes.find(vv => vv.label === item.variant);
+      if (v) currentPrice = v.prix;
+    } else if (item.format) {
+      currentPrice = getPrixForFormat(live, item.format);
+    }
+    if (currentPrice !== item.price) {
+      changes.push(itemName(item) + (getLang() === 'en' ? ' price updated' : ' : prix mis à jour'));
+      item.price = currentPrice;
+    }
+  }
+  if (changes.length) _cartPersist();
+  return changes;
+}
 import { submitSalleOrder, submitLivraisonOrder, formatFCFA } from './order.js';
 import { initAssistant } from './assistant.js';
 // ─── Icônes réseaux sociaux (établissement) ──────────────
@@ -434,18 +467,20 @@ function showOpenInBrowserBanner() {
   skipBtn.addEventListener('click', function() {
     document.getElementById('webview-overlay')?.remove();
   });
-  let iosHint = '';
+  overlay.innerHTML = '<div style="font-size:48px;margin-bottom:16px">📱</div>'
+    + '<div style="font-size:20px;font-weight:800;color:#fff;margin-bottom:8px">Ouvrir dans Chrome</div>'
+    + '<div style="font-size:14px;color:rgba(255,255,255,.7);margin-bottom:28px;line-height:1.6">Pour commander, veuillez ouvrir<br>ce lien dans votre navigateur Chrome.</div>';
+  overlay.appendChild(btn);
+  overlay.appendChild(skipBtn);
+  // Note : ajouté APRÈS l'affectation de overlay.innerHTML ci-dessus (qui
+  // remplace tout le contenu) — sinon cet indice iOS, ajouté avant, était
+  // aussitôt effacé et ne s'affichait jamais.
   if (isIOS) {
     const hint = document.createElement('div');
     hint.style.cssText = 'margin-top:16px;color:rgba(255,255,255,.5);font-size:12px';
     hint.textContent = 'Ou copiez ce lien dans Safari : ' + pageUrl;
     overlay.appendChild(hint);
   }
-  overlay.innerHTML = '<div style="font-size:48px;margin-bottom:16px">📱</div>'
-    + '<div style="font-size:20px;font-weight:800;color:#fff;margin-bottom:8px">Ouvrir dans Chrome</div>'
-    + '<div style="font-size:14px;color:rgba(255,255,255,.7);margin-bottom:28px;line-height:1.6">Pour commander, veuillez ouvrir<br>ce lien dans votre navigateur Chrome.</div>';
-  overlay.appendChild(btn);
-  overlay.appendChild(skipBtn);
   document.body.appendChild(overlay);
 }
 
@@ -479,6 +514,10 @@ export function navigate(view, data = {}) {
 function renderView(view, data = {}) {
   const main = document.getElementById('view');
   if (!main) return;
+  // Le listener de suivi de commande ne se désabonne que s'il est remplacé
+  // par un nouveau (voir renderTracking) — en quittant l'écran de suivi
+  // (ex: "Retour au menu"), il continuait de tourner en arrière-plan.
+  if (view !== 'tracking' && _trackingUnsub) { _trackingUnsub(); _trackingUnsub = null; }
   switch (view) {
     case 'menu':     renderMenu(main); break;
     case 'cart':     renderCart(main); break;
@@ -1081,7 +1120,14 @@ async function loadAvisSection(itemId) {
       </div>`).join('');
   } catch (e) { console.error('[avis] liste:', e); }
 
-  if (!State.uid) { rateEl.innerHTML = ''; return; }
+  if (!State.uid) {
+    // Connexion anonyme Firebase indisponible (réseau/quota) — le préciser
+    // plutôt que de faire disparaître la zone de notation sans explication.
+    rateEl.innerHTML = `<div style="font-size:12px;color:var(--muted);text-align:center;padding:8px">
+      ${getLang() === 'en' ? 'Connection issue — ratings unavailable right now.' : 'Problème de connexion — notation indisponible pour le moment.'}
+    </div>`;
+    return;
+  }
   try {
     const [existing, verified] = await Promise.all([
       getExistingAvis(restoId, itemId, State.uid),
@@ -1230,7 +1276,7 @@ function renderCart(container) {
       item.format ? t('opt_' + item.format) : '',
       item.variant || '',
       ...( item.upsells?.map(u => '+ ' + (getLang() === 'en' ? (u.name_en || u.name_fr) : u.name_fr)) || []),
-      item.comment ? `"${item.comment}"` : '',
+      item.comment ? `"${escapeHtml(item.comment)}"` : '',
     ].filter(Boolean).join(' · ');
     return `
       <div class="cart-item">
@@ -1565,6 +1611,15 @@ async function confirmSalle() {
       State.uid = _currentUser.uid;
     }
     if (!State.uid) throw new Error('Authentification impossible. Vérifiez votre connexion.');
+    // Le panier peut être resté en localStorage depuis une visite précédente :
+    // vérifier que les prix/disponibilité sont toujours à jour avant paiement.
+    const changes = _revalidateCart();
+    if (changes.length) {
+      showToast(changes.join(' · '));
+      updateCartBadge();
+      renderView('cart');
+      return;
+    }
     const operateur  = window._selectedPayment || 'especes';
     const cartItems  = getItems();
     const totalCart  = cartItems.reduce(function(s,i){return s+i.price*i.qty;},0);
@@ -1615,6 +1670,15 @@ async function confirmLivraison() {
       State.uid = currentUser.uid;
     }
     if (!State.uid) throw new Error('Authentification impossible. Vérifiez votre connexion.');
+    // Le panier peut être resté en localStorage depuis une visite précédente :
+    // vérifier que les prix/disponibilité sont toujours à jour avant paiement.
+    const changes = _revalidateCart();
+    if (changes.length) {
+      showToast(changes.join(' · '));
+      updateCartBadge();
+      renderView('cart');
+      return;
+    }
     const cartItems = getItems();
     const sousTotal = cartItems.reduce(function(s,i){return s+i.price*i.qty;},0);
     const orderId = await submitLivraisonOrder({
@@ -2239,15 +2303,15 @@ async function renderDevisClient(container) {
       + '<div style="background:#fff;border-radius:14px;padding:16px;margin-bottom:16px;'
       + 'box-shadow:0 2px 12px rgba(43,29,22,.08)">'
       + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'
-      + '<div style="font-size:15px;font-weight:800;color:var(--brown)">' + (d.client?.nom || '') + '</div>'
+      + '<div style="font-size:15px;font-weight:800;color:var(--brown)">' + escapeHtml(d.client?.nom || '') + '</div>'
       + '<span style="padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700;'
       + 'background:' + sc + '22;color:' + sc + '">' + sl + '</span>'
       + '</div>'
       + '<div style="font-size:13px;color:var(--muted);line-height:1.8">'
       + '📅 ' + dateEv + '<br>'
-      + '🎉 ' + (EVENT_LABELS[d.type] || d.type) + '<br>'
-      + '👥 ' + (d.nbPersonnes || '?') + ' personnes<br>'
-      + '📍 ' + (d.lieu || '—')
+      + '🎉 ' + escapeHtml(EVENT_LABELS[d.type] || d.type || '') + '<br>'
+      + '👥 ' + (d.nbPersonnes ? Number(d.nbPersonnes) : '?') + ' personnes<br>'
+      + '📍 ' + escapeHtml(d.lieu || '—')
       + '</div>'
       + '</div>'
 
@@ -2290,8 +2354,10 @@ async function renderDevisClient(container) {
 
       + '</div>';
 
-    // Listen for messages in real time
-    onSnapshot(doc(db, 'devis', devisId), snap2 => {
+    // Listen for messages in real time (désabonner l'ancien d'abord — sinon
+    // chaque passage sur l'espace devis-client empilait un listener de plus).
+    window.App._unsubDevisMessages && window.App._unsubDevisMessages();
+    window.App._unsubDevisMessages = onSnapshot(doc(db, 'devis', devisId), snap2 => {
       if (!snap2.exists()) return;
       const msgs = snap2.data().messages || [];
       const el   = document.getElementById('devis-messages');
@@ -2305,7 +2371,7 @@ async function renderDevisClient(container) {
         return '<div style="display:flex;flex-direction:column;align-items:' + (isAdmin ? 'flex-start' : 'flex-end') + '">'
           + '<div style="max-width:80%;padding:10px 13px;border-radius:14px;font-size:13px;line-height:1.5;'
           + 'background:' + (isAdmin ? '#F5F0EB' : '#F26522') + ';'
-          + 'color:' + (isAdmin ? 'var(--brown)' : '#fff') + '">' + m.texte + '</div>'
+          + 'color:' + (isAdmin ? 'var(--brown)' : '#fff') + '">' + escapeHtml(m.texte) + '</div>'
           + '<div style="font-size:10px;color:var(--muted);margin-top:2px">'
           + (isAdmin ? '⭐ Délices Étoiles' : '👤 Vous') + '</div>'
           + '</div>';
@@ -3016,7 +3082,7 @@ window.App.loadPaiementZone = async function(devisId, token, d) {
         + '<input type="number" id="pm-montant" placeholder="Montant versé (FCFA)" '
         +   'style="width:100%;padding:10px;border:1.5px solid var(--border);border-radius:10px;'
         +   'font-size:14px;margin-bottom:8px;outline:none">'
-        + '<button onclick="window.App.declarerPaiement(\x27' + devisId + '\x27,\x27' + token + '\x27)" '
+        + '<button id="pm-declare-btn" onclick="window.App.declarerPaiement(\x27' + devisId + '\x27,\x27' + token + '\x27)" '
         +   'style="width:100%;padding:12px;background:#F26522;color:#fff;border:none;border-radius:10px;'
         +   'font-size:14px;font-weight:700;cursor:pointer">J\x27ai effectué le paiement</button>'
         + '</div>'
@@ -3064,6 +3130,9 @@ window.App.declarerPaiement = async function(devisId, token) {
   const montant = parseFloat(document.getElementById('pm-montant')?.value);
   if (!montant || montant <= 0) { alert(t('devis_pay_montant_invalid')); return; }
 
+  const btn = document.getElementById('pm-declare-btn');
+  if (btn) { if (btn.disabled) return; btn.disabled = true; } // anti double-tap
+
   const labels = { wave: 'Wave', orange: 'Orange Money', mtn: 'MTN MoMo', cheque: 'Chèque' };
 
   try {
@@ -3081,6 +3150,7 @@ window.App.declarerPaiement = async function(devisId, token) {
     document.getElementById('pm-declare-form').style.display = 'none';
     document.getElementById('pm-instructions').style.display = 'none';
   } catch(e) { alert(t('avis_error')); }
+  finally { if (btn) btn.disabled = false; }
 };
 
 window.App.confirmerDevisClient = async function(devisId, token) {
