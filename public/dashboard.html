@@ -781,16 +781,10 @@ onAuthStateChanged(auth, async user => {
     // (réinitialisé à chaque connexion — sinon un profil sans ce rôle héritait
     // encore du masquage laissé par une session caissier précédente).
     document.documentElement.style.setProperty('--status-btns-display', canChangeStatus ? 'flex' : 'none');
-    // Caissier badge dans le header (retiré avant réévaluation — même raison :
-    // sans ça, le badge restait affiché même après connexion avec un autre profil).
+    // Badge "CAISSIER" séparé retiré du header : redondant avec le badge de
+    // rôle déjà affiché (qui inclut CAISSIER), et supprime le nettoyage
+    // d'une éventuelle ancienne version encore en cache côté client.
     document.getElementById('caissier-badge')?.remove();
-    if (currentRoles.includes('caissier')) {
-      const badge = document.createElement('span');
-      badge.id = 'caissier-badge';
-      badge.style.cssText = 'background:#F26522;color:#fff;font-size:10px;font-weight:700;padding:3px 8px;border-radius:10px;';
-      badge.textContent = '💳 CAISSIER';
-      document.querySelector('.dash-actions')?.prepend(badge);
-    }
 
     showEstablishmentName();
     initDashboard();
