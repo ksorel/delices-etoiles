@@ -168,6 +168,15 @@
   border-radius: 8px !important;
 }
 
+/* Rôle multiple : liste complète des puces sur grand écran, résumé
+   compact (rôle principal + "+N") sur tablette/mobile pour éviter le
+   débordement du header quand un employé a plusieurs rôles. */
+.role-badge-compact { display: none; }
+@media (max-width: 900px) {
+  .role-badge-full     { display: none !important; }
+  .role-badge-compact  { display: flex !important; }
+}
+
 /* Stats bar scrollable on mobile */
 .stats-bar {
   overflow-x: auto;
@@ -718,13 +727,28 @@ onAuthStateChanged(auth, async user => {
     document.getElementById('role-badge')?.remove();
     const roleBadge = document.createElement('div');
     roleBadge.id = 'role-badge';
-    roleBadge.style.cssText = 'display:flex;align-items:center;gap:6px;flex-wrap:wrap;flex-shrink:0';
-    roleBadge.innerHTML = currentRoles.map(function(r) {
+    roleBadge.style.cssText = 'display:flex;align-items:center;gap:6px;flex-shrink:0;min-width:0';
+    function rolePill(r) {
       var info = roleLabels[r] || { label: String(r).toUpperCase(), color:'#fff', bg:'rgba(255,255,255,.1)', icon:'👤' };
       return '<span style="display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:20px;'
         + 'background:' + info.bg + ';border:1px solid ' + info.color + ';font-size:12px;font-weight:800;'
-        + 'color:' + info.color + ';letter-spacing:.05em">' + info.icon + ' ' + info.label + '</span>';
-    }).join('');
+        + 'color:' + info.color + ';letter-spacing:.05em;white-space:nowrap;flex-shrink:0">' + info.icon + ' ' + info.label + '</span>';
+    }
+    // Petits écrans (tablette/mobile) : plusieurs rôles affichés en entier
+    // débordent du header. On garde le rôle principal + une puce "+N" avec
+    // le détail en title (tooltip) ; la liste complète reste visible sur
+    // les écrans larges (ex : propriétaire sur ordinateur).
+    const others = currentRoles.slice(1);
+    const fullHtml = currentRoles.map(rolePill).join('');
+    const compactHtml = rolePill(currentRoles[0]) + (others.length
+      ? '<span title="' + others.map(function(r){ return (roleLabels[r] || { label: String(r).toUpperCase() }).label; }).join(', ') + '" '
+        + 'style="display:inline-flex;align-items:center;padding:5px 10px;border-radius:20px;'
+        + 'background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);'
+        + 'font-size:11px;font-weight:800;color:#fff;flex-shrink:0">+' + others.length + '</span>'
+      : '');
+    roleBadge.innerHTML =
+        '<span class="role-badge-full" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">' + fullHtml + '</span>'
+      + '<span class="role-badge-compact" style="display:none;align-items:center;gap:6px">' + compactHtml + '</span>';
     // Insérer après le live-dot
     const liveDot = document.querySelector('.live-dot');
     if (liveDot) liveDot.after(roleBadge);
