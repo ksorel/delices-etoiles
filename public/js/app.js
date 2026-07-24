@@ -519,10 +519,11 @@ function updateHeader() {
         // Formulaire traiteur : accessible sans établissement choisi, pas de lieu à afficher.
         mk.innerHTML = `<span style="color:#F26522;font-weight:700;white-space:nowrap">← ${t('back')}</span>`;
       } else {
-        // Nom court (commune de préférence) + ellipse ; « ← Retour » reste sur la même ligne.
-        const court = State.resto?.commune || State.resto?.nom || '';
+        // Nom court (champ dédié nomCourt, sinon commune, sinon nom) + ellipse ;
+        // « ← Retour » reste sur la même ligne.
+        const court = State.resto?.nomCourt || State.resto?.commune || State.resto?.nom || '';
         const mapU = lieuMapUrl(State.resto);
-        mk.innerHTML = `<a href="${mapU}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="Voir sur Google Maps" style="color:inherit;text-decoration:none;display:inline-flex;align-items:center;overflow:hidden;min-width:0"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">📍 <strong>${court}</strong></span></a>`
+        mk.innerHTML = `<a href="${mapU}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="Voir sur Google Maps" style="color:inherit;text-decoration:none;display:inline-flex;align-items:center;gap:4px;overflow:hidden;min-width:0">${PIN_SVG}<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><strong>${court}</strong></span></a>`
           + `<span style="color:#F26522;font-weight:700;white-space:nowrap;flex:0 0 auto">· ← ${t('back')}</span>`;
       }
     } else if (mk) {

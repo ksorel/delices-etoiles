@@ -880,13 +880,22 @@ async function showEstablishmentName() {
   try {
     const snap = await getDocs(query(collection(db, 'restos')));
     const rdoc = snap.docs.find(d => d.id === currentRestoId);
-    const nom  = rdoc ? (rdoc.data().nom || rdoc.data().commune || currentRestoId) : currentRestoId;
+    const r    = rdoc ? rdoc.data() : {};
+    // Nom court (champ dédié nomCourt, sinon commune, sinon nom) — même
+    // priorité que l'en-tête du portail client.
+    const nom  = r.nomCourt || r.commune || r.nom || currentRestoId;
+    const mapUrl = r.mapUrl
+      || ('https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent([r.nom, r.commune, r.adresse].filter(Boolean).join(' ') || 'Abidjan'));
     const titleEl = document.querySelector('.dash-title');
     if (titleEl && !document.getElementById('dash-resto')) {
       const chip = document.createElement('div');
       chip.id = 'dash-resto';
       chip.style.cssText = 'font-size:12px;font-weight:800;color:#F26522;margin-top:2px';
-      chip.textContent = '📍 ' + nom;
+      chip.innerHTML = '<a href="' + mapUrl + '" target="_blank" rel="noopener" title="Voir sur Google Maps" '
+        + 'style="color:inherit;text-decoration:none;display:inline-flex;align-items:center;gap:4px">'
+        + '<svg viewBox="0 0 24 24" width="13" height="13" style="display:block;flex-shrink:0"><path fill="#F26522" '
+        + 'd="M12 2C7.86 2 4.5 5.36 4.5 9.5c0 5.5 6.25 11.5 7.02 12.22a.7.7 0 00.96 0C13.25 21 19.5 15 19.5 9.5 19.5 5.36 16.14 2 12 2zm0 10.25a2.75 2.75 0 110-5.5 2.75 2.75 0 010 5.5z"/></svg>'
+        + '<span>' + escapeHtml(nom) + '</span></a>';
       titleEl.after(chip);
     }
     // Contact du responsable, propre à l'établissement de l'employé (config/{restoId}).
