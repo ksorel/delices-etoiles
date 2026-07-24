@@ -1,12 +1,12 @@
 {
-  "name": "Délices Étoiles",
-  "short_name": "Délices Étoiles",
-  "description": "Restaurant Délices Étoiles — Commandez en ligne",
-  "start_url": "/",
+  "name": "Délices Étoiles — Dashboard",
+  "short_name": "DE Dashboard",
+  "description": "Dashboard staff — gestion des commandes, réservations et plan de salle",
+  "start_url": "/dashboard.html",
   "display": "standalone",
   "background_color": "#2B1D16",
   "theme_color": "#2B1D16",
-  "orientation": "portrait",
+  "orientation": "any",
   "icons": [
     {
       "src": "/img/icon-192.png",
@@ -21,6 +21,6 @@
       "purpose": "any"
     }
   ],
-  "categories": ["food", "shopping"],
+  "categories": ["business", "food"],
   "lang": "fr"
 }

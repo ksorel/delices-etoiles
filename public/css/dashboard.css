@@ -112,7 +112,8 @@ body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color
 .filters::-webkit-scrollbar-thumb:hover { background: var(--brown-light, #C9B8A8); }
 .filter-btn {
   flex-shrink: 0;
-  padding: 6px 14px;
+  min-height: 40px;
+  padding: 9px 16px;
   border-radius: 20px;
   border: 1.5px solid var(--border);
   background: var(--white);
@@ -125,6 +126,7 @@ body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color
 }
 .filter-btn.active { background: var(--brown); color: #fff; border-color: var(--brown); }
 .filter-btn:hover:not(.active) { border-color: var(--orange); color: var(--orange); }
+.filter-btn:active { transform: scale(.96); }
 
 /* ── Orders ──────────────────────────────────────────────── */
 .orders-container { padding: 12px; }
@@ -170,15 +172,17 @@ body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color
 }
 .status-btn {
   flex: 1;
-  padding: 8px;
+  min-height: 40px;
+  padding: 10px 8px;
   border-radius: 8px;
   border: none;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
   cursor: pointer;
   transition: all .15s;
   white-space: nowrap;
 }
+.status-btn:active { transform: scale(.96); }
 
 /* ── Header action buttons ───────────────────────────────── */
 .dash-actions {
@@ -188,7 +192,9 @@ body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color
   flex-shrink: 0;
 }
 .sound-btn, .logout-btn {
-  padding: 7px 10px;
+  min-width: 40px;
+  min-height: 40px;
+  padding: 8px 12px;
   border-radius: 8px;
   border: 1px solid rgba(255,255,255,.25);
   background: rgba(255,255,255,.1);
@@ -198,10 +204,12 @@ body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color
   transition: background .15s;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 4px;
   white-space: nowrap;
 }
 .sound-btn:hover, .logout-btn:hover { background: rgba(255,255,255,.2); }
+.sound-btn:active, .logout-btn:active { transform: scale(.94); }
 .live-dot {
   display: flex;
   align-items: center;
@@ -279,7 +287,7 @@ body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color
 .login-input {
   width: 100%; padding: 12px 14px;
   border: 1.5px solid var(--border); border-radius: 10px;
-  font-size: 14px; outline: none; margin-bottom: 10px; font-family: inherit;
+  font-size: 16px; outline: none; margin-bottom: 10px; font-family: inherit;
 }
 .login-input:focus { border-color: var(--orange); }
 .login-btn {
@@ -290,6 +298,7 @@ body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color
   transition: background .15s;
 }
 .login-btn:hover { background: #C94E10; }
+.login-btn:disabled { background: #E0D4C8; color: #9A8576; cursor: not-allowed; }
 .login-err { font-size: 13px; color: #E53E3E; margin-top: 8px; text-align: center; }
 
 /* Stats cards */
@@ -328,14 +337,15 @@ body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color
 .status-btns { display: flex; gap: 6px; flex-wrap: wrap; }
 
 /* Status buttons */
-.btn        { padding: 8px 14px; border-radius: 8px; border: none; font-size: 12px; font-weight: 700; cursor: pointer; transition: all .15s; }
-.btn-sm     { padding: 6px 12px; font-size: 12px; }
+.btn        { min-height: 40px; padding: 10px 14px; border-radius: 8px; border: none; font-size: 13px; font-weight: 700; cursor: pointer; transition: all .15s; }
+.btn-sm     { min-height: 36px; padding: 8px 12px; font-size: 12px; }
 .btn-start  { background: #EFF6FF; color: #1D4ED8; }
 .btn-ready  { background: #FEF3C7; color: #D97706; }
 .btn-done   { background: #ECFDF5; color: #059669; }
 .btn-start:hover { background: #DBEAFE; }
 .btn-ready:hover { background: #FDE68A; }
 .btn-done:hover  { background: #D1FAE5; }
+.btn:active { transform: scale(.96); }
 
 /* Empty state */
 .empty-state { text-align: center; padding: 48px 24px; color: var(--muted); }
