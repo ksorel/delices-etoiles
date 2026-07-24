@@ -211,10 +211,19 @@
   .dash-meta {
     font-size: 11px !important;
   }
-  .sound-btn {
-    padding: 6px 8px !important;
+  .sound-btn, .logout-btn {
+    min-width: 34px !important;
+    min-height: 34px !important;
+    padding: 6px !important;
     font-size: 14px !important;
   }
+  .dash-actions { gap: 4px !important; }
+  /* Rôle(s) et libellé "En direct" : trop de largeur pour un header de
+     téléphone en plus des boutons d'action — on les masque, l'essentiel
+     (statut en direct via le point animé, actions) reste visible. */
+  .live-dot-label { display: none; }
+  .live-dot { gap: 0; }
+  #role-badge { display: none !important; }
   .stat-box {
     min-width: 80px !important;
     padding: 10px 8px !important;
@@ -347,7 +356,7 @@
       </div>
     </div>
     <div class="dash-actions">
-      <span class="live-dot">En direct</span>
+      <span class="live-dot"><span class="live-dot-label">En direct</span></span>
       <button class="sound-btn" id="staff-order-btn" onclick="openStaffOrder()" title="Nouvelle commande" style="display:none">➕</button>
       <button class="sound-btn" id="sound-btn" onclick="toggleSound()" title="Son">🔔</button>
       <button class="sound-btn" onclick="window._ob && window._ob.start(true)" title="Aide">❓</button>
