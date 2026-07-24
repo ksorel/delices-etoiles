@@ -818,6 +818,38 @@ function escapeHtml(s) {
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
   }[c]));
 }
+// ─── Téléphone — format harmonisé (CI, 10 chiffres commençant par 0) ────
+// Formatage en direct dans le champ : chiffres uniquement, "225"/"+225" en
+// tête retiré (un client qui colle un numéro international retombe sur le
+// format local), groupé par deux "07 01 02 03 04" pendant la saisie.
+// Stocké/comparé SANS espaces (chaîne brute à 10 chiffres) pour que la
+// recherche de commande/réservation par téléphone (correspondance exacte
+// Firestore) fonctionne quel que soit l'écran où le numéro a été tapé.
+function formatPhoneDigits(raw) {
+  let d = String(raw || '').replace(/\D/g, '');
+  if (d.startsWith('225')) d = d.slice(3);
+  if (d.length > 1 && !d.startsWith('0')) d = '0' + d;
+  return d.slice(0, 10);
+}
+// Note : window.App.formatPhoneInput est assigné plus bas, APRÈS le littéral
+// window.App = {...} (sinon celui-ci écraserait cette assignation — voir
+// convention du projet : les handlers window.App.X vont après le littéral).
+function _formatPhoneInputImpl(el) {
+  const digits = formatPhoneDigits(el.value);
+  el.value = digits.replace(/(\d{2})(?=\d)/g, '$1 ').trim();
+}
+function isValidPhoneCI(raw) {
+  return /^0\d{9}$/.test(formatPhoneDigits(raw));
+}
+function normalizePhone(raw) {
+  return formatPhoneDigits(raw);
+}
+// Pour préremplir un champ (valeur déjà stockée) dans le même format espacé.
+function formatPhoneDisplay(raw) {
+  return formatPhoneDigits(raw).replace(/(\d{2})(?=\d)/g, '$1 ').trim();
+}
+const PHONE_PLACEHOLDER  = '07 01 02 03 04';
+const PHONE_INPUT_ATTRS  = 'inputmode="numeric" maxlength="14" oninput="window.App.formatPhoneInput(this)"';
 // Référence de commande affichée au client : DOIT correspondre exactement au
 // numéro affiché côté staff (dashboard.html) — préfixe = 3 premières lettres
 // du restoId en majuscules, suivi des 6 derniers caractères de l'ID Firestore.
@@ -1430,7 +1462,7 @@ function renderCheckout(container) {
           </div>
         </div>
         <div style="display:flex;flex-direction:column;gap:14px">
-          <div><label style="${L}">Téléphone *</label><input id="sp-tel" type="tel" style="${I}" placeholder="+225 07 00 00 00 00"></div>
+          <div><label style="${L}">Téléphone *</label><input id="sp-tel" type="tel" style="${I}" placeholder="${PHONE_PLACEHOLDER}" ${PHONE_INPUT_ATTRS}></div>
           <div style="background:#FFF7ED;border:1px solid #FED7AA;color:#9A3412;border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.5;display:flex;gap:8px;align-items:flex-start"><span>ℹ️</span><span>Paiement <strong>à l'arrivée</strong> au restaurant. Vous serez averti(e) dès que votre commande sera prête à récupérer.</span></div>
           <div id="sp-err" style="display:none;background:#FEE2E2;color:#991B1B;padding:10px 14px;border-radius:10px;font-size:13px"></div>
           <button id="sp-submit" onclick="window.App.confirmSurplace()" style="width:100%;padding:14px;background:#0EA5E9;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer">Valider ma commande →</button>
@@ -1452,7 +1484,7 @@ function renderCheckout(container) {
       <div class="checkout-section-title">${t('delivery_info')}</div>
       <div class="form-group">
         <label class="form-label">${t('telephone')} *</label>
-        <input class="form-input" id="liv-tel" type="tel" placeholder="+225 07 00 00 00 00" required>
+        <input class="form-input" id="liv-tel" type="tel" placeholder="${PHONE_PLACEHOLDER}" ${PHONE_INPUT_ATTRS} required>
       </div>
       <div class="form-group">
         <label class="form-label">${t('adresse')} *</label>
@@ -1651,6 +1683,7 @@ async function confirmLivraison() {
   }
   const missing = [];
   if (!tel)          missing.push('votre numéro de téléphone');
+  else if (!isValidPhoneCI(tel)) missing.push('un numéro de téléphone valide (' + PHONE_PLACEHOLDER + ')');
   if (!adresse)      missing.push('votre adresse');
   if (!zone || !zone.id) missing.push('une zone de livraison');
   if (missing.length) {
@@ -1682,7 +1715,7 @@ async function confirmLivraison() {
     const cartItems = getItems();
     const sousTotal = cartItems.reduce(function(s,i){return s+i.price*i.qty;},0);
     const orderId = await submitLivraisonOrder({
-      telephone: tel, adresse,
+      telephone: normalizePhone(tel), adresse,
       zoneId:          zone.id,
       zoneName:        zone.name || zone.nom,
       fraisLivraison:  zone.frais || 0,
@@ -2153,7 +2186,7 @@ function renderTraiteur(container) {
                         border-radius:10px;font-size:14px;outline:none">
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-          <input type="tel" id="tr-tel" class="form-input" placeholder="Téléphone *"
+          <input type="tel" id="tr-tel" class="form-input" placeholder="${PHONE_PLACEHOLDER} *" ${PHONE_INPUT_ATTRS}
                  style="width:100%;padding:10px 12px;border:1.5px solid var(--border);
                         border-radius:10px;font-size:14px;outline:none">
           <input type="email" id="tr-email" class="form-input" placeholder="${t('tr_email_ph')}"
@@ -2650,6 +2683,7 @@ function _startHeroCarousel() {
 }
 
 window.App.shareItem = _doShareItem;
+window.App.formatPhoneInput = _formatPhoneInputImpl;
 window.App.rateItem          = _rateItem;
 window.App.editAvisComment   = _editAvisComment;
 window.App.cancelAvisComment = _cancelAvisComment;
@@ -2861,7 +2895,7 @@ function renderReservation() {
       <h2 style="font-size:20px;font-weight:800;color:#2B1D16;margin:0 0 2px">📅 ${t('service_reserver')}</h2>
       <p style="font-size:13px;color:#7a6a55;margin:0 0 18px">${State.resto?.nom || ''}</p>
       <div style="display:flex;flex-direction:column;gap:14px">
-        <div><label style="${L}">${t('telephone')} *</label><input id="rv-tel" type="tel" style="${_SVC_INPUT}" placeholder="+225 07 00 00 00 00" value="${d.tel||''}"></div>
+        <div><label style="${L}">${t('telephone')} *</label><input id="rv-tel" type="tel" style="${_SVC_INPUT}" placeholder="${PHONE_PLACEHOLDER}" ${PHONE_INPUT_ATTRS} value="${formatPhoneDisplay(d.tel||'')}"></div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
           <div><label style="${L}">${t('rv_date')} *</label>
             <input id="rv-date-display" type="text" readonly autocomplete="off" style="${_SVC_INPUT};cursor:pointer"
@@ -2911,12 +2945,17 @@ window.App.submitReservation = async function() {
   if (!date) missing.push(t('rv_missing_date'));
   if (!heure) missing.push(t('rv_missing_heure'));
   if (missing.length) { errEl.textContent = t('rv_missing_prefix') + missing.join(', '); errEl.style.display = 'block'; return; }
+  if (!isValidPhoneCI(tel)) {
+    errEl.textContent = getLang() === 'en' ? ('Invalid phone number, expected format: ' + PHONE_PLACEHOLDER) : ('Numéro de téléphone invalide, format attendu : ' + PHONE_PLACEHOLDER);
+    errEl.style.display = 'block';
+    return;
+  }
   const btn = document.getElementById('rv-submit');
   if (btn) { btn.disabled = true; btn.textContent = t('rv_sending'); }
   try {
     const cartItems = getItems();
     const items = cartItems.map(i => ({ name: itemName(i), qty: i.qty, subtotal: i.price * i.qty }));
-    const reservationId = await submitReservation({ telephone: tel, date, heure, personnes: parseInt(pers) || null, note, items, clientUid: State.uid || null }, State.resto?.id);
+    const reservationId = await submitReservation({ telephone: normalizePhone(tel), date, heure, personnes: parseInt(pers) || null, note, items, clientUid: State.uid || null }, State.resto?.id);
     clearCart(); updateCartBadge(); _rvDraft = null;
     renderReservationDone(date, heure, reservationId);
   } catch(e) {
@@ -2950,6 +2989,7 @@ window.App.confirmSurplace = async function() {
   const tel = v('sp-tel');
   const errEl = document.getElementById('sp-err');
   if (!tel) { errEl.textContent = 'Veuillez renseigner votre téléphone'; errEl.style.display = 'block'; return; }
+  if (!isValidPhoneCI(tel)) { errEl.textContent = 'Numéro invalide, format attendu : ' + PHONE_PLACEHOLDER; errEl.style.display = 'block'; return; }
   const btn = document.getElementById('sp-submit');
   if (btn) { btn.disabled = true; btn.textContent = 'Envoi…'; }
   try {
@@ -2957,7 +2997,7 @@ window.App.confirmSurplace = async function() {
     const items = cartItems.map(i => ({ id: i.id, name: itemName(i), qty: i.qty, subtotal: i.price * i.qty, comment: i.comment || '' }));
     const orderId = await createOrder({
       type: 'surplace', restoId: State.resto?.id || getRestoId(),
-      telephone: tel,
+      telephone: normalizePhone(tel),
       clientUid: State.uid || null,
       items, itemIds: cartItems.map(i => i.id), total: getTotal(), operateur: 'especes',
     });
@@ -3405,6 +3445,7 @@ window.App.submitDevis = async function() {
   if (!lieu)  { err.textContent = 'Indiquez le lieu'; err.style.display='block'; return; }
   if (!nom)   { err.textContent = 'Indiquez votre nom'; err.style.display='block'; return; }
   if (!tel)   { err.textContent = 'Indiquez votre téléphone'; err.style.display='block'; return; }
+  if (!isValidPhoneCI(tel)) { err.textContent = 'Numéro de téléphone invalide, format attendu : ' + PHONE_PLACEHOLDER; err.style.display='block'; return; }
   err.style.display = 'none';
   btn.disabled = true;
   btn.textContent = 'Envoi en cours…';
@@ -3469,7 +3510,7 @@ window.App.submitDevis = async function() {
       zoneNom:  zoneObj ? zoneObj.name : null,
       zoneFrais: zoneObj ? (zoneObj.frais || 0) : 0,
       fichier: fichierUrl ? { url: fichierUrl, nom: fichierNom } : null,
-      client: { nom, tel, email },
+      client: { nom, tel: normalizePhone(tel), email },
       prestationsSouhaitees: window._trSelections || { cuisine: [], composition: [], service: [], logistique: [] },
       statut: 'nouveau',
       token,
@@ -3782,7 +3823,7 @@ window.App.openReservationLookup = function() {
     +     '<p style="font-size:13px;color:#7a6a55;margin:0 0 16px">' + t('rv_lookup_sub') + '</p>'
     +     '<div style="display:flex;flex-direction:column;gap:14px">'
     +       '<div><label style="' + L + '">' + t('telephone') + ' *</label>'
-    +         '<input id="rvl-tel" type="tel" style="' + I + '" placeholder="+225 07 00 00 00 00"></div>'
+    +         '<input id="rvl-tel" type="tel" style="' + I + '" placeholder="' + PHONE_PLACEHOLDER + '" ' + PHONE_INPUT_ATTRS + '></div>'
     +       '<div><label style="' + L + '">' + t('rv_date') + ' *</label>'
     +         '<input id="rvl-date-display" type="text" readonly autocomplete="off" style="' + I + ';cursor:pointer" '
     +         'placeholder="' + (getLang()==='en'?'MM/DD/YYYY':'JJ/MM/AAAA') + '" onclick="window.App.openLookupDatePicker(this)">'
@@ -3827,7 +3868,7 @@ window.App.openOrderLookup = function() {
     +     '<p style="font-size:13px;color:#7a6a55;margin:0 0 18px;text-align:center;line-height:1.5">' + t('ord_lookup_sub') + '</p>'
     +     '<div style="display:flex;flex-direction:column;gap:14px">'
     +       '<div><label style="' + L + '">' + t('telephone') + ' *</label>'
-    +         '<input id="ordl-tel" type="tel" style="' + I + '" placeholder="+225 07 00 00 00 00" '
+    +         '<input id="ordl-tel" type="tel" style="' + I + '" placeholder="' + PHONE_PLACEHOLDER + '" ' + PHONE_INPUT_ATTRS + ' '
     +         'onfocus="this.style.borderColor=\x27#F26522\x27" onblur="this.style.borderColor=\x27#E0D4C8\x27" '
     +         'onkeydown="if(event.key===\x27Enter\x27){window.App.submitOrderLookup()}"></div>'
     +       '<div id="ordl-err" style="display:none;background:#FEE2E2;color:#991B1B;padding:10px 14px;border-radius:10px;font-size:13px"></div>'
@@ -3851,10 +3892,15 @@ window.App.submitOrderLookup = async function() {
     errEl.textContent = t('ord_lookup_missing'); errEl.style.display = 'block';
     return;
   }
+  if (!isValidPhoneCI(tel)) {
+    errEl.textContent = getLang() === 'en' ? ('Invalid phone number, expected format: ' + PHONE_PLACEHOLDER) : ('Numéro de téléphone invalide, format attendu : ' + PHONE_PLACEHOLDER);
+    errEl.style.display = 'block';
+    return;
+  }
   const btn = document.getElementById('ordl-submit');
   if (btn) { btn.disabled = true; btn.textContent = '…'; }
   try {
-    const results = await findOrder(getRestoId(), tel);
+    const results = await findOrder(getRestoId(), normalizePhone(tel));
     if (!results.length) {
       errEl.textContent = t('ord_lookup_notfound'); errEl.style.display = 'block';
       if (btn) { btn.disabled = false; btn.textContent = t('ord_lookup_submit'); }
@@ -3925,10 +3971,15 @@ window.App.submitReservationLookup = async function() {
     errEl.textContent = t('rv_lookup_missing'); errEl.style.display = 'block';
     return;
   }
+  if (!isValidPhoneCI(tel)) {
+    errEl.textContent = getLang() === 'en' ? ('Invalid phone number, expected format: ' + PHONE_PLACEHOLDER) : ('Numéro de téléphone invalide, format attendu : ' + PHONE_PLACEHOLDER);
+    errEl.style.display = 'block';
+    return;
+  }
   const btn = document.getElementById('rvl-submit');
   if (btn) { btn.disabled = true; btn.textContent = '…'; }
   try {
-    const results = await findReservation(getRestoId(), tel, date);
+    const results = await findReservation(getRestoId(), normalizePhone(tel), date);
     if (!results.length) {
       errEl.textContent = t('rv_lookup_notfound'); errEl.style.display = 'block';
       if (btn) { btn.disabled = false; btn.textContent = t('rv_lookup_submit'); }
