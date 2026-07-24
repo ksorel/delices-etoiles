@@ -329,7 +329,7 @@ input, select, textarea { font-family: inherit; }
   transition: all .15s;
 }
 .share-pill:active { background: var(--orange); color: var(--white); }
-.share-pill-icon { font-size: 15px; }
+.share-pill-icon { display: flex; align-items: center; }
 
 /* ─── Avis clients (façon store) ─────────────────────── */
 .avis-section { margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--border); }

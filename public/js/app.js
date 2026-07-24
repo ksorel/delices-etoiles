@@ -907,7 +907,7 @@ function openItem(itemId) {
         ${item.imageUrl
           ? `<img class="modal-img" src="${item.imageUrl}" alt="${itemName(item)}">`
           : `<div class="modal-img" style="display:flex;align-items:center;justify-content:center;font-size:64px;">🍽️</div>`}
-        <button class="close-btn" onclick="window.App.closeModal()">✕</button>
+        <button class="close-btn" onclick="window.App.closeModal()" title="Fermer" aria-label="Fermer">✕</button>
       </div>
       <div class="modal-body">
         <div class="modal-name">${itemName(item)}</div>
@@ -915,7 +915,7 @@ function openItem(itemId) {
         <div class="modal-price-row">
           <div class="modal-price" id="modal-price">${menuCardPriceLabel(item)}</div>
           <button class="share-pill" onclick="window.App.shareItem('${item.id}')">
-            <span class="share-pill-icon">📤</span> ${t('share_action')}
+            <span class="share-pill-icon"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M14 9V5l7 7-7 7v-4.1c-5 0-8.5 1.6-11 5.1 1-5 4-10 11-11z"/></svg></span> ${t('share_action')}
           </button>
         </div>
         ${glaceHtml}
@@ -1647,7 +1647,7 @@ function renderConfirm(container, orderId, operateur) {
   const isCash     = operateur === 'especes' || (!operateur && (isSalle || isSurplace));
   const isMobile   = isSalle && operateur && operateur !== 'especes';
   let icon  = (isSalle || isSurplace) ? '🍽️' : '🚴';
-  let title = isSalle ? 'Commande envoyée !' : isSurplace ? t('confirm_title_surplace') : t('confirm_title_liv');
+  let title = isSalle ? t('confirm_title_salle') : isSurplace ? t('confirm_title_surplace') : t('confirm_title_liv');
   let sub   = isCash
     ? t(isSurplace ? 'sub_especes_surplace' : 'sub_especes')
     : isMobile ? t('sub_mobile_salle') : t(isSalle ? 'confirm_sub_salle' : isSurplace ? 'confirm_sub_surplace' : 'confirm_sub_liv');
@@ -1691,7 +1691,7 @@ function renderTracking(container, orderId) {
     <div class="tracking-wrap">
       <div class="tracking-header">
         <div class="tracking-id">${t('order_number')} <strong>#${orderRefLabel(orderId)}</strong></div>
-        <div class="tracking-title" id="tracking-title-dyn">Suivi de commande</div>
+        <div class="tracking-title" id="tracking-title-dyn">${t('ord_track_title')}</div>
         <div class="tracking-sub" id="tracking-sub-dyn">Chargement…</div>
       </div>
       ${notifSupported ? `
@@ -1701,12 +1701,12 @@ function renderTracking(container, orderId) {
         display:flex;align-items:center;gap:10px;font-size:13px;color:var(--brown)">
         <span style="font-size:22px">🔔</span>
         <div style="flex:1">
-          <div style="font-weight:700">Être notifié quand c'est prêt</div>
-          <div style="font-size:11px;color:var(--text-muted)">Recevez une notification dès que votre commande est prête</div>
+          <div style="font-weight:700">${t('ord_notif_title')}</div>
+          <div style="font-size:11px;color:var(--text-muted)">${t('ord_notif_sub')}</div>
         </div>
         <button id="notif-btn" class="btn btn-primary btn-sm"
                 onclick="window.App.enableNotifications('${orderId}')">
-          Activer
+          ${t('rv_notif_activate')}
         </button>
       </div>` : ''}
       <div id="tracking-content">
@@ -2074,7 +2074,7 @@ function renderTraiteur(container) {
                  overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>
             <div id="tr-file-size" style="font-size:11px;color:#4D7C60;margin-top:2px"></div>
           </div>
-          <button onclick="window.removeTraiteurFile()"
+          <button onclick="window.removeTraiteurFile()" title="Retirer le fichier" aria-label="Retirer le fichier"
                   style="background:none;border:none;cursor:pointer;font-size:20px;color:#9CA3AF;
                          line-height:1">✕</button>
         </div>
@@ -2736,7 +2736,7 @@ function renderServiceChoice() {
                cursor:pointer;transition:border-color .15s,background-color .15s"
         onmouseover="this.style.borderColor='#8B5CF6';this.style.backgroundColor='#FAF7FF'"
         onmouseout="this.style.borderColor='#C9B8ED';this.style.backgroundColor='#fff'">
-        <span style="width:30px;height:30px;border-radius:50%;background:#8B5CF61a;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">🔍</span>
+        <span style="width:30px;height:30px;border-radius:50%;background:#8B5CF61a;display:flex;align-items:center;justify-content:center;color:#6B3FD4;flex-shrink:0"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
         <span style="font-size:13px;font-weight:700;color:#6B3FD4">${t('rv_lookup_link')}</span>
       </button>
       <button type="button" onclick="window.App.openOrderLookup()"
@@ -2745,7 +2745,7 @@ function renderServiceChoice() {
                cursor:pointer;transition:border-color .15s,background-color .15s"
         onmouseover="this.style.borderColor='#F26522';this.style.backgroundColor='#FFF6F0'"
         onmouseout="this.style.borderColor='#F8C4A0';this.style.backgroundColor='#fff'">
-        <span style="width:30px;height:30px;border-radius:50%;background:#F265221a;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">📦</span>
+        <span style="width:30px;height:30px;border-radius:50%;background:#F265221a;display:flex;align-items:center;justify-content:center;color:#D6480F;flex-shrink:0"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></span>
         <span style="font-size:13px;font-weight:700;color:#D6480F">${t('ord_lookup_link')}</span>
       </button>
     </div>
@@ -3059,9 +3059,9 @@ window.App.selectMoyenPaiement = function(moyen) {
 
 window.App.declarerPaiement = async function(devisId, token) {
   const moyen = window._pmSelected;
-  if (!moyen) { alert('Choisissez un moyen de paiement'); return; }
+  if (!moyen) { alert(t('devis_pay_choose_moyen')); return; }
   const montant = parseFloat(document.getElementById('pm-montant')?.value);
-  if (!montant || montant <= 0) { alert('Indiquez un montant valide'); return; }
+  if (!montant || montant <= 0) { alert(t('devis_pay_montant_invalid')); return; }
 
   const labels = { wave: 'Wave', orange: 'Orange Money', mtn: 'MTN MoMo', cheque: 'Chèque' };
 
@@ -3069,21 +3069,21 @@ window.App.declarerPaiement = async function(devisId, token) {
     const { doc, getDoc, collection, addDoc, serverTimestamp }
       = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
     const snap = await getDoc(doc(db, 'devis', devisId));
-    if (!snap.exists() || snap.data().token !== token) { alert('Lien invalide'); return; }
+    if (!snap.exists() || snap.data().token !== token) { alert(t('devis_pay_lien_invalide')); return; }
 
     await addDoc(collection(db, 'devis', devisId, 'paiements'), {
       montant, moyen: labels[moyen] || moyen, type: 'paiement',
       statut: 'declare', declaredAt: new Date().toISOString(),
       createdAt: serverTimestamp(),
     });
-    alert('✅ Paiement déclaré ! Nous le confirmerons dès réception des fonds.');
+    alert(t('devis_pay_declared'));
     document.getElementById('pm-declare-form').style.display = 'none';
     document.getElementById('pm-instructions').style.display = 'none';
-  } catch(e) { alert('Erreur : ' + e.message); }
+  } catch(e) { alert(t('avis_error')); }
 };
 
 window.App.confirmerDevisClient = async function(devisId, token) {
-  if (!confirm('Confirmer votre devis ? Un acompte de 50% sera demandé.')) return;
+  if (!confirm(t('devis_confirm_ask'))) return;
   try {
     const { doc, updateDoc, serverTimestamp }
       = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
@@ -3093,12 +3093,12 @@ window.App.confirmerDevisClient = async function(devisId, token) {
       statut: 'confirme', confirmedAt: serverTimestamp(), updatedAt: serverTimestamp(),
     });
     renderView('devis-client');
-  } catch(e) { alert('Erreur : ' + e.message); }
+  } catch(e) { alert(t('avis_error')); }
 };
 
 
 window.App.annulerDevisClient = async function(devisId, token) {
-  if (!confirm('Annuler votre devis ?')) return;
+  if (!confirm(t('devis_cancel_ask'))) return;
   try {
     const { doc, updateDoc, serverTimestamp }
       = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
@@ -3108,7 +3108,7 @@ window.App.annulerDevisClient = async function(devisId, token) {
       statut: 'annule', updatedAt: serverTimestamp(),
     });
     renderView('devis-client');
-  } catch(e) { alert('Erreur : ' + e.message); }
+  } catch(e) { alert(t('avis_error')); }
 };
 
 
@@ -3126,7 +3126,7 @@ window.App.sendDevisMessage = async function(devisId, token) {
       updatedAt: serverTimestamp(),
     });
     if (input) input.value = '';
-  } catch(e) { alert('Erreur : ' + e.message); }
+  } catch(e) { alert(t('avis_error')); }
 };
 
 
@@ -3266,7 +3266,7 @@ window.handleTraiteurFile = function(file) {
   if (!file) return;
   const maxSize = 5 * 1024 * 1024; // 5MB
   if (file.size > maxSize) {
-    alert('Fichier trop volumineux (max 5 MB)');
+    alert(t('tr_file_too_big'));
     return;
   }
   window._traiteurFile = file;
@@ -3496,9 +3496,9 @@ window.App.copyDevisLink = function() {
   if (!link) return;
   navigator.clipboard?.writeText(link).then(() => {
     const btn = document.querySelector('[onclick*="copyDevisLink"]');
-    if (btn) { btn.textContent = '✅ Lien copié !'; setTimeout(() => btn.textContent = '📋 Copier le lien', 2000); }
+    if (btn) { btn.textContent = '✅ ' + t('share_copied'); setTimeout(() => btn.textContent = '📋 ' + t('tr_copy_link'), 2000); }
   }).catch(() => {
-    prompt('Copiez ce lien :', link);
+    window.prompt(t('share_copy_manual'), link);
   });
 };
 
