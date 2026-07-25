@@ -101,6 +101,16 @@ const FB_SVG = '<svg viewBox="0 0 24 24" width="26" height="26" style="display:b
 const WA_SVG = '<svg viewBox="0 0 24 24" width="26" height="26" style="display:block"><path fill="#25D366" d="M.06 24l1.68-6.15a11.87 11.87 0 01-1.59-5.95C.15 5.34 5.5 0 12.07 0a11.82 11.82 0 018.41 3.49 11.82 11.82 0 013.49 8.41c0 6.57-5.35 11.91-11.92 11.91a11.9 11.9 0 01-5.7-1.45L.06 24z"/><path fill="#FFF" d="M8.53 7.33c-.16-.36-.33-.37-.48-.38l-.42-.01c-.14 0-.38.05-.58.27-.2.22-.76.75-.76 1.82 0 1.07.78 2.11.89 2.26.11.14 1.51 2.42 3.72 3.3 1.84.72 2.21.58 2.61.54.4-.04 1.29-.53 1.47-1.03.18-.51.18-.94.13-1.03-.05-.09-.2-.14-.42-.25-.22-.11-1.29-.64-1.49-.71-.2-.07-.35-.11-.5.11-.14.22-.57.71-.7.86-.13.14-.26.16-.48.05-.22-.11-.93-.34-1.77-1.09-.65-.58-1.09-1.3-1.22-1.52-.13-.22-.01-.34.1-.45.1-.1.22-.26.33-.38.11-.13.14-.22.22-.37.07-.14.04-.27-.02-.38-.05-.11-.48-1.2-.68-1.63z"/></svg>';
 // Épingle de localisation (remplace l'émoji 📍 sur les cartes établissement)
 const PIN_SVG = '<svg viewBox="0 0 24 24" width="15" height="15" style="display:inline-block;vertical-align:-3px;flex-shrink:0"><path fill="#F26522" d="M12 2C7.86 2 4.5 5.36 4.5 9.5c0 5.5 6.25 11.5 7.02 12.22a.7.7 0 00.96 0C13.25 21 19.5 15 19.5 9.5 19.5 5.36 16.14 2 12 2zm0 10.25a2.75 2.75 0 110-5.5 2.75 2.75 0 010 5.5z"/></svg>';
+// Icônes du suivi de commande (remplacent les emoji comme icônes d'étape,
+// répétées à chaque commande — reprises à l'identique côté page de suivi et
+// fenêtre modale de suivi, pour un rendu cohérent entre les deux).
+const STEP_ICONS = {
+  pending:    '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6a1 1 0 0 1 1 1v1H8V4a1 1 0 0 1 1-1Z"/><path d="M8 5H6a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><path d="M9 12h6M9 16h6"/></svg>',
+  preparing:  '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 17a2.5 2.5 0 0 0 2.5-2.5c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7.5 7.5 0 1 1-15 0c0-1.153.433-2.294 1-3 1.072-2.143 2.5-1.5 3.5-.5Z"/></svg>',
+  ready:      '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/></svg>',
+  readyLiv:   '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8Z"/><path d="M3.27 6.96 12 12.01l8.73-5.05M12 22.08V12"/></svg>',
+  done:       '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
+};
 // Drapeaux (bouton de langue) — en SVG plutôt qu'en émoji : Windows n'a pas
 // les glyphes des émojis drapeaux et retombe sur le texte "FR"/"GB".
 const FR_FLAG_SVG = '<svg viewBox="0 0 3 2" width="22" height="15" style="display:block;border-radius:3px;overflow:hidden"><rect width="1" height="2" x="0" fill="#0055A4"/><rect width="1" height="2" x="1" fill="#FFFFFF"/><rect width="1" height="2" x="2" fill="#EF4135"/></svg>';
@@ -1850,20 +1860,20 @@ function updateTrackingView(order) {
   const payStatus = order.paymentStatus;
   // Définir les étapes selon le type
   const steps = isLiv ? [
-    { key: 'pending',   icon: '📋', label: 'Commande reçue',    sub: 'Votre commande a bien été enregistrée' },
-    { key: 'preparing', icon: '👨‍🍳', label: 'En préparation',    sub: 'La cuisine prépare votre commande' },
-    { key: 'ready',     icon: '📦', label: 'Prête à livrer',     sub: 'Votre commande est prête' },
+    { key: 'pending',   icon: STEP_ICONS.pending,   label: 'Commande reçue',    sub: 'Votre commande a bien été enregistrée' },
+    { key: 'preparing', icon: STEP_ICONS.preparing, label: 'En préparation',    sub: 'La cuisine prépare votre commande' },
+    { key: 'ready',     icon: STEP_ICONS.readyLiv,  label: 'Prête à livrer',     sub: 'Votre commande est prête' },
     { key: 'done',      icon: '🚴', label: 'En route',           sub: 'Votre livreur est en chemin' },
   ] : isSurplace ? [
-    { key: 'pending',   icon: '📋', label: 'Commande reçue',    sub: 'Votre commande a bien été enregistrée' },
-    { key: 'preparing', icon: '👨‍🍳', label: 'En préparation',    sub: 'La cuisine prépare vos plats' },
-    { key: 'ready',     icon: '🍽️', label: 'Prête',              sub: 'Vous pouvez venir la récupérer au restaurant' },
-    { key: 'done',      icon: '✅', label: 'Récupérée',          sub: 'Bon appétit !' },
+    { key: 'pending',   icon: STEP_ICONS.pending,   label: 'Commande reçue',    sub: 'Votre commande a bien été enregistrée' },
+    { key: 'preparing', icon: STEP_ICONS.preparing, label: 'En préparation',    sub: 'La cuisine prépare vos plats' },
+    { key: 'ready',     icon: STEP_ICONS.ready,     label: 'Prête',              sub: 'Vous pouvez venir la récupérer au restaurant' },
+    { key: 'done',      icon: STEP_ICONS.done,      label: 'Récupérée',          sub: 'Bon appétit !' },
   ] : [
-    { key: 'pending',   icon: '📋', label: 'Commande reçue',    sub: 'Votre commande a bien été enregistrée' },
-    { key: 'preparing', icon: '👨‍🍳', label: 'En préparation',    sub: 'La cuisine prépare vos plats' },
-    { key: 'ready',     icon: '🍽️', label: 'Prête à servir',     sub: 'Votre commande est prête' },
-    { key: 'done',      icon: '✅', label: 'Servie',             sub: 'Bon appétit !' },
+    { key: 'pending',   icon: STEP_ICONS.pending,   label: 'Commande reçue',    sub: 'Votre commande a bien été enregistrée' },
+    { key: 'preparing', icon: STEP_ICONS.preparing, label: 'En préparation',    sub: 'La cuisine prépare vos plats' },
+    { key: 'ready',     icon: STEP_ICONS.ready,     label: 'Prête à servir',     sub: 'Votre commande est prête' },
+    { key: 'done',      icon: STEP_ICONS.done,      label: 'Servie',             sub: 'Bon appétit !' },
   ];
   const ORDER_IDX = { pending: 0, preparing: 1, ready: 2, done: 3 };
   const currentIdx = ORDER_IDX[status] ?? 0;
@@ -3648,40 +3658,44 @@ window.App.openTrackingModal = function(orderId) {
   document.getElementById('tracking-modal')?.remove();
   if (window._trackingModalUnsub) { window._trackingModalUnsub(); window._trackingModalUnsub = null; }
   const isEn = getLang() === 'en';
+  // Couleur unique (orange de marque) pour toutes les étapes atteintes — avant,
+  // 4 couleurs arbitraires (ambre/bleu/vert/vert foncé) sans rapport avec la
+  // palette de l'app, différentes de la page de suivi qui n'utilise que l'orange.
+  const STEP_COLOR = '#F26522';
   const STEPS_SALLE = isEn ? [
-    { key:'pending',   icon:'📋', label:'Order received',    color:'#F59E0B' },
-    { key:'preparing', icon:'👨‍🍳', label:'Preparing',          color:'#3B82F6' },
-    { key:'ready',     icon:'🍽️', label:'Ready to serve',     color:'#10B981' },
-    { key:'done',      icon:'✅', label:'Order served',       color:'#065F46' },
+    { key:'pending',   icon:STEP_ICONS.pending,   label:'Order received',    color:STEP_COLOR },
+    { key:'preparing', icon:STEP_ICONS.preparing, label:'Preparing',          color:STEP_COLOR },
+    { key:'ready',     icon:STEP_ICONS.ready,     label:'Ready to serve',     color:STEP_COLOR },
+    { key:'done',      icon:STEP_ICONS.done,      label:'Order served',       color:STEP_COLOR },
   ] : [
-    { key:'pending',   icon:'📋', label:'Commande reçue',    color:'#F59E0B' },
-    { key:'preparing', icon:'👨‍🍳', label:'En préparation',    color:'#3B82F6' },
-    { key:'ready',     icon:'🍽️', label:'Prête à servir',     color:'#10B981' },
-    { key:'done',      icon:'✅', label:'Commande servie',    color:'#065F46' },
+    { key:'pending',   icon:STEP_ICONS.pending,   label:'Commande reçue',    color:STEP_COLOR },
+    { key:'preparing', icon:STEP_ICONS.preparing, label:'En préparation',    color:STEP_COLOR },
+    { key:'ready',     icon:STEP_ICONS.ready,     label:'Prête à servir',     color:STEP_COLOR },
+    { key:'done',      icon:STEP_ICONS.done,      label:'Commande servie',    color:STEP_COLOR },
   ];
   const STEPS_SURPLACE = isEn ? [
-    { key:'pending',   icon:'📋', label:'Order received',    color:'#F59E0B' },
-    { key:'preparing', icon:'👨‍🍳', label:'Preparing',          color:'#3B82F6' },
-    { key:'ready',     icon:'🍽️', label:'Ready',              color:'#10B981' },
-    { key:'done',      icon:'✅', label:'Picked up',          color:'#065F46' },
+    { key:'pending',   icon:STEP_ICONS.pending,   label:'Order received',    color:STEP_COLOR },
+    { key:'preparing', icon:STEP_ICONS.preparing, label:'Preparing',          color:STEP_COLOR },
+    { key:'ready',     icon:STEP_ICONS.ready,     label:'Ready',              color:STEP_COLOR },
+    { key:'done',      icon:STEP_ICONS.done,      label:'Picked up',          color:STEP_COLOR },
   ] : [
-    { key:'pending',   icon:'📋', label:'Commande reçue',    color:'#F59E0B' },
-    { key:'preparing', icon:'👨‍🍳', label:'En préparation',    color:'#3B82F6' },
-    { key:'ready',     icon:'🍽️', label:'Prête',              color:'#10B981' },
-    { key:'done',      icon:'✅', label:'Récupérée',          color:'#065F46' },
+    { key:'pending',   icon:STEP_ICONS.pending,   label:'Commande reçue',    color:STEP_COLOR },
+    { key:'preparing', icon:STEP_ICONS.preparing, label:'En préparation',    color:STEP_COLOR },
+    { key:'ready',     icon:STEP_ICONS.ready,     label:'Prête',              color:STEP_COLOR },
+    { key:'done',      icon:STEP_ICONS.done,      label:'Récupérée',          color:STEP_COLOR },
   ];
   const STEPS_LIV = isEn ? [
-    { key:'pending',    icon:'📋', label:'Order received',       color:'#F59E0B' },
-    { key:'preparing',  icon:'👨‍🍳', label:'Preparing',             color:'#3B82F6' },
-    { key:'ready',      icon:'📦', label:'Ready for delivery',    color:'#10B981' },
-    { key:'delivering', icon:'🚴', label:'On its way to you!',    color:'#3B82F6' },
-    { key:'done',       icon:'🎉', label:'Delivered & paid!',     color:'#065F46' },
+    { key:'pending',    icon:STEP_ICONS.pending,   label:'Order received',       color:STEP_COLOR },
+    { key:'preparing',  icon:STEP_ICONS.preparing, label:'Preparing',             color:STEP_COLOR },
+    { key:'ready',      icon:STEP_ICONS.readyLiv,  label:'Ready for delivery',    color:STEP_COLOR },
+    { key:'delivering', icon:'🚴', label:'On its way to you!',    color:STEP_COLOR },
+    { key:'done',       icon:STEP_ICONS.done,      label:'Delivered & paid!',     color:STEP_COLOR },
   ] : [
-    { key:'pending',    icon:'📋', label:'Commande reçue',        color:'#F59E0B' },
-    { key:'preparing',  icon:'👨‍🍳', label:'En préparation',        color:'#3B82F6' },
-    { key:'ready',      icon:'📦', label:'Prête pour livraison',   color:'#10B981' },
-    { key:'delivering', icon:'🚴', label:'En route vers vous !',   color:'#3B82F6' },
-    { key:'done',       icon:'🎉', label:'Livré et payé !',        color:'#065F46' },
+    { key:'pending',    icon:STEP_ICONS.pending,   label:'Commande reçue',        color:STEP_COLOR },
+    { key:'preparing',  icon:STEP_ICONS.preparing, label:'En préparation',        color:STEP_COLOR },
+    { key:'ready',      icon:STEP_ICONS.readyLiv,  label:'Prête pour livraison',   color:STEP_COLOR },
+    { key:'delivering', icon:'🚴', label:'En route vers vous !',   color:STEP_COLOR },
+    { key:'done',       icon:STEP_ICONS.done,      label:'Livré et payé !',        color:STEP_COLOR },
   ];
   // Build modal DOM
   const overlay = document.createElement('div');
@@ -3760,6 +3774,7 @@ window.App.openTrackingModal = function(orderId) {
       stepsHtml += '<div style="display:flex;align-items:flex-start;gap:14px;margin-bottom:20px">'
         + '<div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0">'
         + '<div style="width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px;'
+        + 'color:' + (isDone ? step.color : '#C8BFBA') + ';'
         + 'background:' + (isDone ? step.color + '20' : '#F5F5F5') + ';'
         + 'border:2px solid ' + (isDone ? step.color : '#E0D4C8') + ';'
         + (isActive ? 'box-shadow:0 0 0 4px ' + step.color + '30;' : '') + '">'
