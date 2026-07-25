@@ -44,8 +44,17 @@ service cloud.firestore {
       // (l'orderId est un ID Firestore non-devinable = sécurité suffisante)
       allow read: if isAuth();
 
-      // Mise à jour statut : staff seulement
-      allow update: if isStaff();
+      // Mise à jour statut : staff, ou le client propriétaire de la commande
+      // qui l'annule lui-même — uniquement tant qu'elle est encore "en
+      // attente" (pas prise en charge par la cuisine), et uniquement le
+      // champ status (+ horodatage) vers 'cancelled' — impossible de
+      // modifier le prix/les articles ou d'annuler une commande déjà en
+      // préparation par ce biais.
+      allow update: if isStaff()
+                    || (isAuth() && resource.data.clientUid == request.auth.uid
+                        && resource.data.status == 'pending'
+                        && request.resource.data.status == 'cancelled'
+                        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt', 'cancelledAt']));
 
       // Suppression : admin seulement
       allow delete: if isAdmin();

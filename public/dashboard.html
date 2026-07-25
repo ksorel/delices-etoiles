@@ -374,6 +374,7 @@
     <button class="filter-btn" data-filter="done" onclick="setFilter('done', this)">✓ Servies</button>
     <button class="filter-btn" data-filter="awaiting_payment" onclick="setFilter('awaiting_payment', this)">💳 Paiement à confirmer<span id="pay-count" style="display:none;margin-left:5px;background:#DC2626;color:#fff;font-size:10px;font-weight:800;padding:1px 6px;border-radius:9px"></span></button>
     <button class="filter-btn" data-filter="expired" onclick="setFilter('expired', this)">⏰ Expirées</button>
+    <button class="filter-btn" data-filter="cancelled" onclick="setFilter('cancelled', this)">❌ Annulées</button>
     <button class="filter-btn" data-filter="reservations" onclick="setFilter('reservations', this)">📅 Réservations<span id="resa-count" style="display:none;margin-left:5px;background:#8B5CF6;color:#fff;font-size:10px;font-weight:800;padding:1px 6px;border-radius:9px"></span></button>
   </div>
 
@@ -679,11 +680,11 @@ onAuthStateChanged(auth, async user => {
     const ROLES_CONFIG = {
       admin:    { canOrder: true,  canPay: true,  canStatus: true,  canPlan: true,  filterAuto: null,         masquePlan: false, tabs: null, stats: null },
       manager:  { canOrder: true,  canPay: true,  canStatus: true,  canPlan: true,  filterAuto: null,         masquePlan: false, tabs: null, stats: null },
-      serveur:  { canOrder: true,  canPay: false, canStatus: true,  canPlan: true,  filterAuto: 'pending',    masquePlan: false, tabs: ['all','pending','preparing','ready','salle','done','awaiting_payment','expired','reservations'], stats: ['pending','prep','ready','done'] },
-      bar:      { canOrder: true,  canPay: false, canStatus: true,  canPlan: true,  filterAuto: 'pending',    masquePlan: true,  tabs: ['all','pending','preparing','ready','expired'], stats: ['pending','prep','ready'] },
+      serveur:  { canOrder: true,  canPay: false, canStatus: true,  canPlan: true,  filterAuto: 'pending',    masquePlan: false, tabs: ['all','pending','preparing','ready','salle','done','awaiting_payment','expired','cancelled','reservations'], stats: ['pending','prep','ready','done'] },
+      bar:      { canOrder: true,  canPay: false, canStatus: true,  canPlan: true,  filterAuto: 'pending',    masquePlan: true,  tabs: ['all','pending','preparing','ready','expired','cancelled'], stats: ['pending','prep','ready'] },
       cuisine:  { canOrder: false, canPay: false, canStatus: true,  canPlan: false, filterAuto: 'preparing',  masquePlan: true,  tabs: ['pending','preparing','ready'], stats: ['pending','prep','ready'] },
       livreur:  { canOrder: false, canPay: false, canStatus: true,  canPlan: false, filterAuto: 'livraison',  masquePlan: true,  tabs: ['livraison','preparing','ready','done','awaiting_payment'], stats: ['prep','ready','done'] },
-      caissier: { canOrder: false, canPay: true,  canStatus: false, canPlan: true,  filterAuto: 'awaiting_payment', masquePlan: false, tabs: ['all','salle','livraison','done','awaiting_payment','expired'], stats: ['pending','done','ca'] },
+      caissier: { canOrder: false, canPay: true,  canStatus: false, canPlan: true,  filterAuto: 'awaiting_payment', masquePlan: false, tabs: ['all','salle','livraison','done','awaiting_payment','expired','cancelled'], stats: ['pending','done','ca'] },
     };
     // Rôle "personnalisé" : modules cochés un par un par le propriétaire
     // (employees/{uid}.customPermissions, chargé plus haut dans window._customPermissions).
@@ -839,7 +840,7 @@ async function initDashboard() {
   });
 
   // Écoute Firestore — commandes non archivées de l'établissement
-  const oCons = [ where('status', 'in', ['pending', 'preparing', 'ready', 'done']) ];
+  const oCons = [ where('status', 'in', ['pending', 'preparing', 'ready', 'done', 'cancelled']) ];
   if (currentRestoId) oCons.push(where('restoId', '==', currentRestoId));
   oCons.push(orderBy('createdAt', 'desc'));
   const q = query(collection(db, 'commandes'), ...oCons);
@@ -939,6 +940,7 @@ function updateStats() {
   let ca = 0, awaitingPay = 0;
   for (const o of allOrders) {
     if (isExpired(o)) continue;   // les expirées ne comptent pas dans les stats actives
+    if (o.status === 'cancelled') continue;   // ni les commandes annulées par le client
     counts[o.status] = (counts[o.status] || 0) + 1;
     if (o.status === 'done') ca += o.total || 0;
     if (o.paymentStatus === 'awaiting_payment' || o.paymentStatus === 'failed') awaitingPay++;
@@ -971,9 +973,11 @@ function renderOrders() {
 
   if (activeFilter === 'expired') {
     filtered = filtered.filter(isExpired);
+  } else if (activeFilter === 'cancelled') {
+    filtered = filtered.filter(o => o.status === 'cancelled');
   } else {
-    // Les commandes expirées sortent de toutes les vues actives.
-    filtered = filtered.filter(o => !isExpired(o));
+    // Les commandes expirées ou annulées par le client sortent de toutes les vues actives.
+    filtered = filtered.filter(o => !isExpired(o) && o.status !== 'cancelled');
     if (activeFilter === 'salle')     filtered = filtered.filter(o => o.type === 'salle');
     else if (activeFilter === 'livraison') filtered = filtered.filter(o => o.type === 'livraison');
     else if (activeFilter === 'awaiting_payment') filtered = filtered.filter(o => o.paymentStatus === 'awaiting_payment' || o.paymentStatus === 'failed');
@@ -1264,6 +1268,17 @@ function buildCard(o) {
         <span style="font-size:12px;color:#6B7280">${payIcon} Terminée · ${payLabel}</span>
         ${o.sessionId ? `<button class="btn btn-sm" style="background:#E6F1FB;color:#185FA5;font-size:11px;padding:4px 10px"
           onclick="showSessionInvoice('${o.sessionId}','${o.tableId||''}')">🧾 Facture</button>` : ''}
+      </div>`;
+  } else if (o.status === 'cancelled') {
+    // Annulée par le client lui-même (voir portail client) — aucun paiement
+    // n'est automatiquement remboursé : si un montant a déjà été envoyé
+    // (Mobile Money), le statut de paiement reste visible ici pour que le
+    // staff sache s'il doit contacter le client pour un remboursement.
+    const wasPaid = o.paymentStatus === 'paid' || o.paymentStatus === 'awaiting_payment';
+    actionBtns = `
+      <div style="width:100%">
+        <div style="font-size:12px;color:#991B1B;font-weight:700">❌ Annulée par le client</div>
+        ${wasPaid ? `<div style="font-size:11px;color:#854F0B;margin-top:2px">⚠️ Vérifier si un remboursement est nécessaire (${o.paymentStatus === 'paid' ? 'payé' : 'paiement envoyé, à confirmer'} · ${(o.operateur||'').toUpperCase() || 'mobile money'})</div>` : ''}
       </div>`;
   }
 

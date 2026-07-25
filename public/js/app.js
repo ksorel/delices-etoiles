@@ -9,7 +9,8 @@ import { fetchMenu, fetchZones, fetchUpsellRules, getOrCreateTable, fetchPlatDuJ
          createSession, getOpenSessions, updateSessionStatus, getSessionOrders,
          getRestoId, setRestoId, fetchLieux, fetchLieu, fetchAccueilCarousel,
          submitReservation, createOrder, listenReservation, findReservation, findOrder,
-         fetchAvisForItem, hasVerifiedPurchase, getExistingAvis, submitAvis, setAvisRating } from './db.js';
+         fetchAvisForItem, hasVerifiedPurchase, getExistingAvis, submitAvis, setAvisRating,
+         updateOrderStatus } from './db.js';
 import { getDoc, doc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { requestNotificationPermission, listenForegroundMessages } from './fcm.js';
 // Lien partagé vers un article précis (?item=<id>) : ouvert automatiquement
@@ -1840,6 +1841,18 @@ function updateTrackingView(order) {
   // Mettre à jour le titre selon statut
   const titleEl = document.getElementById('tracking-title-dyn');
   const subEl   = document.getElementById('tracking-sub-dyn');
+  if (status === 'cancelled') {
+    const isEnC = getLang() === 'en';
+    if (titleEl) { titleEl.textContent = isEnC ? '❌ Order cancelled' : '❌ Commande annulée'; titleEl.style.color = 'var(--error)'; }
+    if (subEl)   { subEl.textContent   = isEnC ? 'You cancelled this order.' : 'Vous avez annulé cette commande.'; }
+    el.innerHTML = `
+      <div style="text-align:center;padding:24px 16px;color:var(--text-muted)">
+        <div style="font-size:40px;margin-bottom:8px">❌</div>
+        <p style="font-size:14px;margin-bottom:20px">${isEnC ? 'This order will not be prepared.' : 'Cette commande ne sera pas préparée.'}</p>
+        <button class="btn btn-primary" style="max-width:280px;margin:0 auto" onclick="window.App.navigate('menu')">${t('back_menu')}</button>
+      </div>`;
+    return;
+  }
   const statusMessages = {
     pending:   { title: '📋 Commande reçue',      sub: 'Votre commande est en attente de traitement', color: '#F59E0B' },
     preparing: { title: '👨‍🍳 En préparation',      sub: 'La cuisine prépare votre commande',           color: '#3B82F6' },
@@ -1933,7 +1946,13 @@ function updateTrackingView(order) {
         <span>Total</span>
         <span>${formatFCFA(order.total)}</span>
       </div>
-    </div>`;
+    </div>
+    ${status === 'pending' ? `
+    <button type="button" onclick="window.App.cancelOrder('${order.id}')"
+      style="display:block;width:100%;text-align:center;background:none;border:none;color:var(--error);
+             font-size:13px;font-weight:600;text-decoration:underline;cursor:pointer;padding:14px 8px 4px">
+      ${getLang() === 'en' ? 'Cancel my order' : 'Annuler ma commande'}
+    </button>` : ''}`;
 }
 // ─── Toast ────────────────────────────────────────────────
 function showToast(msg) {
@@ -2698,6 +2717,27 @@ function _startHeroCarousel() {
 
 window.App.shareItem = _doShareItem;
 window.App.formatPhoneInput = _formatPhoneInputImpl;
+// ─── Annulation de commande par le client (façon Yango) ──────────
+// Autorisé uniquement tant que la commande est "en attente" côté règles
+// Firestore (voir firestore.rules) — le bouton lui-même n'est déjà affiché
+// que dans ce cas, mais la vraie barrière de sécurité est côté serveur.
+let _cancelOrderInFlight = false;
+window.App.cancelOrder = async function(orderId) {
+  if (_cancelOrderInFlight) return;
+  const isEnCancel = getLang() === 'en';
+  const ok = confirm(isEnCancel ? 'Cancel this order?' : 'Annuler cette commande ?');
+  if (!ok) return;
+  _cancelOrderInFlight = true;
+  try {
+    await updateOrderStatus(orderId, 'cancelled');
+    showToast(isEnCancel ? 'Order cancelled' : 'Commande annulée');
+  } catch (e) {
+    console.error('[cancelOrder]', e);
+    showToast(isEnCancel ? 'Could not cancel the order. Please try again.' : "Impossible d'annuler la commande. Réessayez.");
+  } finally {
+    _cancelOrderInFlight = false;
+  }
+};
 window.App.rateItem          = _rateItem;
 window.App.editAvisComment   = _editAvisComment;
 window.App.cancelAvisComment = _cancelAvisComment;
@@ -3750,6 +3790,14 @@ window.App.openTrackingModal = function(orderId) {
     const status = order.status || 'pending';
     const isLiv      = order.type === 'livraison';
     const isSurplace = order.type === 'surplace';
+    if (status === 'cancelled') {
+      body.innerHTML = '<div style="text-align:center;padding:20px 12px;color:#7A6356">'
+        + '<div style="font-size:36px;margin-bottom:8px">❌</div>'
+        + '<div style="font-weight:800;color:#2B1D16;margin-bottom:4px">' + (isEn ? 'Order cancelled' : 'Commande annulée') + '</div>'
+        + '<p style="font-size:13px">' + (isEn ? 'This order will not be prepared.' : 'Cette commande ne sera pas préparée.') + '</p>'
+        + '</div>';
+      return;
+    }
     const steps  = isLiv ? STEPS_LIV : isSurplace ? STEPS_SURPLACE : STEPS_SALLE;
     const curIdx = steps.findIndex(function(s) { return s.key === status; });
     const msgs = isEn ? {
@@ -3791,7 +3839,11 @@ window.App.openTrackingModal = function(orderId) {
     body.innerHTML = '<div style="background:#FFF8F5;border-radius:12px;border-left:4px solid #F26522;padding:14px 16px;margin-bottom:20px">'
       + '<div style="font-size:14px;color:#4A3020">' + (msgs[status] || msgs.pending) + '</div>'
       + '</div>'
-      + stepsHtml;
+      + stepsHtml
+      + (status === 'pending' ? '<button type="button" onclick="window.App.cancelOrder(\x27' + orderId + '\x27)" '
+          + 'style="display:block;width:100%;text-align:center;background:none;border:none;color:#DC2626;'
+          + 'font-size:13px;font-weight:600;text-decoration:underline;cursor:pointer;padding:14px 8px 4px">'
+          + (isEn ? 'Cancel my order' : 'Annuler ma commande') + '</button>' : '');
     if (status === 'done') {
       // Notez vos plats : accès direct à la fiche article (section avis) pour
       // chacun des plats commandés, sans avoir à les rechercher dans le menu.
