@@ -289,6 +289,15 @@ const translations = {
     tr_upload_hint:     'Joindre un document',
     tr_upload_whatsapp: 'Après envoi du formulaire, vous pouvez nous transmettre vos documents (cahier des charges, menu souhaité…) par WhatsApp au numéro du restaurant.',
     tr_upload_types:    'PDF, Word, image · max 5 MB',
+    tr_confirm_thanks: 'Merci {nom} ! Nous avons bien reçu votre demande de devis pour votre événement du',
+    tr_missing_type:    "Choisissez un type d'événement",
+    tr_missing_date:    "Indiquez la date de l'événement",
+    tr_missing_nb:      'Indiquez le nombre de personnes (10 minimum)',
+    tr_missing_lieu:    'Indiquez le lieu',
+    tr_missing_nom:     'Indiquez votre nom',
+    tr_missing_tel:     'Indiquez votre téléphone',
+    tr_missing_tel_invalid: 'Numéro de téléphone invalide, format attendu : 07 01 02 03 04',
+    tr_sending:         'Envoi en cours…',
   },
 
   en: {
@@ -568,6 +577,15 @@ const translations = {
     tr_upload_hint:     'Attach a document',
     tr_upload_whatsapp: 'After submitting the form, you can send us your documents (brief, desired menu…) via WhatsApp to the restaurant number.',
     tr_upload_types:    'PDF, Word, image · max 5 MB',
+    tr_confirm_thanks: 'Thank you {nom}! We have received your quote request for your event on',
+    tr_missing_type:    'Choose an event type',
+    tr_missing_date:    'Indicate the event date',
+    tr_missing_nb:      'Indicate the number of guests (10 minimum)',
+    tr_missing_lieu:    'Indicate the location',
+    tr_missing_nom:     'Indicate your name',
+    tr_missing_tel:     'Indicate your phone number',
+    tr_missing_tel_invalid: 'Invalid phone number, expected format: 07 01 02 03 04',
+    tr_sending:         'Sending…',
   },
 };
 

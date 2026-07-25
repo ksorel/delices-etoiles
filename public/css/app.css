@@ -15,6 +15,11 @@
   --white:        #FFFFFF;
   --text:         #1A1208;
   --text-muted:   #7A6356;
+  /* Alias : une bonne partie de l'écran traiteur/devis-client utilise
+     var(--muted) au lieu de var(--text-muted) — sans cet alias, ces
+     ~27 déclarations étaient invalides et le texte "secondaire" héritait
+     de la couleur du texte normal, cassant la hiérarchie visuelle. */
+  --muted:        #7A6356;
   --border:       #E8D5C4;
   --success:      #2E7D32;
   --error:        #C62828;

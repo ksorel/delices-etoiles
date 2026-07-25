@@ -1165,7 +1165,10 @@ async function loadAvisSection(itemId) {
         <div style="font-size:32px;margin-bottom:6px">💬</div>
         <div style="font-size:13px">${t('avis_none')}</div>
       </div>`;
-  } catch (e) { console.error('[avis] liste:', e); }
+  } catch (e) {
+    console.error('[avis] liste:', e);
+    listEl.innerHTML = `<div style="text-align:center;padding:16px 10px;color:var(--text-muted);font-size:13px">${t('avis_error')}</div>`;
+  }
 
   if (!State.uid) {
     // Connexion anonyme Firebase indisponible (réseau/quota) — le préciser
@@ -1464,7 +1467,7 @@ function renderCheckout(container) {
         <span style="font-size:13px;color:var(--brown)">${itemName(i)} ×${i.qty}</span>
         <span style="font-size:13px;font-weight:700;color:var(--orange)">${formatFCFA(i.price * i.qty)}</span>
       </div>`).join('');
-    const L = 'display:block;font-size:12px;font-weight:700;color:#7a6a55;margin-bottom:6px';
+    const L = 'display:block;font-size:13px;font-weight:600;color:var(--brown);margin-bottom:5px';
     const I = 'width:100%;padding:12px 14px;border:2px solid #E0D4C8;border-radius:12px;font-size:15px;outline:none;font-family:inherit;box-sizing:border-box';
     container.innerHTML = `
       <div style="padding:16px;max-width:520px;margin:0 auto">
@@ -2214,17 +2217,24 @@ function renderTraiteur(container) {
       <div style="background:#FFF8F5;border-radius:12px;padding:16px;margin-bottom:16px">
         <div style="font-size:13px;font-weight:700;color:var(--brown);margin-bottom:12px">${t('tr_contact_title')}</div>
         <div style="margin-bottom:10px">
-          <input type="text" id="tr-nom" class="form-input" placeholder="${t('tr_nom_ph')}"
+          <label style="display:block;font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:6px">${t('tr_nom_ph')} *</label>
+          <input type="text" id="tr-nom" class="form-input"
                  style="width:100%;padding:10px 12px;border:1.5px solid var(--border);
                         border-radius:10px;font-size:14px;outline:none">
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-          <input type="tel" id="tr-tel" class="form-input" placeholder="${PHONE_PLACEHOLDER} *" ${PHONE_INPUT_ATTRS}
-                 style="width:100%;padding:10px 12px;border:1.5px solid var(--border);
-                        border-radius:10px;font-size:14px;outline:none">
-          <input type="email" id="tr-email" class="form-input" placeholder="${t('tr_email_ph')}"
-                 style="width:100%;padding:10px 12px;border:1.5px solid var(--border);
-                        border-radius:10px;font-size:14px;outline:none">
+          <div>
+            <label style="display:block;font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:6px">${t('telephone')} *</label>
+            <input type="tel" id="tr-tel" class="form-input" placeholder="${PHONE_PLACEHOLDER}" ${PHONE_INPUT_ATTRS}
+                   style="width:100%;padding:10px 12px;border:1.5px solid var(--border);
+                          border-radius:10px;font-size:14px;outline:none">
+          </div>
+          <div>
+            <label style="display:block;font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:6px">${t('tr_email_ph')}</label>
+            <input type="email" id="tr-email" class="form-input"
+                   style="width:100%;padding:10px 12px;border:1.5px solid var(--border);
+                          border-radius:10px;font-size:14px;outline:none">
+          </div>
         </div>
       </div>
       <div id="tr-err" style="color:#EF4444;font-size:13px;margin-bottom:10px;display:none"></div>
@@ -2291,7 +2301,7 @@ async function renderDevisClient(container) {
       const lignes = d.devis.lignes.map(l =>
         '<div style="display:flex;justify-content:space-between;padding:10px 0;'
         + 'border-bottom:1px solid var(--border);font-size:14px">'
-        + '<div><div style="font-weight:600;color:var(--brown)">' + l.desc + '</div>'
+        + '<div><div style="font-weight:600;color:var(--brown)">' + escapeHtml(l.desc) + '</div>'
         + '<div style="font-size:12px;color:var(--muted)">' + l.qty + ' × ' + l.prix.toLocaleString('fr-FR') + ' FCFA</div></div>'
         + '<div style="font-weight:700;color:var(--brown)">' + l.total.toLocaleString('fr-FR') + ' F</div>'
         + '</div>'
@@ -2306,7 +2316,7 @@ async function renderDevisClient(container) {
         + '<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;color:var(--muted)">'
         + '<span>Acompte (50%)</span><span style="color:#F26522;font-weight:700">' + d.devis.acompte.toLocaleString('fr-FR') + ' FCFA</span></div>'
         + (d.devis.note ? '<div style="margin-top:12px;padding:10px;background:var(--bg);border-radius:8px;font-size:13px;color:var(--muted)">'
-           + d.devis.note + '</div>' : '')
+           + escapeHtml(d.devis.note) + '</div>' : '')
         + '</div>';
     } else {
       devisHtml = '<div style="background:#FFF8F5;border-radius:14px;padding:20px;margin-bottom:16px;text-align:center">'
@@ -2860,7 +2870,10 @@ function openDatePicker(anchorEl, opts) {
 }
 
 // ─── Choix du service (livraison / sur place / réservation) ──
-const _SVC_INPUT = 'width:100%;padding:12px 14px;border:2px solid #E0D4C8;border-radius:12px;font-size:15px;outline:none;font-family:inherit;box-sizing:border-box';
+// Reprend exactement les valeurs de .form-input (app.css) pour que ces
+// formulaires (sur place, réservation) rendent à l'identique du checkout
+// au lieu de diverger legèrement (bordure, taille de police, couleur).
+const _SVC_INPUT = 'width:100%;padding:11px 14px;border:1.5px solid var(--border);border-radius:var(--r);font-size:14px;color:var(--text);outline:none;font-family:inherit;box-sizing:border-box;background:var(--white)';
 function _svcCard(id, icon, title, color) {
   return `<div role="button" tabindex="0" onclick="window.App.chooseService('${id}')"
     onkeydown="if(event.key==='Enter'){window.App.chooseService('${id}')}"
@@ -3186,7 +3199,11 @@ window.App.loadPaiementZone = async function(devisId, token, d) {
 
       window._pmData = { managerPhone, resteAPayer };
     });
-  } catch(e) { console.error('Erreur loadPaiementZone:', e); }
+  } catch(e) {
+    console.error('Erreur loadPaiementZone:', e);
+    const zone = document.getElementById('devis-paiement-zone');
+    if (zone) zone.innerHTML = `<div style="text-align:center;padding:16px;color:var(--text-muted);font-size:13px">${t('avis_error')}</div>`;
+  }
 };
 
 window.App.selectMoyenPaiement = function(moyen) {
@@ -3225,7 +3242,8 @@ window.App.declarerPaiement = async function(devisId, token) {
   if (!montant || montant <= 0) { alert(t('devis_pay_montant_invalid')); return; }
 
   const btn = document.getElementById('pm-declare-btn');
-  if (btn) { if (btn.disabled) return; btn.disabled = true; } // anti double-tap
+  const btnOrigText = btn ? btn.textContent : '';
+  if (btn) { if (btn.disabled) return; btn.disabled = true; btn.textContent = t('tr_sending'); } // anti double-tap
 
   const labels = { wave: 'Wave', orange: 'Orange Money', mtn: 'MTN MoMo', cheque: 'Chèque' };
 
@@ -3244,7 +3262,7 @@ window.App.declarerPaiement = async function(devisId, token) {
     document.getElementById('pm-declare-form').style.display = 'none';
     document.getElementById('pm-instructions').style.display = 'none';
   } catch(e) { alert(t('avis_error')); }
-  finally { if (btn) btn.disabled = false; }
+  finally { if (btn) { btn.disabled = false; btn.textContent = btnOrigText; } }
 };
 
 window.App.confirmerDevisClient = async function(devisId, token) {
@@ -3493,16 +3511,16 @@ window.App.submitDevis = async function() {
   const email   = document.getElementById('tr-email')?.value.trim();
   const err     = document.getElementById('tr-err');
   const btn     = document.querySelector('[onclick*="submitDevis"]');
-  if (!type)  { err.textContent = "Choisissez un type d'événement"; err.style.display='block'; return; }
-  if (!date)  { err.textContent = "Indiquez la date de l'événement"; err.style.display='block'; return; }
-  if (!nb)    { err.textContent = 'Indiquez le nombre de personnes'; err.style.display='block'; return; }
-  if (!lieu)  { err.textContent = 'Indiquez le lieu'; err.style.display='block'; return; }
-  if (!nom)   { err.textContent = 'Indiquez votre nom'; err.style.display='block'; return; }
-  if (!tel)   { err.textContent = 'Indiquez votre téléphone'; err.style.display='block'; return; }
-  if (!isValidPhoneCI(tel)) { err.textContent = 'Numéro de téléphone invalide, format attendu : ' + PHONE_PLACEHOLDER; err.style.display='block'; return; }
+  if (!type)  { err.textContent = t('tr_missing_type'); err.style.display='block'; return; }
+  if (!date)  { err.textContent = t('tr_missing_date'); err.style.display='block'; return; }
+  if (!nb || Number(nb) < 10) { err.textContent = t('tr_missing_nb'); err.style.display='block'; return; }
+  if (!lieu)  { err.textContent = t('tr_missing_lieu'); err.style.display='block'; return; }
+  if (!nom)   { err.textContent = t('tr_missing_nom'); err.style.display='block'; return; }
+  if (!tel)   { err.textContent = t('tr_missing_tel'); err.style.display='block'; return; }
+  if (!isValidPhoneCI(tel)) { err.textContent = t('tr_missing_tel_invalid'); err.style.display='block'; return; }
   err.style.display = 'none';
   btn.disabled = true;
-  btn.textContent = 'Envoi en cours…';
+  btn.textContent = t('tr_sending');
   try {
     const { addDoc, collection, serverTimestamp } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
 
@@ -3581,7 +3599,7 @@ window.App.submitDevis = async function() {
           ${t('tr_confirm_title')}
         </div>
         <div style="font-size:14px;color:var(--muted);line-height:1.7;margin-bottom:24px">
-          Merci ${nom} ! Nous avons bien reçu votre demande de devis pour votre événement du <strong>${new Date(date + 'T12:00:00').toLocaleDateString(getLang() === 'en' ? 'en-GB' : 'fr-FR',{day:'numeric',month:'long',year:'numeric'})}</strong>.<br><br>
+          ${t('tr_confirm_thanks').replace('{nom}', escapeHtml(nom))} <strong>${new Date(date + 'T12:00:00').toLocaleDateString(getLang() === 'en' ? 'en-GB' : 'fr-FR',{day:'numeric',month:'long',year:'numeric'})}</strong>.<br><br>
           ${t('tr_confirm_msg1')} <strong>${tel}</strong>.
         </div>
         <!-- Lien espace devis -->
