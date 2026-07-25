@@ -2258,11 +2258,11 @@ async function renderDevisClient(container) {
   const token   = params.get('token');
 
   if (!devisId || !token) {
-    container.innerHTML = '<div style="padding:40px;text-align:center;color:var(--muted)">Lien invalide.</div>';
+    container.innerHTML = '<div style="padding:40px;text-align:center;color:var(--muted)">' + t('devis_link_invalid') + '</div>';
     return;
   }
 
-  container.innerHTML = '<div class="loading"><div class="spinner"></div><p>Chargement…</p></div>';
+  container.innerHTML = '<div class="loading"><div class="spinner"></div><p>' + t('devis_loading') + '</p></div>';
 
   try {
     const { doc, getDoc, updateDoc, arrayUnion, serverTimestamp, onSnapshot }
@@ -2270,15 +2270,11 @@ async function renderDevisClient(container) {
 
     const snap = await getDoc(doc(db, 'devis', devisId));
     if (!snap.exists() || snap.data().token !== token) {
-      container.innerHTML = '<div style="padding:40px;text-align:center;color:#EF4444">Lien invalide ou expiré.</div>';
+      container.innerHTML = '<div style="padding:40px;text-align:center;color:#EF4444">' + t('devis_link_invalid_expired') + '</div>';
       return;
     }
 
     const d = snap.data();
-    const EVENT_LABELS = {
-      mariage:'Mariage', bapteme:'Baptême', anniversaire:'Anniversaire',
-      entreprise:'Repas entreprise', seminaire:'Séminaire', autre:'Autre événement',
-    };
     const dateEv = d.date
       ? new Date(d.date + 'T12:00:00').toLocaleDateString(getLang() === 'en' ? 'en-GB' : 'fr-FR',
           { day:'numeric', month:'long', year:'numeric' })
@@ -2288,12 +2284,8 @@ async function renderDevisClient(container) {
       nouveau: '#F59E0B', en_cours: '#3B82F6', devis_envoye: '#8B5CF6',
       confirme: '#10B981', annule: '#EF4444',
     };
-    const statutLabels = {
-      nouveau: 'En attente', en_cours: 'En cours', devis_envoye: 'Devis reçu',
-      confirme: 'Confirmé', annule: 'Annulé',
-    };
     const sc = statutColors[d.statut] || '#7A6356';
-    const sl = statutLabels[d.statut] || d.statut;
+    const sl = t('devis_status_' + d.statut) !== 'devis_status_' + d.statut ? t('devis_status_' + d.statut) : d.statut;
 
     // Build devis lines HTML
     let devisHtml = '';
@@ -2309,19 +2301,19 @@ async function renderDevisClient(container) {
 
       devisHtml = '<div style="background:#fff;border-radius:14px;padding:20px;margin-bottom:16px;'
         + 'box-shadow:0 2px 12px rgba(43,29,22,.08)">'
-        + '<div style="font-size:15px;font-weight:800;color:var(--brown);margin-bottom:14px">📄 Votre devis</div>'
+        + '<div style="font-size:15px;font-weight:800;color:var(--brown);margin-bottom:14px">📄 ' + t('devis_your_quote') + '</div>'
         + lignes
         + '<div style="display:flex;justify-content:space-between;padding:12px 0 4px;font-size:15px;font-weight:800">'
         + '<span>Total</span><span style="color:#F26522">' + d.devis.total.toLocaleString('fr-FR') + ' FCFA</span></div>'
         + '<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;color:var(--muted)">'
-        + '<span>Acompte (50%)</span><span style="color:#F26522;font-weight:700">' + d.devis.acompte.toLocaleString('fr-FR') + ' FCFA</span></div>'
+        + '<span>' + t('devis_deposit') + '</span><span style="color:#F26522;font-weight:700">' + d.devis.acompte.toLocaleString('fr-FR') + ' FCFA</span></div>'
         + (d.devis.note ? '<div style="margin-top:12px;padding:10px;background:var(--bg);border-radius:8px;font-size:13px;color:var(--muted)">'
            + escapeHtml(d.devis.note) + '</div>' : '')
         + '</div>';
     } else {
       devisHtml = '<div style="background:#FFF8F5;border-radius:14px;padding:20px;margin-bottom:16px;text-align:center">'
         + '<div style="font-size:32px;margin-bottom:8px">⏳</div>'
-        + '<div style="font-size:14px;color:var(--muted)">Votre devis est en cours de préparation.<br>Revenez bientôt !</div>'
+        + '<div style="font-size:14px;color:var(--muted)">' + t('devis_preparing') + '<br>' + t('devis_preparing_sub') + '</div>'
         + '</div>';
     }
 
@@ -2331,21 +2323,21 @@ async function renderDevisClient(container) {
       actionHtml = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">'
         + '<button onclick="window.App.confirmerDevisClient(\x27' + devisId + '\x27,\x27' + token + '\x27)" '
         + 'style="padding:14px;background:#10B981;color:#fff;border:none;border-radius:12px;'
-        + 'font-size:15px;font-weight:800;cursor:pointer">✅ Confirmer</button>'
+        + 'font-size:15px;font-weight:800;cursor:pointer">' + t('devis_confirm_btn') + '</button>'
         + '<button onclick="window.App.annulerDevisClient(\x27' + devisId + '\x27,\x27' + token + '\x27)" '
         + 'style="padding:14px;background:#EF4444;color:#fff;border:none;border-radius:12px;'
-        + 'font-size:15px;font-weight:800;cursor:pointer">❌ Annuler</button>'
+        + 'font-size:15px;font-weight:800;cursor:pointer">' + t('devis_cancel_btn') + '</button>'
         + '</div>';
     } else if (d.statut === 'confirme') {
       actionHtml = '<div style="background:#ECFDF5;border-radius:12px;padding:14px;text-align:center;margin-bottom:16px">'
         + '<div style="font-size:20px;margin-bottom:4px">🎉</div>'
-        + '<div style="font-weight:700;color:#065F46">Prestation confirmée !</div>'
-        + '<div style="font-size:13px;color:#4D7C60;margin-top:4px">Nous vous contacterons pour finaliser les détails.</div>'
+        + '<div style="font-weight:700;color:#065F46">' + t('devis_confirmed_title') + '</div>'
+        + '<div style="font-size:13px;color:#4D7C60;margin-top:4px">' + t('devis_confirmed_sub') + '</div>'
         + '</div>'
         + '<div id="devis-paiement-zone"></div>';
     } else if (d.statut === 'annule') {
       actionHtml = '<div style="background:#FEF2F2;border-radius:12px;padding:14px;text-align:center;margin-bottom:16px">'
-        + '<div style="font-weight:700;color:#991B1B">Devis annulé</div>'
+        + '<div style="font-weight:700;color:#991B1B">' + t('devis_cancelled_title') + '</div>'
         + '</div>';
     }
 
@@ -2357,13 +2349,13 @@ async function renderDevisClient(container) {
       ? '<div style="background:#FEF3C7;border-bottom:2px solid #F59E0B;padding:12px 16px;'
         + 'display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">'
         + '<div>'
-        +   '<div style="font-size:13px;font-weight:700;color:#854F0B">Ouvrir dans votre navigateur</div>'
-        +   '<div style="font-size:11px;color:#92400E;margin-top:2px">Pour une meilleure expérience</div>'
+        +   '<div style="font-size:13px;font-weight:700;color:#854F0B">' + t('webview_open_browser') + '</div>'
+        +   '<div style="font-size:11px;color:#92400E;margin-top:2px">' + t('webview_better_exp') + '</div>'
         + '</div>'
         + '<a href="' + window.location.href + '" target="_system" '
         +   'onclick="window.open(\x27' + window.location.href + '\x27,\x27_blank\x27);return false;" '
         +   'style="padding:8px 14px;background:#F59E0B;color:#fff;border-radius:8px;font-size:13px;'
-        +   'font-weight:700;text-decoration:none;white-space:nowrap">🌐 Ouvrir</a>'
+        +   'font-weight:700;text-decoration:none;white-space:nowrap">' + t('webview_open_btn') + '</a>'
         + '</div>'
       : '';
 
@@ -2371,8 +2363,8 @@ async function renderDevisClient(container) {
 
       // Header
       + '<div style="margin-bottom:20px;padding-bottom:16px;border-bottom:2px solid var(--border)">'
-      + '<div style="font-size:24px;font-weight:800;color:var(--brown)">Votre espace devis</div>'
-      + '<div style="font-size:13px;color:var(--muted);margin-top:4px">Délices Étoiles · Resto & Traiteur</div>'
+      + '<div style="font-size:24px;font-weight:800;color:var(--brown)">' + t('devis_your_space') + '</div>'
+      + '<div style="font-size:13px;color:var(--muted);margin-top:4px">Délices Étoiles · ' + t('brand_tagline') + '</div>'
       + '</div>'
 
       // Résumé demande
@@ -2385,8 +2377,8 @@ async function renderDevisClient(container) {
       + '</div>'
       + '<div style="font-size:13px;color:var(--muted);line-height:1.8">'
       + '📅 ' + dateEv + '<br>'
-      + '🎉 ' + escapeHtml(EVENT_LABELS[d.type] || d.type || '') + '<br>'
-      + '👥 ' + (d.nbPersonnes ? Number(d.nbPersonnes) : '?') + ' personnes<br>'
+      + escapeHtml(t('tr_ev_' + d.type) !== 'tr_ev_' + d.type ? t('tr_ev_' + d.type) : (d.type || '')) + '<br>'
+      + '👥 ' + (d.nbPersonnes ? Number(d.nbPersonnes) : '?') + ' ' + t('devis_persons_suffix') + '<br>'
       + '📍 ' + escapeHtml(d.lieu || '—')
       + '</div>'
       + '</div>'
@@ -2401,7 +2393,7 @@ async function renderDevisClient(container) {
       + (d.devis ? '<button onclick="window.App.downloadDevisPDF(\x27' + devisId + '\x27)" '
         + 'style="width:100%;padding:12px;background:#7C3AED;color:#fff;border:none;'
         + 'border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:16px">'
-        + '⬇️ Télécharger le devis PDF</button>' : '')
+        + t('devis_download_pdf') + '</button>' : '')
 
       // Messagerie
       + '<div style="background:#fff;border-radius:14px;overflow:hidden;'
@@ -2409,8 +2401,8 @@ async function renderDevisClient(container) {
 
       // Messagerie header
       + '<div style="background:linear-gradient(135deg,#2B1D16,#4A3020);padding:14px 16px">'
-      + '<div style="font-size:15px;font-weight:800;color:#fff;margin-bottom:3px">💬 Messagerie</div>'
-      + '<div style="font-size:12px;color:rgba(255,255,255,.65)">Échangez directement avec notre équipe — nous vous répondons sous 24h</div>'
+      + '<div style="font-size:15px;font-weight:800;color:#fff;margin-bottom:3px">' + t('devis_messaging_title') + '</div>'
+      + '<div style="font-size:12px;color:rgba(255,255,255,.65)">' + t('devis_messaging_sub') + '</div>'
       + '</div>'
 
       + '<div style="padding:16px">'
@@ -2418,7 +2410,7 @@ async function renderDevisClient(container) {
       + 'margin-bottom:12px;display:flex;flex-direction:column;gap:8px"></div>'
       + '<div style="display:flex;gap:8px;align-items:flex-end">'
       + '<textarea id="devis-msg-input" rows="2" '
-      + 'placeholder="Posez vos questions, demandez des précisions sur votre devis…" '
+      + 'placeholder="' + escapeHtml(t('devis_msg_placeholder')) + '" '
       + 'style="flex:1;padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;'
       + 'font-size:13px;resize:none;font-family:inherit;outline:none;line-height:1.4"></textarea>'
       + '<button onclick="window.App.sendDevisMessage(\x27' + devisId + '\x27,\x27' + token + '\x27)" '
@@ -2439,7 +2431,7 @@ async function renderDevisClient(container) {
       const el   = document.getElementById('devis-messages');
       if (!el) return;
       if (!msgs.length) {
-        el.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:13px;padding:16px">Aucun message pour le moment.</div>';
+        el.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:13px;padding:16px">' + t('devis_no_messages') + '</div>';
         return;
       }
       el.innerHTML = msgs.map(m => {
@@ -2449,7 +2441,7 @@ async function renderDevisClient(container) {
           + 'background:' + (isAdmin ? '#F5F0EB' : '#F26522') + ';'
           + 'color:' + (isAdmin ? 'var(--brown)' : '#fff') + '">' + escapeHtml(m.texte) + '</div>'
           + '<div style="font-size:10px;color:var(--muted);margin-top:2px">'
-          + (isAdmin ? '⭐ Délices Étoiles' : '👤 Vous') + '</div>'
+          + (isAdmin ? '⭐ Délices Étoiles' : t('devis_you')) + '</div>'
           + '</div>';
       }).join('');
       el.scrollTop = el.scrollHeight;
@@ -2461,7 +2453,8 @@ async function renderDevisClient(container) {
     }
 
   } catch(e) {
-    container.innerHTML = '<div style="padding:40px;text-align:center;color:#EF4444">Erreur : ' + e.message + '</div>';
+    console.error('[renderDevisClient]', e);
+    container.innerHTML = '<div style="padding:40px;text-align:center;color:#EF4444">' + t('devis_load_error') + '</div>';
   }
 }
 
@@ -3637,7 +3630,8 @@ window.App.submitDevis = async function() {
     if (linkBox) linkBox.textContent = devisUrl;
 
   } catch(e) {
-    err.textContent = 'Erreur : ' + e.message;
+    console.error('[submitDevis]', e);
+    err.textContent = t('avis_error');
     err.style.display = 'block';
     btn.disabled = false;
     btn.textContent = t('tr_send_btn');
