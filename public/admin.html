@@ -1119,10 +1119,10 @@ function menuRow(item) {
   const img = item.imageUrl
     ? `<img src="${item.imageUrl}" style="width:48px;height:48px;object-fit:cover;border-radius:6px">`
     : '<span style="font-size:24px">🍽️</span>';
-  return `<tr data-name="${(item.name_fr||'').toLowerCase()}" data-cat="${item.category}" data-dispo="${item.available!==false?'on':'off'}">
+  return `<tr data-name="${escapeAdminHtml((item.name_fr||'').toLowerCase())}" data-cat="${escapeAdminHtml(item.category)}" data-dispo="${item.available!==false?'on':'off'}">
     <td>${img}</td>
-    <td><strong>${item.name_fr}</strong>${item.salleOnly ? ' <span class="badge" style="background:#FEF3C7;color:#92400E;font-size:10px">🍶 sur place</span>' : ''}${hasVariantes ? ' <span class="badge" style="background:#DBEAFE;color:#1E40AF;font-size:10px">🔀 variantes</span>' : ''}<br><span style="font-size:11px;color:var(--muted)">${item.name_en||''}</span></td>
-    <td><span class="badge" style="background:var(--bg);color:var(--muted)">${item.category}</span></td>
+    <td><strong>${escapeAdminHtml(item.name_fr)}</strong>${item.salleOnly ? ' <span class="badge" style="background:#FEF3C7;color:#92400E;font-size:10px">🍶 sur place</span>' : ''}${hasVariantes ? ' <span class="badge" style="background:#DBEAFE;color:#1E40AF;font-size:10px">🔀 variantes</span>' : ''}<br><span style="font-size:11px;color:var(--muted)">${escapeAdminHtml(item.name_en||'')}</span></td>
+    <td><span class="badge" style="background:var(--bg);color:var(--muted)">${escapeAdminHtml(item.category)}</span></td>
     ${activeResto==='ALL'?'<td>'+lieuChip(item.restoId)+'</td>':''}
     <td style="font-weight:700;color:var(--orange)">${prixLabel}</td>
     <td style="color:var(--muted)">${prixDemi}</td>
@@ -1538,14 +1538,14 @@ async function renderConfig(c) {
     + '<div style="display:flex;flex-direction:column;gap:14px">'
 
     + '<div><label class="form-label">Nom du restaurant</label>'
-    + '<input class="form-input" id="cfg-name" value="' + (cfg.restaurantName||'') + '"></div>'
+    + '<input class="form-input" id="cfg-name" value="' + (cfg.restaurantName||'').replace(/"/g,'&quot;') + '"></div>'
 
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'
     +   '<div><label class="form-label">Identifiant restaurant</label>'
     +     '<input class="form-input" id="cfg-restoid" value="' + (cfg.restoId||'') + '" placeholder="bassam, abobo…" readonly style="background:#F5F0EB">'
     +     '<div style="font-size:11px;color:var(--muted);margin-top:3px">Établissement sélectionné (non modifiable ici)</div></div>'
     +   '<div><label class="form-label">📞 Numéro du gérant</label>'
-    +     '<input class="form-input" id="cfg-phone" value="' + (cfg.managerPhone||'') + '" type="tel">'
+    +     '<input class="form-input" id="cfg-phone" value="' + (cfg.managerPhone||'').replace(/"/g,'&quot;') + '" type="tel">'
     +     '<div style="font-size:11px;color:var(--muted);margin-top:3px">Affiché sur la page login</div></div>'
     + '</div>'
 
@@ -1554,16 +1554,16 @@ async function renderConfig(c) {
     +   '<div style="background:var(--bg);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:14px">'
 
     +   '<div style="display:grid;grid-template-columns:1fr 2fr auto;gap:8px;align-items:center">'
-    +     '<input class="form-input" id="cfg-tel1-label" value="' + (cfg.contacts?.tel1_label||'Fixe') + '" placeholder="Fixe" style="font-size:13px">'
-    +     '<input class="form-input" id="cfg-tel1" value="' + (cfg.contacts?.tel1||'') + '" type="tel" placeholder="Ex: 27xxxxxxxx">'
+    +     '<input class="form-input" id="cfg-tel1-label" value="' + (cfg.contacts?.tel1_label||'Fixe').replace(/"/g,'&quot;') + '" placeholder="Fixe" style="font-size:13px">'
+    +     '<input class="form-input" id="cfg-tel1" value="' + (cfg.contacts?.tel1||'').replace(/"/g,'&quot;') + '" type="tel" placeholder="Ex: 27xxxxxxxx">'
     +     '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap;font-size:13px">'
     +       '<input type="checkbox" id="cfg-tel1-show" ' + (cfg.contacts?.tel1_show!==false?'checked':'') + ' style="width:16px;height:16px"> Afficher'
     +     '</label>'
     +   '</div>'
 
     +   '<div style="display:grid;grid-template-columns:1fr 2fr auto;gap:8px;align-items:center">'
-    +     '<input class="form-input" id="cfg-tel2-label" value="' + (cfg.contacts?.tel2_label||'Mobile') + '" placeholder="Mobile" style="font-size:13px">'
-    +     '<input class="form-input" id="cfg-tel2" value="' + (cfg.contacts?.tel2||'') + '" type="tel" placeholder="Ex: 07xxxxxxxx">'
+    +     '<input class="form-input" id="cfg-tel2-label" value="' + (cfg.contacts?.tel2_label||'Mobile').replace(/"/g,'&quot;') + '" placeholder="Mobile" style="font-size:13px">'
+    +     '<input class="form-input" id="cfg-tel2" value="' + (cfg.contacts?.tel2||'').replace(/"/g,'&quot;') + '" type="tel" placeholder="Ex: 07xxxxxxxx">'
     +     '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap;font-size:13px">'
     +       '<input type="checkbox" id="cfg-tel2-show" ' + (cfg.contacts?.tel2_show!==false?'checked':'') + ' style="width:16px;height:16px"> Afficher'
     +     '</label>'
@@ -1571,7 +1571,7 @@ async function renderConfig(c) {
 
     +   '<div style="display:grid;grid-template-columns:1fr 2fr auto;gap:8px;align-items:center">'
     +     '<div class="form-input" style="background:#F5F5F5;color:var(--muted);font-size:13px">Email</div>'
-    +     '<input class="form-input" id="cfg-email" value="' + (cfg.contacts?.email||'') + '" type="email" placeholder="contact@restaurant.ci">'
+    +     '<input class="form-input" id="cfg-email" value="' + (cfg.contacts?.email||'').replace(/"/g,'&quot;') + '" type="email" placeholder="contact@restaurant.ci">'
     +     '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap;font-size:13px">'
     +       '<input type="checkbox" id="cfg-email-show" ' + (cfg.contacts?.email_show!==false?'checked':'') + ' style="width:16px;height:16px"> Afficher'
     +     '</label>'
@@ -3849,9 +3849,9 @@ async function renderEtablissements(c) {
     const sub = [l.commune, l.adresse].filter(Boolean).join(' · ');
     return '<tr style="border-bottom:1px solid var(--border)">'
       + '<td style="padding:12px 14px">'
-      +   '<div style="font-weight:700;color:var(--brown)">' + (l.nom || l.id) + '</div>'
-      +   '<div style="font-size:12px;color:var(--muted)">' + (sub || '—') + '</div>'
-      +   '<div style="font-size:11px;color:#b6a892;margin-top:2px">id : ' + l.id + (l.nomCourt ? ' · court : ' + l.nomCourt : '') + ' · ordre : ' + (l.ordre != null ? l.ordre : '—') + '</div>'
+      +   '<div style="font-weight:700;color:var(--brown)">' + escapeAdminHtml(l.nom || l.id) + '</div>'
+      +   '<div style="font-size:12px;color:var(--muted)">' + escapeAdminHtml(sub || '—') + '</div>'
+      +   '<div style="font-size:11px;color:#b6a892;margin-top:2px">id : ' + escapeAdminHtml(l.id) + (l.nomCourt ? ' · court : ' + escapeAdminHtml(l.nomCourt) : '') + ' · ordre : ' + (l.ordre != null ? l.ordre : '—') + '</div>'
       + '</td>'
       + '<td style="padding:12px 14px">' + badge + '</td>'
       + '<td style="padding:12px 14px;text-align:right;white-space:nowrap">'
@@ -4862,7 +4862,7 @@ function showItemModal(item) {
       <div style="background:linear-gradient(135deg,#2B1D16,#4A3020);padding:20px 24px;position:relative;margin:-0px">
         <div style="font-size:26px;margin-bottom:4px">${item ? '✏️' : '➕'}</div>
         <div style="font-size:16px;font-weight:800;color:#fff">${item ? 'Modifier l\'article' : 'Ajouter un article'}</div>
-        <div style="font-size:12px;color:rgba(255,255,255,.6);margin-top:2px">${item ? item.name_fr : 'Nouvel article au menu'}</div>
+        <div style="font-size:12px;color:rgba(255,255,255,.6);margin-top:2px">${item ? escapeAdminHtml(item.name_fr) : 'Nouvel article au menu'}</div>
         <button onclick="this.closest('[style*=fixed]').remove()"
           style="position:absolute;top:14px;right:14px;background:rgba(255,255,255,.15);border:none;
                  border-radius:50%;width:30px;height:30px;color:#fff;font-size:18px;cursor:pointer;
@@ -4871,11 +4871,11 @@ function showItemModal(item) {
       <div style="padding:20px 24px;overflow-y:auto;max-height:70vh">
 
       <div class="form-row">
-        <div class="form-group"><label style="display:block;font-size:11px;font-weight:700;color:#7A6356;text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">Nom FR *</label><input class="form-input" id="m-name-fr" value="${item?.name_fr||''}"></div>
-        <div class="form-group"><label style="display:block;font-size:11px;font-weight:700;color:#7A6356;text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">Nom EN</label><input class="form-input" id="m-name-en" value="${item?.name_en||''}"></div>
+        <div class="form-group"><label style="display:block;font-size:11px;font-weight:700;color:#7A6356;text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">Nom FR *</label><input class="form-input" id="m-name-fr" value="${(item?.name_fr||'').replace(/"/g,'&quot;')}"></div>
+        <div class="form-group"><label style="display:block;font-size:11px;font-weight:700;color:#7A6356;text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">Nom EN</label><input class="form-input" id="m-name-en" value="${(item?.name_en||'').replace(/"/g,'&quot;')}"></div>
       </div>
       <div class="form-row one">
-        <div class="form-group"><label style="display:block;font-size:11px;font-weight:700;color:#7A6356;text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">Description FR</label><input class="form-input" id="m-desc-fr" value="${item?.description_fr||''}"></div>
+        <div class="form-group"><label style="display:block;font-size:11px;font-weight:700;color:#7A6356;text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">Description FR</label><input class="form-input" id="m-desc-fr" value="${(item?.description_fr||'').replace(/"/g,'&quot;')}"></div>
       </div>
 
       <!-- PRIX -->
@@ -4934,12 +4934,12 @@ function showItemModal(item) {
         <label style="display:block;font-size:11px;font-weight:700;color:#7A6356;text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">Photo article</label>
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
           <div id="m-img-preview" style="width:72px;height:72px;border-radius:8px;overflow:hidden;background:var(--bg);border:1.5px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:28px;flex-shrink:0">
-            ${item?.imageUrl ? `<img src="${item.imageUrl}" style="width:100%;height:100%;object-fit:cover">` : '🍽️'}
+            ${item?.imageUrl ? `<img src="${item.imageUrl.replace(/"/g,'&quot;')}" style="width:100%;height:100%;object-fit:cover">` : '🍽️'}
           </div>
           <div style="flex:1">
             <input type="file" id="m-img-file" accept="image/*" style="display:none" onchange="window.Admin._previewImg(this)">
             <button class="btn btn-secondary btn-sm" onclick="const f=document.getElementById('m-img-file');f.value='';f._resizedBlob=null;f.click()" style="margin-bottom:6px;width:100%">📷 Choisir une photo</button>
-            <input class="form-input" id="m-img-url" type="url" placeholder="ou coller une URL d'image…" value="${item?.imageUrl||''}" style="font-size:12px" oninput="window.Admin._previewUrl(this.value)">
+            <input class="form-input" id="m-img-url" type="url" placeholder="ou coller une URL d'image…" value="${(item?.imageUrl||'').replace(/"/g,'&quot;')}" style="font-size:12px" oninput="window.Admin._previewUrl(this.value)">
           </div>
         </div>
       </div>
@@ -5122,10 +5122,13 @@ function showItemModal(item) {
       price:          priceVal,
       prixVariable:   priceVal === 0,
       order:          parseInt(document.getElementById('m-order').value) || 0,
-      // Boissons : indisponible par défaut jusqu'à entrée de stock
-      available:      id ? (document.getElementById('m-save-btn') ? true : !isDrinkNew) : !isDrinkNew,
       ...(isDrinkNew && !id ? { stockStatus: 'rupture' } : {}),
     };
+    // La disponibilité se bascule depuis la liste (toggle), pas dans cette
+    // modale : en édition, ne pas y toucher (merge:true la préserve) — sinon
+    // modifier un article marqué "indisponible" le réactivait silencieusement.
+    // Nouvel article : disponible par défaut, sauf boisson (attend une entrée de stock).
+    if (!id) dispoData.available = !isDrinkNew;
     if (demi !== null && demi > 0) dispoData.formats = { demi };
     if (variantesInput.length) {
       dispoData.variantePrix = {};

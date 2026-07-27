@@ -439,6 +439,7 @@ let currentUser = null; // Utilisateur Firebase courant
 // autorisés (un rôle peut avoir canPay sans canStatus, ex: caissier).
 let canChangeStatus = true;
 let canEncaisser = true;
+let canStartPrep = true; // lancer "pending → preparing" (cuisine) — false pour le livreur
 let activeFilter = 'all';
 let tableFilterId = null; // Filtre additionnel "table" posé depuis le plan de salle (voir filterByTable)
 let soundEnabled = true;
@@ -477,6 +478,8 @@ window.doLogout = async function() {
     if (unsubReservations) { try { unsubReservations(); } catch(e) {} unsubReservations = null; }
     if (unsubFloorPlan) { try { unsubFloorPlan(); } catch(e) {} unsubFloorPlan = null; }
     if (window._traiteurAlertUnsub) { try { window._traiteurAlertUnsub(); } catch(e) {} window._traiteurAlertUnsub = null; }
+    if (window._tokenRefreshInterval) { clearInterval(window._tokenRefreshInterval); window._tokenRefreshInterval = null; }
+    if (window._expiryTimer) { clearInterval(window._expiryTimer); window._expiryTimer = null; }
   } catch(e) {}
   // Réinitialiser l'état local pour qu'un autre utilisateur ne voie rien de la
   // session précédente (établissement, commandes/réservations en mémoire, rôle).
@@ -683,7 +686,7 @@ onAuthStateChanged(auth, async user => {
       serveur:  { canOrder: true,  canPay: false, canStatus: true,  canPlan: true,  filterAuto: 'pending',    masquePlan: false, tabs: ['all','pending','preparing','ready','salle','done','awaiting_payment','expired','cancelled','reservations'], stats: ['pending','prep','ready','done'] },
       bar:      { canOrder: true,  canPay: false, canStatus: true,  canPlan: true,  filterAuto: 'pending',    masquePlan: true,  tabs: ['all','pending','preparing','ready','expired','cancelled'], stats: ['pending','prep','ready'] },
       cuisine:  { canOrder: false, canPay: false, canStatus: true,  canPlan: false, filterAuto: 'preparing',  masquePlan: true,  tabs: ['pending','preparing','ready'], stats: ['pending','prep','ready'] },
-      livreur:  { canOrder: false, canPay: false, canStatus: true,  canPlan: false, filterAuto: 'livraison',  masquePlan: true,  tabs: ['livraison','preparing','ready','done','awaiting_payment'], stats: ['prep','ready','done'] },
+      livreur:  { canOrder: false, canPay: false, canStatus: true,  canPlan: false, canStartPrep: false, filterAuto: 'livraison',  masquePlan: true,  tabs: ['livraison','preparing','ready','done','awaiting_payment'], stats: ['prep','ready','done'] },
       caissier: { canOrder: false, canPay: true,  canStatus: false, canPlan: true,  filterAuto: 'awaiting_payment', masquePlan: false, tabs: ['all','salle','livraison','done','awaiting_payment','expired','cancelled'], stats: ['pending','done','ca'] },
     };
     // Rôle "personnalisé" : modules cochés un par un par le propriétaire
@@ -705,6 +708,7 @@ onAuthStateChanged(auth, async user => {
         canOrder:   cfgs.some(c => c.canOrder),
         canPay:     cfgs.some(c => c.canPay),
         canStatus:  cfgs.some(c => c.canStatus),
+        canStartPrep: cfgs.some(c => c.canStartPrep !== false),
         canPlan:    cfgs.some(c => c.canPlan),
         masquePlan: cfgs.every(c => c.masquePlan),   // masquer le plan seulement si TOUS les rôles le masquent
         filterAuto: (cfgs.length === 1 && cfgs[0].filterAuto) ? cfgs[0].filterAuto : null,
@@ -717,6 +721,7 @@ onAuthStateChanged(auth, async user => {
     const canOrder     = roleConfig.canOrder;
     canEncaisser       = roleConfig.canPay;
     canChangeStatus    = roleConfig.canStatus;
+    canStartPrep       = roleConfig.canStartPrep;
 
     // Afficher le(s) rôle(s) en évidence dans le header — masqué sur petit
     // écran de téléphone via CSS (@media max-width:600px), où la largeur
@@ -803,6 +808,8 @@ onAuthStateChanged(auth, async user => {
     if (unsubReservations) { try { unsubReservations(); } catch(e) {} unsubReservations = null; }
     if (unsubFloorPlan) { try { unsubFloorPlan(); } catch(e) {} unsubFloorPlan = null; }
     if (window._traiteurAlertUnsub) { try { window._traiteurAlertUnsub(); } catch(e) {} window._traiteurAlertUnsub = null; }
+    if (window._tokenRefreshInterval) { clearInterval(window._tokenRefreshInterval); window._tokenRefreshInterval = null; }
+    if (window._expiryTimer) { clearInterval(window._expiryTimer); window._expiryTimer = null; }
     if (window._ai) window._ai.hide();
   }
 });
@@ -1155,7 +1162,7 @@ function buildCard(o) {
     </div>` : '';
 
   if (o.status === 'pending') {
-    actionBtns = payRowHtml + (canChangeStatus ? `<button class="status-btn btn-start" onclick="updateStatus('${o.id}','preparing')">🔥 Commencer</button>` : '');
+    actionBtns = payRowHtml + (canChangeStatus && canStartPrep ? `<button class="status-btn btn-start" onclick="updateStatus('${o.id}','preparing')">🔥 Commencer</button>` : '');
   } else if (o.status === 'preparing') {
     actionBtns = payRowHtml + (canChangeStatus ? `<button class="status-btn btn-ready" onclick="updateStatus('${o.id}','ready')">✅ Prêt</button>` : '');
   } else if (o.status === 'ready') {
@@ -1462,7 +1469,8 @@ window.showSessionInvoice = async function(sessionId, tableId) {
     where('sessionId', '==', sessionId)
   );
   const snap = await getDocs(q);
-  const orders = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  // Une commande annulée par le client ne fait pas partie de l'addition réelle.
+  const orders = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(o => o.status !== 'cancelled');
 
   const allItems = orders.flatMap(o => o.items || []);
   const total    = orders.reduce((s, o) => s + (o.total || 0), 0);
@@ -1471,6 +1479,9 @@ window.showSessionInvoice = async function(sessionId, tableId) {
   const date = new Date().toLocaleDateString('fr-FR', {
     day:'2-digit', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit'
   });
+  const resto = _loginRestos.find(r => r.id === (orders[0]?.restoId || currentRestoId));
+  const restoName  = escapeHtml(resto?.nom || resto?.nomCourt || 'Délices Étoiles');
+  const restoPhone = escapeHtml(resto?.whatsapp || '');
 
   const itemsHtml = allItems.map(i =>
     `<tr><td>${escapeHtml(i.name)}</td><td style="text-align:center">×${Number(i.qty||0)}</td>
@@ -1492,7 +1503,7 @@ window.showSessionInvoice = async function(sessionId, tableId) {
     </style>
 </head><body>
     <h1>⭐ Délices Étoiles</h1>
-    <div class="sub">Grand-Bassam · Resto & Traiteur<br>${date}</div>
+    <div class="sub">${restoName}<br>${date}</div>
     <div style="font-size:13px;margin-bottom:12px">
       Table <strong>${tableId}</strong> · Addition <strong>#${sessionId}</strong>
     </div>
@@ -1508,8 +1519,7 @@ window.showSessionInvoice = async function(sessionId, tableId) {
     </div>
     <div class="pay">Mode de paiement : ${operateur === 'especes' ? '💵 Espèces' : '📱 ' + operateur.toUpperCase()}</div>
     <div class="footer">
-      Merci de votre visite !<br>
-      TEL : 2733730829 · etoiles.delices@gmail.com
+      Merci de votre visite !${restoPhone ? '<br>TEL : ' + restoPhone : ''}
     </div>
     <br><button onclick="window.print()" style="width:100%;padding:10px;background:#F26522;
       color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">

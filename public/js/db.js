@@ -503,7 +503,7 @@ export function listenOrder(orderId, callback) {
       doc(db, 'commandes', orderId),
       snap => {
         retryCount = 0; // reset on success
-        if (snap.exists()) callback({ id: snap.id, ...snap.data() });
+        callback(snap.exists() ? { id: snap.id, ...snap.data() } : null);
       },
       err => {
         console.warn('listenOrder error:', err.code);
@@ -514,6 +514,8 @@ export function listenOrder(orderId, callback) {
             if (unsub) { try { unsub(); } catch(e) {} }
             start();
           }, 2000 * retryCount);
+        } else {
+          callback(null);
         }
       }
     );
@@ -536,7 +538,7 @@ export function listenReservation(reservationId, callback) {
       doc(db, 'reservations', reservationId),
       snap => {
         retryCount = 0;
-        if (snap.exists()) callback({ id: snap.id, ...snap.data() });
+        callback(snap.exists() ? { id: snap.id, ...snap.data() } : null);
       },
       err => {
         console.warn('listenReservation error:', err.code);
@@ -546,6 +548,8 @@ export function listenReservation(reservationId, callback) {
             if (unsub) { try { unsub(); } catch(e) {} }
             start();
           }, 2000 * retryCount);
+        } else {
+          callback(null);
         }
       }
     );

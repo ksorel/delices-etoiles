@@ -5,8 +5,19 @@
 import { createOrder } from './db.js';
 import { getLang }     from './i18n.js';
 
+// ─── Total du panier (article + ses upsells payants, ×qty) ─
+// Les upsells (accompagnement/boisson) ont leur propre prix mais sont
+// stockés sur la ligne article (item.upsells), pas additionnés à
+// item.price : il faut les inclure explicitement dans tout calcul de total.
+export function computeTotal(items) {
+  return items.reduce((s, item) => {
+    const upsellsTotal = (item.upsells || []).reduce((u, up) => u + (up.price || 0), 0);
+    return s + (item.price + upsellsTotal) * item.qty;
+  }, 0);
+}
+
 // ─── Sérialiser les articles du panier ───────────────────
-function serializeItems(items, lang = 'fr') {
+export function serializeItems(items, lang = 'fr') {
   return items.flatMap(item => {
     const base = {
       id:       item.id,
@@ -41,7 +52,7 @@ export async function submitSalleOrder(tableId, clientUid, operateur = 'especes'
 
   const lang  = getLang();
   const lines = serializeItems(cartItems, lang);
-  const total = cartItems.reduce((s, i) => s + i.price * i.qty, 0);
+  const total = computeTotal(cartItems);
 
   const orderId = await createOrder({
     type:          'salle',
@@ -66,7 +77,7 @@ export async function submitLivraisonOrder(livraison, clientUid, cartItems = [])
 
   const lang       = getLang();
   const lines      = serializeItems(cartItems, lang);
-  const sous_total = cartItems.reduce((s, i) => s + i.price * i.qty, 0);
+  const sous_total = computeTotal(cartItems);
   const total      = sous_total + (livraison.fraisLivraison || 0);
 
   const orderId = await createOrder({

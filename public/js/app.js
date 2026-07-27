@@ -51,7 +51,7 @@ function addItem(item, opts = {}) {
 }
 function getItems()  { return [..._cartItems]; }
 function getCount()  { return _cartItems.reduce((s, i) => s + i.qty, 0); }
-function getTotal()  { return _cartItems.reduce((s, i) => s + i.price * i.qty, 0); }
+function getTotal()  { return computeTotal(_cartItems); }
 function isEmpty()   { return _cartItems.length === 0; }
 function updateQty(uid, delta) {
   const idx = _cartItems.findIndex(i => i.uid === uid);
@@ -95,7 +95,7 @@ function _revalidateCart() {
   if (changes.length) _cartPersist();
   return changes;
 }
-import { submitSalleOrder, submitLivraisonOrder, formatFCFA } from './order.js';
+import { submitSalleOrder, submitLivraisonOrder, formatFCFA, computeTotal, serializeItems } from './order.js';
 import { initAssistant } from './assistant.js';
 // ─── Icônes réseaux sociaux (établissement) ──────────────
 const FB_SVG = '<svg viewBox="0 0 24 24" width="26" height="26" style="display:block"><path fill="#1877F2" d="M24 12.07C24 5.4 18.63 0 12 0S0 5.4 0 12.07C0 18.1 4.39 23.1 10.13 24v-8.44H7.08v-3.49h3.05V9.41c0-3.02 1.79-4.69 4.53-4.69 1.31 0 2.68.24 2.68.24v2.97h-1.51c-1.49 0-1.96.93-1.96 1.89v2.25h3.33l-.53 3.49h-2.8V24C19.61 23.1 24 18.1 24 12.07z"/></svg>';
@@ -1333,7 +1333,7 @@ function renderCart(container) {
       item.glace != null ? (item.glace ? '🧊 ' + t('opt_oui') : t('opt_non')) : '',
       item.format ? t('opt_' + item.format) : '',
       item.variant || '',
-      ...( item.upsells?.map(u => '+ ' + (getLang() === 'en' ? (u.name_en || u.name_fr) : u.name_fr)) || []),
+      ...( item.upsells?.map(u => '+ ' + (getLang() === 'en' ? (u.name_en || u.name_fr) : u.name_fr) + ' (+' + formatFCFA(u.price) + ')') || []),
       item.comment ? `"${escapeHtml(item.comment)}"` : '',
     ].filter(Boolean).join(' · ');
     return `
@@ -1346,7 +1346,7 @@ function renderCart(container) {
         <div class="cart-item-info">
           <div class="cart-item-name">${itemName(item)}</div>
           ${opts ? `<div class="cart-item-opts">${opts}</div>` : ''}
-          <div class="cart-item-price">${formatFCFA(item.price * item.qty)}</div>
+          <div class="cart-item-price">${formatFCFA(computeTotal([item]))}</div>
           <div class="cart-item-actions">
             <button class="qty-btn" style="width:32px;height:32px;font-size:16px"
                     onclick="window.App.updateQty('${item.uid}',-1)" aria-label="${getLang()==='en'?'Decrease quantity':'Diminuer la quantité'}">−</button>
@@ -1438,7 +1438,7 @@ function renderCheckout(container) {
     const itemsHtml = getItems().map(i => `
       <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">
         <span style="font-size:13px;color:var(--brown)">${itemName(i)} ×${i.qty}</span>
-        <span style="font-size:13px;font-weight:700;color:var(--orange)">${formatFCFA(i.price * i.qty)}</span>
+        <span style="font-size:13px;font-weight:700;color:var(--orange)">${formatFCFA(computeTotal([i]))}</span>
       </div>`).join('');
     container.innerHTML = `
       <div style="padding:16px">
@@ -1473,7 +1473,7 @@ function renderCheckout(container) {
     const itemsHtml = getItems().map(i => `
       <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">
         <span style="font-size:13px;color:var(--brown)">${itemName(i)} ×${i.qty}</span>
-        <span style="font-size:13px;font-weight:700;color:var(--orange)">${formatFCFA(i.price * i.qty)}</span>
+        <span style="font-size:13px;font-weight:700;color:var(--orange)">${formatFCFA(computeTotal([i]))}</span>
       </div>`).join('');
     const L = 'display:block;font-size:13px;font-weight:600;color:var(--brown);margin-bottom:5px';
     const I = 'width:100%;padding:12px 14px;border:2px solid #E0D4C8;border-radius:12px;font-size:15px;outline:none;font-family:inherit;box-sizing:border-box';
@@ -1684,7 +1684,7 @@ async function confirmSalle() {
     }
     const operateur  = window._selectedPayment || 'especes';
     const cartItems  = getItems();
-    const totalCart  = cartItems.reduce(function(s,i){return s+i.price*i.qty;},0);
+    const totalCart  = computeTotal(cartItems);
     const orderId    = await submitSalleOrder(State.tableId, State.uid, operateur, State.sessionId, cartItems);
     clearCart();
     updateCartBadge();
@@ -1743,7 +1743,7 @@ async function confirmLivraison() {
       return;
     }
     const cartItems = getItems();
-    const sousTotal = cartItems.reduce(function(s,i){return s+i.price*i.qty;},0);
+    const sousTotal = computeTotal(cartItems);
     const orderId = await submitLivraisonOrder({
       telephone: normalizePhone(tel), adresse,
       zoneId:          zone.id,
@@ -1850,6 +1850,13 @@ function renderTracking(container, orderId) {
 function updateTrackingView(order) {
   const el = document.getElementById('tracking-content');
   if (!el) return;
+  if (!order) {
+    el.innerHTML = '<div style="text-align:center;padding:20px 12px;color:#7A6356">'
+      + '<div style="font-size:36px;margin-bottom:8px">⚠️</div>'
+      + '<p style="font-size:13px">' + (getLang() === 'en' ? 'This order could not be found.' : 'Cette commande est introuvable.') + '</p>'
+      + '</div>';
+    return;
+  }
   const isLiv      = order.type === 'livraison';
   const isSurplace = order.type === 'surplace';
   const status    = order.status;
@@ -2952,7 +2959,7 @@ function renderReservation() {
       ${cartItems.map(i => `
         <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;color:#2B1D16">
           <span>${itemName(i)} ×${i.qty}</span>
-          <span style="color:var(--orange);font-weight:700">${formatFCFA(i.price * i.qty)}</span>
+          <span style="color:var(--orange);font-weight:700">${formatFCFA(computeTotal([i]))}</span>
         </div>`).join('')}
       <div style="display:flex;justify-content:space-between;padding-top:6px;margin-top:6px;border-top:1px solid #F0E8E0;font-weight:800;font-size:13px">
         <span>${t('rv_total_indicatif')}</span><span style="color:var(--orange)">${formatFCFA(getTotal())}</span>
@@ -3026,7 +3033,7 @@ window.App.submitReservation = async function() {
   if (btn) { btn.disabled = true; btn.textContent = t('rv_sending'); }
   try {
     const cartItems = getItems();
-    const items = cartItems.map(i => ({ name: itemName(i), qty: i.qty, subtotal: i.price * i.qty }));
+    const items = serializeItems(cartItems, getLang()).map(i => ({ name: i.name, qty: i.qty, subtotal: i.subtotal }));
     const reservationId = await submitReservation({ telephone: normalizePhone(tel), date, heure, personnes: parseInt(pers) || null, note, items, clientUid: State.uid || null }, State.resto?.id);
     clearCart(); updateCartBadge(); _rvDraft = null;
     renderReservationDone(date, heure, reservationId);
@@ -3066,12 +3073,12 @@ window.App.confirmSurplace = async function() {
   if (btn) { btn.disabled = true; btn.textContent = 'Envoi…'; }
   try {
     const cartItems = getItems();
-    const items = cartItems.map(i => ({ id: i.id, name: itemName(i), qty: i.qty, subtotal: i.price * i.qty, comment: i.comment || '' }));
+    const items = serializeItems(cartItems, getLang());
     const orderId = await createOrder({
       type: 'surplace', restoId: State.resto?.id || getRestoId(),
       telephone: normalizePhone(tel),
       clientUid: State.uid || null,
-      items, itemIds: cartItems.map(i => i.id), total: getTotal(), operateur: 'especes',
+      items, itemIds: cartItems.map(i => i.id), total: computeTotal(cartItems), operateur: 'especes',
     });
     clearCart(); updateCartBadge();
     localStorage.setItem('de_last_order', JSON.stringify({ orderId, operateur: 'especes', mode: 'surplace', ts: Date.now() }));
@@ -3811,6 +3818,13 @@ window.App.openTrackingModal = function(orderId) {
   });
   // Listen to order in real time
   window._trackingModalUnsub = listenOrder(orderId, function(order) {
+    if (!order) {
+      body.innerHTML = '<div style="text-align:center;padding:20px 12px;color:#7A6356">'
+        + '<div style="font-size:36px;margin-bottom:8px">⚠️</div>'
+        + '<p style="font-size:13px">' + (isEn ? 'This order could not be found.' : 'Cette commande est introuvable.') + '</p>'
+        + '</div>';
+      return;
+    }
     const status = order.status || 'pending';
     const isLiv      = order.type === 'livraison';
     const isSurplace = order.type === 'surplace';
@@ -4015,21 +4029,25 @@ window.App.submitOrderLookup = async function() {
   }
 };
 // Plusieurs commandes trouvées pour ce téléphone : petit menu de choix.
-const ORD_LOOKUP_STATUS = {
-  pending:   { label: 'En attente',     color: '#F59E0B' },
-  preparing: { label: 'En préparation', color: '#3B82F6' },
-  ready:     { label: 'Prête',          color: '#10B981' },
-  done:      { label: 'Terminée',       color: '#7a6a55' },
-};
+function _ordLookupStatus() {
+  return {
+    pending:   { label: t('ord_status_pending'),   color: '#F59E0B' },
+    preparing: { label: t('ord_status_preparing'), color: '#3B82F6' },
+    ready:     { label: t('ord_status_ready'),      color: '#10B981' },
+    done:      { label: t('ord_status_done'),       color: '#7a6a55' },
+  };
+}
 function renderOrderLookupChoices(results) {
   const modal = document.querySelector('#ord-lookup-modal .modal');
   if (!modal) return;
+  const statusMap = _ordLookupStatus();
+  const locale = getLang() === 'en' ? 'en-US' : 'fr-FR';
   const rows = results.map(o => {
     const icon   = o.type === 'livraison' ? '🚴' : o.type === 'surplace' ? '🍽️' : '🧾';
-    const meta   = ORD_LOOKUP_STATUS[o.status] || ORD_LOOKUP_STATUS.pending;
+    const meta   = statusMap[o.status] || statusMap.pending;
     const when   = o.createdAt?.toDate?.()
-      ? o.createdAt.toDate().toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) + ' · '
-        + o.createdAt.toDate().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+      ? o.createdAt.toDate().toLocaleDateString(locale, { day: 'numeric', month: 'short' }) + ' · '
+        + o.createdAt.toDate().toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })
       : '';
     return ''
       + '<div role="button" tabindex="0" onclick="window.App.chooseOrderLookupResult(\x27' + o.id + '\x27)" '
@@ -4144,6 +4162,13 @@ window.App.openReservationTrackingModal = function(reservationId) {
   const notifSupported = 'Notification' in window && 'serviceWorker' in navigator;
 
   window._rvTrackingUnsub = listenReservation(reservationId, function(r) {
+    if (!r) {
+      body.innerHTML = '<div style="text-align:center;padding:20px 12px;color:#7A6356">'
+        + '<div style="font-size:36px;margin-bottom:8px">⚠️</div>'
+        + '<p style="font-size:13px">' + (getLang() === 'en' ? 'This reservation could not be found.' : 'Cette réservation est introuvable.') + '</p>'
+        + '</div>';
+      return;
+    }
     const status = r.status || 'pending';
     const STATUS_CFG = {
       pending:   { icon:'⏳', color:'#D97706', bg:'#FEF3C7', label: t('rv_track_pending') },
