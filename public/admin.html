@@ -1598,25 +1598,25 @@ window._fpDrop = function(e, col, row) {
   renderFPEditor(document.getElementById('page-content'));
 };
 
-window._fpAddTable = function(col, row) {
+window._fpAddTable = async function(col, row) {
   if (_fpTables.find(t => t.col===col && t.row===row)) return;
   const nextId = String(Math.max(0,..._fpTables.map(t=>parseInt(t.id)||0)) + 1);
-  const label  = prompt('Nom/numéro de la table :', nextId);
+  const label  = await adminPrompt('Nom/numéro de la table :', nextId);
   if (!label) return;
   _fpTables.push({ id: nextId, label, col, row });
   renderFPEditor(document.getElementById('page-content'));
 };
 
-window._fpRemove = function(tableId) {
-  if (!confirm('Supprimer cette table du plan ?')) return;
+window._fpRemove = async function(tableId) {
+  if (!await adminConfirm('Supprimer cette table du plan ?', { confirmLabel: 'Supprimer', danger: true })) return;
   _fpTables = _fpTables.filter(t => t.id !== tableId);
   renderFPEditor(document.getElementById('page-content'));
 };
 
-window._fpRename = function(tableId) {
+window._fpRename = async function(tableId) {
   const table = _fpTables.find(t => t.id === tableId);
   if (!table) return;
-  const newLabel = prompt('Nouveau nom pour cette table :', table.label);
+  const newLabel = await adminPrompt('Nouveau nom pour cette table :', table.label);
   if (!newLabel || newLabel === table.label) return;
   table.label = newLabel.trim();
   renderFPEditor(document.getElementById('page-content'));
@@ -2579,7 +2579,7 @@ window.Admin = {
   },
   async resetFloorPlan() {
     if (!activeRestoForWrite()) { toast('⚠️ Choisissez un établissement'); return; }
-    if (!confirm('Réinitialiser le plan de CET établissement avec les 20 tables par défaut ?')) return;
+    if (!await adminConfirm('Réinitialiser le plan de CET établissement avec les 20 tables par défaut ?', { confirmLabel: 'Réinitialiser', danger: true })) return;
     _fpTables = _defaultFpTables();
     // Persister immédiatement (la réinitialisation est définitive pour cet établissement)
     try {
@@ -5266,6 +5266,72 @@ function toast(msg) {
   const el = document.getElementById('toast');
   el.textContent = msg; el.classList.add('show');
   setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+// ── Modales maison : remplacent prompt()/confirm() natifs ──────────
+// Même habillage que les autres modales de l'admin (carte blanche
+// centrée, coins arrondis, ombre) au lieu des boîtes de dialogue
+// grises du navigateur — utilisées par le plan de salle.
+function _adminDialogBase(bodyHtml, onMount) {
+  return new Promise(resolve => {
+    document.getElementById('admin-dialog')?.remove();
+    const overlay = document.createElement('div');
+    overlay.id = 'admin-dialog';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(43,29,22,.65);z-index:9500;'
+      + 'display:flex;align-items:center;justify-content:center;padding:20px';
+    overlay.innerHTML = '<div style="max-width:380px;width:100%;background:#fff;border-radius:16px;'
+      + 'overflow:hidden;box-shadow:0 20px 60px rgba(43,29,22,.3)">' + bodyHtml + '</div>';
+    document.body.appendChild(overlay);
+
+    function close(result) {
+      document.removeEventListener('keydown', onKey);
+      overlay.remove();
+      resolve(result);
+    }
+    function onKey(e) {
+      if (e.key === 'Escape') close(null);
+      if (e.key === 'Enter')  { e.preventDefault(); document.getElementById('admin-dialog-ok')?.click(); }
+    }
+    overlay.addEventListener('click', e => { if (e.target === overlay) close(null); });
+    document.addEventListener('keydown', onKey);
+
+    onMount(close);
+  });
+}
+// Remplace prompt(message, defaultValue) — résout la valeur saisie (trim),
+// ou null si annulé/vide.
+function adminPrompt(message, defaultValue) {
+  const body = '<div style="padding:22px 24px 18px">'
+    + '<div style="font-size:15px;font-weight:700;color:var(--brown);margin-bottom:12px">' + message + '</div>'
+    + '<input id="admin-dialog-input" class="form-input" style="width:100%" value="' + (defaultValue || '').replace(/"/g,'&quot;') + '">'
+    + '</div>'
+    + '<div style="display:flex;gap:8px;padding:14px 24px;background:#F9F5F0;border-top:1px solid var(--border)">'
+    + '<button id="admin-dialog-cancel" class="btn btn-secondary" style="flex:1">Annuler</button>'
+    + '<button id="admin-dialog-ok" class="btn btn-primary" style="flex:1">OK</button>'
+    + '</div>';
+  return _adminDialogBase(body, close => {
+    const input = document.getElementById('admin-dialog-input');
+    input.focus(); input.select();
+    document.getElementById('admin-dialog-cancel').onclick = () => close(null);
+    document.getElementById('admin-dialog-ok').onclick = () => close(input.value.trim() || null);
+  });
+}
+// Remplace confirm(message) — résout true/false. danger=true colore le
+// bouton de confirmation en rouge (suppression/réinitialisation).
+function adminConfirm(message, opts) {
+  opts = opts || {};
+  const body = '<div style="padding:22px 24px 18px">'
+    + '<div style="font-size:15px;font-weight:700;color:var(--brown);line-height:1.5">' + message + '</div>'
+    + '</div>'
+    + '<div style="display:flex;gap:8px;padding:14px 24px;background:#F9F5F0;border-top:1px solid var(--border)">'
+    + '<button id="admin-dialog-cancel" class="btn btn-secondary" style="flex:1">' + (opts.cancelLabel || 'Annuler') + '</button>'
+    + '<button id="admin-dialog-ok" class="btn" style="flex:1;' + (opts.danger ? 'background:#EF4444;color:#fff' : 'background:var(--orange);color:#fff') + '">'
+    + (opts.confirmLabel || 'Confirmer') + '</button>'
+    + '</div>';
+  return _adminDialogBase(body, close => {
+    document.getElementById('admin-dialog-cancel').onclick = () => close(false);
+    document.getElementById('admin-dialog-ok').onclick = () => close(true);
+  }).then(r => !!r);
 }
 
 // ── État "en cours" pour un bouton d'action de modale ──────
