@@ -221,6 +221,14 @@
       ]
     },
     {
+      "collectionGroup": "annonces",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "restoId",   "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "candidatures",
       "queryScope": "COLLECTION",
       "fields": [
