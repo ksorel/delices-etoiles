@@ -3,6 +3,7 @@
   "short_name": "DE Dashboard",
   "description": "Dashboard staff — gestion des commandes, réservations et plan de salle",
   "start_url": "/dashboard.html",
+  "scope": "/dashboard.html",
   "display": "standalone",
   "background_color": "#2B1D16",
   "theme_color": "#2B1D16",

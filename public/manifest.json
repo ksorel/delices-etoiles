@@ -3,6 +3,7 @@
   "short_name": "Délices Étoiles",
   "description": "Restaurant Délices Étoiles — Commandez en ligne",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#2B1D16",
   "theme_color": "#2B1D16",
