@@ -138,6 +138,19 @@ export async function fetchLieu(restoId) {
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
+// ─── Infos & Actualités (annonces recrutement/actu) ──────
+// Filtrage par établissement fait côté appelant (restoId null = réseau) :
+// le volume attendu est faible, pas besoin d'un index composite dédié.
+export async function fetchAnnonces() {
+  const q = query(
+    collection(db, 'annonces'),
+    where('actif', '==', true),
+    orderBy('createdAt', 'desc')
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
 // TOUS les lieux (actifs ou non) — pour l'admin.
 export async function fetchAllLieux() {
   const snap = await getDocs(query(collection(db, 'restos'), orderBy('ordre')));

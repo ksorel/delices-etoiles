@@ -10,7 +10,7 @@ import { fetchMenu, fetchZones, fetchUpsellRules, getOrCreateTable, fetchPlatDuJ
          getRestoId, setRestoId, fetchLieux, fetchLieu, fetchAccueilCarousel,
          submitReservation, createOrder, listenReservation, findReservation, findOrder,
          fetchAvisForItem, hasVerifiedPurchase, getExistingAvis, submitAvis, setAvisRating,
-         updateOrderStatus } from './db.js';
+         updateOrderStatus, fetchAnnonces } from './db.js';
 import { getDoc, doc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { requestNotificationPermission, listenForegroundMessages } from './fcm.js';
 // Lien partagé vers un article précis (?item=<id>) : ouvert automatiquement
@@ -539,6 +539,7 @@ function renderView(view, data = {}) {
     case 'tracking': renderTracking(main, data.orderId); break;
     case 'traiteur': renderTraiteur(main); break;
     case 'devis-client': renderDevisClient(main); break;
+    case 'infos':    renderInfos(main); break;
     default:         renderMenu(main);
   }
   window.scrollTo(0, 0);
@@ -2927,6 +2928,15 @@ function renderServiceChoice() {
         <span style="width:30px;height:30px;border-radius:50%;background:#F265221a;display:flex;align-items:center;justify-content:center;color:#D6480F;flex-shrink:0"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></span>
         <span style="font-size:13px;font-weight:700;color:#D6480F;white-space:nowrap">${t('ord_lookup_link')}</span>
       </button>
+      <button type="button" onclick="window.App.navigate('infos')"
+        style="display:flex;align-items:center;justify-content:center;gap:10px;flex:1 1 auto;min-width:max-content;
+               background:#fff;border:1.5px dashed #B8D4E8;border-radius:16px;padding:13px 16px;
+               cursor:pointer;transition:border-color .15s,background-color .15s"
+        onmouseover="this.style.borderColor='#0EA5E9';this.style.backgroundColor='#F0F9FF'"
+        onmouseout="this.style.borderColor='#B8D4E8';this.style.backgroundColor='#fff'">
+        <span style="width:30px;height:30px;border-radius:50%;background:#0EA5E91a;display:flex;align-items:center;justify-content:center;color:#0369A1;flex-shrink:0"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></span>
+        <span style="font-size:13px;font-weight:700;color:#0369A1;white-space:nowrap">${t('infos_link')}</span>
+      </button>
       </div>
     </div>
     ${buildContactBlock()}`;
@@ -2938,6 +2948,62 @@ window.App.chooseService = function(s) {
   else if (s === 'reserver') { renderReservation(); }
 };
 window.App.backToService = function() { _serviceChosen = false; _rvScreen = null; renderServiceChoice(); };
+
+// ─── Infos & Actualités (recrutement, annonces) ──────────
+async function renderInfos(main) {
+  updateHeader();
+  main.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+  let items = [];
+  try {
+    const all = await fetchAnnonces();
+    const restoId = State.resto?.id || null;
+    items = all.filter(a => !a.restoId || a.restoId === restoId);
+  } catch (e) {
+    console.warn('fetchAnnonces:', e.code || e.message);
+  }
+  const backBtn = `<button type="button" onclick="window.App.backToService()" style="background:none;border:none;color:#7a6a55;font-size:14px;font-weight:600;cursor:pointer;padding:0 0 14px">← ${t('back')}</button>`;
+  if (!items.length) {
+    main.innerHTML = `
+      <div style="max-width:560px;margin:0 auto;padding:22px 16px 40px">
+        ${backBtn}
+        <div class="cart-empty">
+          <div class="cart-empty-icon">📢</div>
+          <h3>${t('infos_empty')}</h3>
+        </div>
+      </div>`;
+    return;
+  }
+  const TYPE_CFG = {
+    recrutement: { icon: '💼', label: t('infos_type_recrutement'), color: '#0EA5E9' },
+    actu:        { icon: '📢', label: t('infos_type_actu'),        color: '#F26522' },
+  };
+  const locale = getLang() === 'en' ? 'en-US' : 'fr-FR';
+  const cardsHtml = items.map(a => {
+    const cfg  = TYPE_CFG[a.type] || TYPE_CFG.actu;
+    const date = a.createdAt?.toDate?.()
+      ? a.createdAt.toDate().toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' })
+      : '';
+    return `
+      <div style="background:#fff;border:1.5px solid #F0E4D8;border-radius:16px;overflow:hidden;margin-bottom:14px">
+        ${a.imageUrl ? `<img src="${a.imageUrl}" alt="" style="width:100%;height:160px;object-fit:cover;display:block">` : ''}
+        <div style="padding:16px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+            <span style="font-size:11px;font-weight:700;color:${cfg.color};background:${cfg.color}1a;padding:3px 10px;border-radius:10px;white-space:nowrap">${cfg.icon} ${cfg.label}</span>
+            ${date ? `<span style="font-size:11px;color:#9a8576">${date}</span>` : ''}
+          </div>
+          <h3 style="font-size:16px;font-weight:800;color:#2B1D16;margin:0 0 4px">${escapeHtml(a.titre || '')}</h3>
+          ${a.type === 'recrutement' && a.poste ? `<div style="font-size:13px;font-weight:700;color:${cfg.color};margin-bottom:6px">${escapeHtml(a.poste)}</div>` : ''}
+          <p style="font-size:14px;color:#5a4c40;line-height:1.6;margin:0;white-space:pre-line">${escapeHtml(a.texte || '')}</p>
+        </div>
+      </div>`;
+  }).join('');
+  main.innerHTML = `
+    <div style="max-width:560px;margin:0 auto;padding:22px 16px 40px">
+      ${backBtn}
+      <h2 style="font-size:20px;font-weight:800;color:var(--brown);margin-bottom:16px">${t('infos_title')}</h2>
+      ${cardsHtml}
+    </div>`;
+}
 
 // ─── Réservation de table ────────────────────────────────
 let _rvDraft = null; // conserve les champs saisis pendant une excursion vers le menu

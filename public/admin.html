@@ -488,6 +488,7 @@ function closeSidebar() {
     <div class="nav-item" onclick="showPage('qrcodes',this)"><span class="nav-icon">📱</span>QR Codes</div>
     <div class="nav-item" onclick="showPage('platdujour',this)"><span class="nav-icon">⭐</span>Plat du jour</div>
     <div class="nav-item" onclick="showPage('avis',this)"><span class="nav-icon">🌟</span>Avis clients</div>
+    <div class="nav-item" onclick="showPage('annonces',this)"><span class="nav-icon">📢</span>Infos & Actualités</div>
     <div class="nav-item" onclick="showPage('stocks',this)"><span class="nav-icon">📦</span>Stocks</div>
     <div class="nav-item" onclick="showPage('config',this)"><span class="nav-icon">⚙️</span>Configuration</div>
     <div class="nav-item" onclick="showPage('stats',this)"><span class="nav-icon">📈</span>Statistiques</div>
@@ -838,6 +839,7 @@ window.showPage = (page, el) => {
   const titles = {
     dashboard:'Tableau de bord', etablissements:'Établissements', carrousel:'Carrousel d\'accueil', menu:'Gestion des articles',
     zones:'Zones de livraison', upselling:'Règles d\'upselling', platdujour:'Plat du jour', avis:'Avis clients', cache:'Gestion du cache',
+    annonces:'Infos & Actualités',
     qrcodes:'QR Codes tables', floorplan:'Plan de salle', commandes:'Historique commandes',
     users:'Utilisateurs', stats:'Statistiques', stocks:'Stocks', paiements:'Paiements', config:'Configuration',
     'devis-demandes':'Traiteur : Demandes de devis',
@@ -871,6 +873,7 @@ async function renderPage(page) {
     case 'qrcodes':    renderQRCodes(c); break;
     case 'platdujour': renderPlatDuJour(c, a); break;
     case 'avis':       renderAvis(c); break;
+    case 'annonces':   renderAnnonces(c, a); break;
     case 'paiements':  renderPaiements(c); break;
     case 'stocks':     renderStocks(c); break;
     case 'stats':      renderStats(c); break;
@@ -2025,6 +2028,201 @@ function renderAvis(c) {
   );
   _unsubs.push(unsubAvis);
 }
+
+// ── Infos & Actualités (recrutement, annonces) ────────────
+const ANNONCE_TYPE_CFG = {
+  recrutement: { label: 'Recrutement', icon: '💼', color: '#0369A1', bg: '#E0F2FE' },
+  actu:        { label: 'Actualité',   icon: '📢', color: '#C2410C', bg: '#FFF0E8' },
+};
+function renderAnnonces(c, a) {
+  a.innerHTML = `<button class="btn btn-primary btn-sm" onclick="window.Admin.addAnnonce()">+ Ajouter une annonce</button>`;
+  const conds = activeResto !== 'ALL' ? [where('restoId', '==', activeResto)] : [];
+  const q = query(collection(db, 'annonces'), ...conds, orderBy('createdAt', 'desc'));
+  const unsubAnnonces = onSnapshot(q,
+    snap => {
+      window.Admin._annonces = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const list = window.Admin._annonces;
+      const rows = list.map(item => {
+        const cfg = ANNONCE_TYPE_CFG[item.type] || ANNONCE_TYPE_CFG.actu;
+        const actif = item.actif !== false;
+        const lieu = activeResto === 'ALL'
+          ? (item.restoId ? lieuChip(item.restoId) : '<span style="font-size:11px;color:var(--muted)">🏢 Réseau</span>')
+          : '';
+        return '<tr style="border-bottom:1px solid var(--border)">'
+          + '<td style="padding:10px 12px">'
+          +   '<span style="font-size:11px;font-weight:700;color:' + cfg.color + ';background:' + cfg.bg + ';padding:2px 9px;border-radius:10px;white-space:nowrap">' + cfg.icon + ' ' + cfg.label + '</span>'
+          + '</td>'
+          + '<td style="padding:10px 12px">'
+          +   '<div style="font-weight:700;color:var(--brown)">' + escapeAdminHtml(item.titre || '') + '</div>'
+          +   (item.poste ? '<div style="font-size:12px;color:var(--muted)">' + escapeAdminHtml(item.poste) + '</div>' : '')
+          +   (lieu ? '<div style="margin-top:3px">' + lieu + '</div>' : '')
+          + '</td>'
+          + '<td style="padding:10px 12px">'
+          +   '<label class="toggle"><input type="checkbox" ' + (actif ? 'checked' : '') + ' onchange="window.Admin.toggleAnnonceActif(\x27' + item.id + '\x27,' + actif + ')"><span class="slider"></span></label>'
+          + '</td>'
+          + '<td style="padding:10px 12px;text-align:right;white-space:nowrap">'
+          +   '<button class="btn btn-sm btn-secondary" style="margin-right:4px" onclick="window.Admin.editAnnonce(\x27' + item.id + '\x27)">✏️ Modifier</button>'
+          +   '<button class="btn btn-sm btn-danger" onclick="window.Admin.deleteAnnonce(\x27' + item.id + '\x27)">🗑️</button>'
+          + '</td>'
+          + '</tr>';
+      }).join('');
+      c.innerHTML = '<div class="card">'
+        + '<div class="card-title">📢 Infos & Actualités (' + list.length + ')</div>'
+        + '<p style="font-size:12px;color:var(--muted);margin-bottom:16px;line-height:1.5">Annonces affichées sur le portail client (page « Infos & Actualités »). Une annonce sans établissement est visible sur tout le réseau.</p>'
+        + (list.length ? '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">'
+          + '<thead><tr style="border-bottom:2px solid var(--border);text-align:left;font-size:12px;color:#7A6356">'
+          + '<th style="padding:10px 12px">Type</th><th style="padding:10px 12px">Annonce</th>'
+          + '<th style="padding:10px 12px">Active</th><th style="padding:10px 12px"></th>'
+          + '</tr></thead><tbody>' + rows + '</tbody></table></div>'
+          : '<p style="color:#7A6356;padding:20px 0;text-align:center">Aucune annonce pour le moment.</p>')
+        + '</div>';
+    },
+    err => { if (err.code !== 'permission-denied') console.error(err); }
+  );
+  _unsubs.push(unsubAnnonces);
+}
+
+function _openAnnonceModal(item) {
+  const isNew = !item;
+  const cur = item || { type: 'actu', actif: true };
+  const LBL = 'font-size:12px;font-weight:700;color:#7A6356;text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:6px';
+  const INP = 'width:100%;padding:10px 14px;border:2px solid #E0D4C8;border-radius:10px;font-size:14px;outline:none;transition:border .15s';
+  const FOCUS = `onfocus="this.style.borderColor='#F26522'" onblur="this.style.borderColor='#E0D4C8'"`;
+
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.id = 'annonce-modal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(43,29,22,.65);z-index:9000;display:flex;align-items:center;justify-content:center;padding:20px';
+  modal.innerHTML = `
+    <div style="max-width:460px;width:100%;background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 20px 60px rgba(43,29,22,.3);max-height:92vh;display:flex;flex-direction:column">
+      <div style="background:linear-gradient(135deg,#2B1D16,#4A3020);padding:24px 28px;position:relative;flex-shrink:0">
+        <div style="font-size:28px;margin-bottom:6px">📢</div>
+        <div style="font-size:18px;font-weight:800;color:#fff">${isNew ? 'Ajouter une annonce' : "Modifier l'annonce"}</div>
+        <button onclick="document.getElementById('annonce-modal').remove()"
+          style="position:absolute;top:16px;right:16px;background:rgba(255,255,255,.15);border:none;
+                 border-radius:50%;width:32px;height:32px;color:#fff;font-size:18px;cursor:pointer;
+                 display:flex;align-items:center;justify-content:center">×</button>
+      </div>
+      <div style="padding:24px 28px;display:flex;flex-direction:column;gap:16px;overflow-y:auto">
+        <div>
+          <label style="${LBL}">Type</label>
+          <select class="form-input" id="an-type" style="${INP};cursor:pointer" ${FOCUS} onchange="window.Admin._toggleAnnonceType()">
+            <option value="actu"${cur.type !== 'recrutement' ? ' selected' : ''}>📢 Actualité</option>
+            <option value="recrutement"${cur.type === 'recrutement' ? ' selected' : ''}>💼 Recrutement</option>
+          </select>
+        </div>
+        <div id="an-poste-row" style="display:${cur.type === 'recrutement' ? 'block' : 'none'}">
+          <label style="${LBL}">Poste recherché</label>
+          <input class="form-input" id="an-poste" value="${(cur.poste || '').replace(/"/g,'&quot;')}" placeholder="ex: Serveur(se), Cuisinier…" style="${INP}" ${FOCUS}>
+        </div>
+        <div>
+          <label style="${LBL}">Titre <span style="color:#F26522">*</span></label>
+          <input class="form-input" id="an-titre" value="${(cur.titre || '').replace(/"/g,'&quot;')}" placeholder="Titre de l'annonce" style="${INP}" ${FOCUS}>
+        </div>
+        <div>
+          <label style="${LBL}">Texte <span style="color:#F26522">*</span></label>
+          <textarea class="form-input" id="an-texte" rows="5" placeholder="Détails de l'annonce…" style="${INP};resize:vertical" ${FOCUS}>${escapeAdminHtml(cur.texte || '')}</textarea>
+        </div>
+        <div>
+          <label style="${LBL}">Image (optionnelle)</label>
+          <div style="display:flex;align-items:center;gap:12px">
+            <div id="an-img-preview" style="width:72px;height:56px;border-radius:8px;flex-shrink:0;border:2px solid #E0D4C8;background:#F5F0EB;background-size:cover;background-position:center;${cur.imageUrl ? `background-image:url('${cur.imageUrl}')` : ''}"></div>
+            <input type="file" id="an-img-file" accept="image/*" style="font-size:13px;flex:1;min-width:0">
+            <input type="hidden" id="an-img-url" value="${(cur.imageUrl || '').replace(/"/g,'&quot;')}">
+          </div>
+        </div>
+        <div>
+          <label style="${LBL}">Statut</label>
+          <select class="form-input" id="an-actif" style="${INP};cursor:pointer" ${FOCUS}>
+            <option value="true"${cur.actif !== false ? ' selected' : ''}>Active</option>
+            <option value="false"${cur.actif === false ? ' selected' : ''}>Inactive (masquée)</option>
+          </select>
+        </div>
+        <div id="an-err" style="background:#FEE2E2;color:#991B1B;padding:10px 14px;border-radius:8px;font-size:13px;display:none;border-left:3px solid #EF4444"></div>
+      </div>
+      <div style="padding:16px 28px 24px;display:flex;gap:10px;justify-content:flex-end;flex-shrink:0">
+        <button onclick="document.getElementById('annonce-modal').remove()"
+          style="padding:10px 20px;border:2px solid #E0D4C8;border-radius:10px;background:#fff;
+                 color:#7A6356;font-size:14px;font-weight:600;cursor:pointer">Annuler</button>
+        <button id="an-save-btn" onclick="window.Admin.saveAnnonce(${isNew ? 'true' : 'false'}, ${isNew ? 'null' : `'${cur.id}'`})"
+          style="padding:10px 24px;background:#F26522;border:none;border-radius:10px;
+                 color:#fff;font-size:14px;font-weight:700;cursor:pointer">
+          ✓ ${isNew ? 'Créer' : 'Enregistrer'}
+        </button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+}
+window.Admin._toggleAnnonceType = function() {
+  const row = document.getElementById('an-poste-row');
+  const type = document.getElementById('an-type')?.value;
+  if (row) row.style.display = type === 'recrutement' ? 'block' : 'none';
+};
+window.Admin.addAnnonce  = function() {
+  if (!activeRestoForWrite() && activeResto !== 'ALL') { toast('⚠️ Choisissez un établissement'); return; }
+  _openAnnonceModal(null);
+};
+window.Admin.editAnnonce = function(id) { _openAnnonceModal((window.Admin._annonces || []).find(x => x.id === id)); };
+
+window.Admin.saveAnnonce = async function(isNew, id) {
+  const titre = document.getElementById('an-titre').value.trim();
+  const texte = document.getElementById('an-texte').value.trim();
+  const poste = (document.getElementById('an-poste')?.value || '').trim();
+  const type  = document.getElementById('an-type').value;
+  const actif = document.getElementById('an-actif').value === 'true';
+  const err   = document.getElementById('an-err');
+  const btn   = document.getElementById('an-save-btn');
+  const fail  = (m) => { if (err) { err.textContent = m; err.style.display = 'block'; } else { toast(m); } };
+
+  if (!titre) { fail('Le titre est obligatoire'); return; }
+  if (!texte) { fail('Le texte est obligatoire'); return; }
+  if (err) err.style.display = 'none';
+  setBtnBusy(btn, isNew ? 'Création…' : 'Enregistrement…');
+  try {
+    let imageUrl = document.getElementById('an-img-url')?.value || '';
+    const imgFile = document.getElementById('an-img-file')?.files?.[0];
+    if (imgFile) {
+      const blob = await _processCarrouselImage(imgFile);
+      const path = 'annonces/img-' + Date.now() + '.jpg';
+      const fileRef = ref(storage, path);
+      await uploadBytes(fileRef, blob, { contentType: 'image/jpeg' });
+      imageUrl = await getDownloadURL(fileRef);
+    }
+    const data = {
+      type, titre, texte,
+      poste: type === 'recrutement' ? poste : '',
+      imageUrl, actif,
+      restoId: activeRestoForWrite(),
+      updatedAt: serverTimestamp(),
+    };
+    if (isNew) {
+      data.createdAt = serverTimestamp();
+      await addDoc(collection(db, 'annonces'), data);
+    } else {
+      await updateDoc(doc(db, 'annonces', id), data);
+    }
+    document.getElementById('annonce-modal')?.remove();
+    toast('Annonce enregistrée ✓');
+  } catch(e) {
+    clearBtnBusy(btn);
+    fail('Erreur : ' + e.message);
+  }
+};
+
+window.Admin.toggleAnnonceActif = async function(id, currentActif) {
+  try {
+    await updateDoc(doc(db, 'annonces', id), { actif: !currentActif, updatedAt: serverTimestamp() });
+    toast(!currentActif ? 'Annonce activée ✓' : 'Annonce désactivée');
+  } catch(e) { toast('Erreur : ' + e.message); }
+};
+
+window.Admin.deleteAnnonce = async function(id) {
+  if (!await adminConfirm('Supprimer définitivement cette annonce ?', { confirmLabel: 'Supprimer', danger: true })) return;
+  try {
+    await deleteDoc(doc(db, 'annonces', id));
+    toast('Annonce supprimée');
+  } catch(e) { toast('Erreur : ' + e.message); }
+};
 
 // ── Admin actions (exposés globalement) ───────────────────
 // ════════════════════════════════════════════════════════════

@@ -115,6 +115,14 @@ service cloud.firestore {
       allow update, delete: if isAdmin() || (isManager() && resource.data.restoId == request.auth.token.restoId);
     }
 
+    // ─── Annonces (Infos & Actualités — recrutement, actus) : lecture publique,
+    // écriture admin (y compris restoId=null = annonce réseau) + gérant scopé.
+    match /annonces/{id} {
+      allow read: if true;
+      allow create: if isAdmin() || (isManager() && request.resource.data.restoId == request.auth.token.restoId);
+      allow update, delete: if isAdmin() || (isManager() && resource.data.restoId == request.auth.token.restoId);
+    }
+
     // ─── Plan de salle (écriture admin + gérant scopé à son établissement) ──
     match /floor-plan/{docId} {
       allow read: if isAuth();
