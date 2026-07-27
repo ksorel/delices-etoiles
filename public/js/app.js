@@ -10,7 +10,7 @@ import { fetchMenu, fetchZones, fetchUpsellRules, getOrCreateTable, fetchPlatDuJ
          getRestoId, setRestoId, fetchLieux, fetchLieu, fetchAccueilCarousel,
          submitReservation, createOrder, listenReservation, findReservation, findOrder,
          fetchAvisForItem, hasVerifiedPurchase, getExistingAvis, submitAvis, setAvisRating,
-         updateOrderStatus, fetchAnnonces } from './db.js';
+         updateOrderStatus, fetchAnnonces, submitCandidature } from './db.js';
 import { getDoc, doc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { requestNotificationPermission, listenForegroundMessages } from './fcm.js';
 // Lien partagé vers un article précis (?item=<id>) : ouvert automatiquement
@@ -2950,6 +2950,7 @@ window.App.chooseService = function(s) {
 window.App.backToService = function() { _serviceChosen = false; _rvScreen = null; renderServiceChoice(); };
 
 // ─── Infos & Actualités (recrutement, annonces) ──────────
+let _infosItems = []; // annonces affichées, pour retrouver poste/restoId au clic "Postuler"
 async function renderInfos(main) {
   updateHeader();
   main.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
@@ -2961,6 +2962,7 @@ async function renderInfos(main) {
   } catch (e) {
     console.warn('fetchAnnonces:', e.code || e.message);
   }
+  _infosItems = items;
   const backBtn = `<button type="button" onclick="window.App.backToService()" style="background:none;border:none;color:#7a6a55;font-size:14px;font-weight:600;cursor:pointer;padding:0 0 14px">← ${t('back')}</button>`;
   if (!items.length) {
     main.innerHTML = `
@@ -2994,6 +2996,11 @@ async function renderInfos(main) {
           <h3 style="font-size:16px;font-weight:800;color:#2B1D16;margin:0 0 4px">${escapeHtml(a.titre || '')}</h3>
           ${a.type === 'recrutement' && a.poste ? `<div style="font-size:13px;font-weight:700;color:${cfg.color};margin-bottom:6px">${escapeHtml(a.poste)}</div>` : ''}
           <p style="font-size:14px;color:#5a4c40;line-height:1.6;margin:0;white-space:pre-line">${escapeHtml(a.texte || '')}</p>
+          ${a.type === 'recrutement' ? `
+          <button type="button" onclick="window.App.openCandidatureForm('${a.id}')"
+            style="margin-top:12px;width:100%;padding:11px;background:${cfg.color};color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer">
+            ${t('infos_postuler')}
+          </button>` : ''}
         </div>
       </div>`;
   }).join('');
@@ -3004,6 +3011,82 @@ async function renderInfos(main) {
       ${cardsHtml}
     </div>`;
 }
+
+// ─── Formulaire de candidature (bouton "Postuler" d'une annonce) ──
+window.App.openCandidatureForm = function(annonceId) {
+  const annonce = _infosItems.find(a => a.id === annonceId);
+  if (!annonce) return;
+  document.getElementById('candidature-modal')?.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'candidature-modal';
+  overlay.className = 'modal-overlay center';
+  overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+  const L = 'display:block;font-size:12px;font-weight:700;color:#7a6a55;margin-bottom:6px';
+  const I = 'width:100%;padding:12px 14px;border:1.5px solid #E0D4C8;border-radius:10px;font-size:14px;box-sizing:border-box;font-family:inherit';
+  overlay.innerHTML = ''
+    + '<div class="modal centered">'
+    +   '<div style="padding:20px">'
+    +     '<div style="font-size:17px;font-weight:800;color:#2B1D16;margin-bottom:4px">💼 ' + t('infos_postuler') + '</div>'
+    +     '<p style="font-size:13px;color:#7a6a55;margin:0 0 16px">' + escapeHtml(annonce.poste || annonce.titre || '') + '</p>'
+    +     '<div style="display:flex;flex-direction:column;gap:14px">'
+    +       '<div><label style="' + L + '">' + t('cand_nom') + ' *</label>'
+    +         '<input id="cand-nom" type="text" style="' + I + '" maxlength="80"></div>'
+    +       '<div><label style="' + L + '">' + t('telephone') + ' *</label>'
+    +         '<input id="cand-tel" type="tel" style="' + I + '" placeholder="' + PHONE_PLACEHOLDER + '" ' + PHONE_INPUT_ATTRS + '></div>'
+    +       '<div><label style="' + L + '">' + t('cand_message') + '</label>'
+    +         '<textarea id="cand-message" rows="3" maxlength="500" style="' + I + ';resize:vertical" placeholder="' + t('cand_message_ph') + '"></textarea></div>'
+    +       '<div id="cand-err" style="display:none;background:#FEE2E2;color:#991B1B;padding:10px 14px;border-radius:10px;font-size:13px"></div>'
+    +       '<button id="cand-submit" onclick="window.App.submitCandidatureForm(\x27' + annonceId + '\x27)" '
+    +         'style="width:100%;padding:14px;background:var(--orange);color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer">'
+    +         t('cand_submit') + '</button>'
+    +       '<button type="button" onclick="document.getElementById(\x27candidature-modal\x27).remove()" '
+    +         'style="width:100%;padding:10px;background:none;border:none;color:#7a6a55;font-size:13px;cursor:pointer">'
+    +         t('rv_lookup_cancel') + '</button>'
+    +     '</div>'
+    +   '</div>'
+    + '</div>';
+  document.body.appendChild(overlay);
+};
+window.App.submitCandidatureForm = async function(annonceId) {
+  const annonce = _infosItems.find(a => a.id === annonceId);
+  if (!annonce) return;
+  const nom = (document.getElementById('cand-nom')?.value || '').trim();
+  const tel = (document.getElementById('cand-tel')?.value || '').trim();
+  const message = (document.getElementById('cand-message')?.value || '').trim();
+  const errEl = document.getElementById('cand-err');
+  const showErr = (msg) => { if (errEl) { errEl.textContent = msg; errEl.style.display = 'block'; } };
+  if (!nom) { showErr(t('cand_missing_nom')); return; }
+  if (!tel) { showErr(t('cand_missing_tel')); return; }
+  if (!isValidPhoneCI(tel)) { showErr(getLang() === 'en' ? ('Invalid phone number, expected format: ' + PHONE_PLACEHOLDER) : ('Numéro de téléphone invalide, format attendu : ' + PHONE_PLACEHOLDER)); return; }
+  if (errEl) errEl.style.display = 'none';
+  const btn = document.getElementById('cand-submit');
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  try {
+    if (!State.uid) State.uid = await authWithRetry();
+    await submitCandidature({
+      annonceId,
+      posteTitre: annonce.poste || annonce.titre || '',
+      restoId:    annonce.restoId || null,
+      nom, telephone: normalizePhone(tel), message,
+      clientUid:  State.uid || null,
+    });
+    const modal = document.getElementById('candidature-modal');
+    if (modal) {
+      modal.querySelector('.modal').innerHTML = '<div style="padding:32px 20px;text-align:center">'
+        + '<div style="font-size:40px;margin-bottom:10px">✅</div>'
+        + '<div style="font-size:16px;font-weight:800;color:#2B1D16;margin-bottom:6px">' + t('cand_success_title') + '</div>'
+        + '<p style="font-size:13px;color:#7a6a55;margin:0 0 18px">' + t('cand_success_sub') + '</p>'
+        + '<button type="button" onclick="document.getElementById(\x27candidature-modal\x27).remove()" '
+        +   'style="width:100%;padding:12px;background:var(--orange);color:#fff;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer">'
+        +   t('cand_close') + '</button>'
+        + '</div>';
+    }
+  } catch (e) {
+    console.error('[submitCandidatureForm]', e);
+    showErr(t('cand_error'));
+    if (btn) { btn.disabled = false; btn.textContent = t('cand_submit'); }
+  }
+};
 
 // ─── Réservation de table ────────────────────────────────
 let _rvDraft = null; // conserve les champs saisis pendant une excursion vers le menu

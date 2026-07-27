@@ -151,6 +151,18 @@ export async function fetchAnnonces() {
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
+// Candidature envoyée depuis une annonce de type "recrutement".
+// restoId vient de l'annonce elle-même (null = poste réseau), pas de
+// l'établissement courant du visiteur.
+export async function submitCandidature(data) {
+  const ref = await addDoc(collection(db, 'candidatures'), {
+    ...data,
+    statut:    'nouveau',
+    createdAt: serverTimestamp(),
+  });
+  return ref.id;
+}
+
 // TOUS les lieux (actifs ou non) — pour l'admin.
 export async function fetchAllLieux() {
   const snap = await getDocs(query(collection(db, 'restos'), orderBy('ordre')));

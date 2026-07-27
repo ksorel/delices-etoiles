@@ -123,6 +123,17 @@ service cloud.firestore {
       allow update, delete: if isAdmin() || (isManager() && resource.data.restoId == request.auth.token.restoId);
     }
 
+    // ─── Candidatures (formulaire "Postuler" sur une annonce recrutement) ──
+    // Création : tout visiteur authentifié (anonyme). Lecture/traitement :
+    // staff — gérant scopé à son établissement, propriétaire pour tout
+    // (y compris les postes réseau, restoId=null, réservés à l'admin en écriture).
+    match /candidatures/{id} {
+      allow create: if isAuth();
+      allow read:   if isAdmin() || (isManager() && resource.data.restoId == request.auth.token.restoId);
+      allow update: if isAdmin() || (isManager() && resource.data.restoId == request.auth.token.restoId);
+      allow delete: if isAdmin();
+    }
+
     // ─── Plan de salle (écriture admin + gérant scopé à son établissement) ──
     match /floor-plan/{docId} {
       allow read: if isAuth();

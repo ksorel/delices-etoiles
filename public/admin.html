@@ -489,6 +489,7 @@ function closeSidebar() {
     <div class="nav-item" onclick="showPage('platdujour',this)"><span class="nav-icon">⭐</span>Plat du jour</div>
     <div class="nav-item" onclick="showPage('avis',this)"><span class="nav-icon">🌟</span>Avis clients</div>
     <div class="nav-item" onclick="showPage('annonces',this)"><span class="nav-icon">📢</span>Infos & Actualités</div>
+    <div class="nav-item" onclick="showPage('candidatures',this)"><span class="nav-icon">📨</span>Candidatures</div>
     <div class="nav-item" onclick="showPage('stocks',this)"><span class="nav-icon">📦</span>Stocks</div>
     <div class="nav-item" onclick="showPage('config',this)"><span class="nav-icon">⚙️</span>Configuration</div>
     <div class="nav-item" onclick="showPage('stats',this)"><span class="nav-icon">📈</span>Statistiques</div>
@@ -839,7 +840,7 @@ window.showPage = (page, el) => {
   const titles = {
     dashboard:'Tableau de bord', etablissements:'Établissements', carrousel:'Carrousel d\'accueil', menu:'Gestion des articles',
     zones:'Zones de livraison', upselling:'Règles d\'upselling', platdujour:'Plat du jour', avis:'Avis clients', cache:'Gestion du cache',
-    annonces:'Infos & Actualités',
+    annonces:'Infos & Actualités', candidatures:'Candidatures',
     qrcodes:'QR Codes tables', floorplan:'Plan de salle', commandes:'Historique commandes',
     users:'Utilisateurs', stats:'Statistiques', stocks:'Stocks', paiements:'Paiements', config:'Configuration',
     'devis-demandes':'Traiteur : Demandes de devis',
@@ -874,6 +875,7 @@ async function renderPage(page) {
     case 'platdujour': renderPlatDuJour(c, a); break;
     case 'avis':       renderAvis(c); break;
     case 'annonces':   renderAnnonces(c, a); break;
+    case 'candidatures': renderCandidatures(c); break;
     case 'paiements':  renderPaiements(c); break;
     case 'stocks':     renderStocks(c); break;
     case 'stats':      renderStats(c); break;
@@ -2221,6 +2223,77 @@ window.Admin.deleteAnnonce = async function(id) {
   try {
     await deleteDoc(doc(db, 'annonces', id));
     toast('Annonce supprimée');
+  } catch(e) { toast('Erreur : ' + e.message); }
+};
+
+// ── Candidatures (formulaire "Postuler" du portail client) ────
+const CAND_STATUT_CONFIG = {
+  nouveau:   { label: 'Nouveau',   color: '#854F0B', bg: '#FEF3C7' },
+  vu:        { label: 'Vu',        color: '#1D4ED8', bg: '#EFF6FF' },
+  contacte:  { label: 'Contacté',  color: '#065F46', bg: '#ECFDF5' },
+  rejete:    { label: 'Rejeté',    color: '#991B1B', bg: '#FEF2F2' },
+};
+function renderCandidatures(c) {
+  const q = query(collection(db, 'candidatures'), ...ridConstraints(), orderBy('createdAt', 'desc'));
+  const unsubCand = onSnapshot(q,
+    snap => {
+      const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const rows = list.map(cand => {
+        const st = CAND_STATUT_CONFIG[cand.statut] || CAND_STATUT_CONFIG.nouveau;
+        const date = cand.createdAt?.toDate ? cand.createdAt.toDate().toLocaleDateString('fr-FR', { day:'numeric', month:'short', year:'numeric' }) : '—';
+        const telDigits = (cand.telephone || '').replace(/[^0-9]/g, '');
+        const lieu = activeResto === 'ALL'
+          ? (cand.restoId ? lieuChip(cand.restoId) : '<span style="font-size:11px;color:var(--muted)">🏢 Réseau</span>')
+          : '';
+        const statutOptions = Object.keys(CAND_STATUT_CONFIG).map(k =>
+          '<option value="' + k + '"' + (cand.statut === k ? ' selected' : '') + '>' + CAND_STATUT_CONFIG[k].label + '</option>'
+        ).join('');
+        return '<tr style="border-bottom:1px solid var(--border)">'
+          + '<td style="padding:10px 12px;font-size:12px;color:var(--muted);white-space:nowrap">' + date + '</td>'
+          + '<td style="padding:10px 12px">'
+          +   '<div style="font-weight:700;color:var(--brown)">' + escapeAdminHtml(cand.nom || '—') + '</div>'
+          +   '<div style="font-size:12px;color:var(--muted)">' + escapeAdminHtml(cand.posteTitre || '') + '</div>'
+          +   (lieu ? '<div style="margin-top:3px">' + lieu + '</div>' : '')
+          + '</td>'
+          + '<td style="padding:10px 12px;max-width:280px;font-size:13px;color:var(--muted)">' + (cand.message ? escapeAdminHtml(cand.message) : '<span style="color:#CCC">—</span>') + '</td>'
+          + '<td style="padding:10px 12px;white-space:nowrap">'
+          +   '<a href="tel:' + telDigits + '" style="color:#F26522;font-weight:700;text-decoration:none;font-size:13px">📞 ' + escapeAdminHtml(cand.telephone || '') + '</a><br>'
+          +   '<a href="https://wa.me/225' + telDigits.replace(/^0/, '') + '" target="_blank" rel="noopener" style="color:#25D366;font-weight:700;text-decoration:none;font-size:12px">💬 WhatsApp</a>'
+          + '</td>'
+          + '<td style="padding:10px 12px">'
+          +   '<select class="form-select" style="padding:5px 8px;font-size:12px;border-radius:8px;font-weight:700;color:' + st.color + ';background:' + st.bg + ';border:none" onchange="window.Admin.setCandidatureStatut(\x27' + cand.id + '\x27,this.value)">'
+          +     statutOptions
+          +   '</select>'
+          + '</td>'
+          + '<td style="padding:10px 12px;text-align:right"><button class="btn btn-sm btn-danger" onclick="window.Admin.deleteCandidature(\x27' + cand.id + '\x27)">🗑️</button></td>'
+          + '</tr>';
+      }).join('');
+      c.innerHTML = '<div class="card">'
+        + '<div class="card-title">📨 Candidatures (' + list.length + ')</div>'
+        + (list.length ? '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">'
+          + '<thead><tr style="border-bottom:2px solid var(--border);text-align:left;font-size:12px;color:#7A6356">'
+          + '<th style="padding:10px 12px">Date</th><th style="padding:10px 12px">Candidat</th>'
+          + '<th style="padding:10px 12px">Message</th><th style="padding:10px 12px">Contact</th>'
+          + '<th style="padding:10px 12px">Statut</th><th style="padding:10px 12px"></th>'
+          + '</tr></thead><tbody>' + rows + '</tbody></table></div>'
+          : '<p style="color:#7A6356;padding:20px 0;text-align:center">Aucune candidature reçue pour le moment.</p>')
+        + '</div>';
+    },
+    err => { if (err.code !== 'permission-denied') console.error(err); }
+  );
+  _unsubs.push(unsubCand);
+}
+window.Admin.setCandidatureStatut = async function(id, statut) {
+  try {
+    await updateDoc(doc(db, 'candidatures', id), { statut, updatedAt: serverTimestamp() });
+    toast('Statut mis à jour ✓');
+  } catch(e) { toast('Erreur : ' + e.message); }
+};
+window.Admin.deleteCandidature = async function(id) {
+  if (!await adminConfirm('Supprimer définitivement cette candidature ?', { confirmLabel: 'Supprimer', danger: true })) return;
+  try {
+    await deleteDoc(doc(db, 'candidatures', id));
+    toast('Candidature supprimée');
   } catch(e) { toast('Erreur : ' + e.message); }
 };
 
