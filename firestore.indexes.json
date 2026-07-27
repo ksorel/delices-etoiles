@@ -9,11 +9,20 @@
       ]
     },
     {
-      "collectionGroup": "paiements",
+      "collectionGroup": "commandes",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "restoId",   "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
+        { "fieldPath": "paymentStatus", "order": "ASCENDING" },
+        { "fieldPath": "createdAt",     "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "commandes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "restoId",       "order": "ASCENDING" },
+        { "fieldPath": "paymentStatus", "order": "ASCENDING" },
+        { "fieldPath": "createdAt",     "order": "DESCENDING" }
       ]
     },
     {

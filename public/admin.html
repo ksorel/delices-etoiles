@@ -1445,7 +1445,11 @@ function statCard(label, value, icon) {
 async function renderPaiements(c) {
   c.innerHTML = '<div class="loading"><div class="spinner"></div><p>Chargement des paiements…</p></div>';
   try {
-    const snap = await getDocs(query(collection(db, 'paiements'), ...ridConstraints(), orderBy('createdAt', 'desc')));
+    // Il n'existe pas de collection "paiements" alimentée pour les commandes
+    // restaurant (seul le traiteur écrit dans devis/{id}/paiements) : la
+    // source de vérité est la commande elle-même, marquée paymentStatus:'paid'
+    // par confirmPayment/confirmDelivery/updateStatus au dashboard staff.
+    const snap = await getDocs(query(collection(db, 'commandes'), ...ridConstraints(), where('paymentStatus', '==', 'paid'), orderBy('createdAt', 'desc')));
     let pdocs = snap.docs;
     if (!pdocs.length) {
       c.innerHTML = '<div class="card"><div class="card-title">💳 Paiements</div>'
@@ -1454,16 +1458,18 @@ async function renderPaiements(c) {
     }
     const rows = pdocs.map(function(d) {
       const p = d.data();
-      const date = p.createdAt?.toDate ? p.createdAt.toDate().toLocaleString('fr-FR',
+      const dateTs = p.paidAt || p.createdAt;
+      const date = dateTs?.toDate ? dateTs.toDate().toLocaleString('fr-FR',
         {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).replace(',',' à') : '—';
       const opBadge = p.operateur === 'especes' ? '💵 Espèces'
         : p.operateur === 'wave' ? '🌊 Wave'
         : p.operateur === 'orange' ? '🟠 Orange Money' : '💳 ' + (p.operateur||'?');
+      const ref = p.type === 'livraison' ? 'Livraison' : p.type === 'surplace' ? 'Sur place' : (p.tableId || '—');
       return '<tr style="border-bottom:1px solid var(--border)">'
         + '<td style="padding:10px 12px;font-size:12px;color:var(--muted)">' + date + '</td>'
-        + '<td style="padding:10px 12px;font-weight:700">' + (p.montant||0).toLocaleString('fr-FR') + ' FCFA</td>'
+        + '<td style="padding:10px 12px;font-weight:700">' + (p.total||0).toLocaleString('fr-FR') + ' FCFA</td>'
         + '<td style="padding:10px 12px">' + opBadge + '</td>'
-        + '<td style="padding:10px 12px;color:var(--muted);font-size:12px">' + (p.tableId||'Livraison') + '</td>'
+        + '<td style="padding:10px 12px;color:var(--muted);font-size:12px">' + escapeAdminHtml(ref) + '</td>'
         + '</tr>';
     }).join('');
     c.innerHTML = '<div class="card"><div class="card-title">💳 Historique des paiements</div>'
@@ -2439,11 +2445,13 @@ async function renderComptabilite(c) {
     const { collection, collectionGroup, query, where, orderBy, getDocs }
       = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
 
-    // Revenus restaurant (scopés par établissement au niveau requête — requis par
-    // les règles Firestore pour une session gérant ; cumul en mode « Tous »)
-    const restoSnap = await getDocs(query(collection(db, 'paiements'), ...ridConstraints(), orderBy('createdAt', 'desc')));
+    // Revenus restaurant : dérivés des commandes payées (aucune collection
+    // "paiements" n'est alimentée côté restaurant, voir renderPaiements).
+    // Scopés par établissement au niveau requête — requis par les règles
+    // Firestore pour une session gérant ; cumul en mode « Tous ».
+    const restoSnap = await getDocs(query(collection(db, 'commandes'), ...ridConstraints(), where('paymentStatus', '==', 'paid'), orderBy('createdAt', 'desc')));
     let restoPaie = restoSnap.docs;
-    const revenuRestaurant = restoPaie.reduce((s, d) => s + (d.data().montant || 0), 0);
+    const revenuRestaurant = restoPaie.reduce((s, d) => s + (d.data().total || 0), 0);
 
     // Revenus traiteur — CENTRAL (transverse) : uniquement en vue consolidée « Tous »
     let revenuTraiteur = 0;

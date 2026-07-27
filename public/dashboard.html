@@ -1581,8 +1581,10 @@ window.updateStatus = async function(orderId, newStatus) {
     // Salle / sur place : "Servi"/"Récupérée" se fait en direct avec le client
     // (espèces ou mobile money remis en main propre) — si le paiement n'a pas
     // été explicitement confirmé avant, on ne laisse pas la commande affichée
-    // comme "paiement en attente" une fois terminée.
-    if (newStatus === 'done') {
+    // comme "paiement en attente" une fois terminée. Réservé aux rôles habilités
+    // à encaisser : sinon la commande reste "paiement en attente" jusqu'à
+    // confirmation par un caissier/admin/manager.
+    if (newStatus === 'done' && canEncaisser) {
       const o = allOrders.find(x => x.id === orderId);
       if (o && (o.type === 'salle' || o.type === 'surplace') && o.paymentStatus !== 'paid') {
         payload.paymentStatus = 'paid';
