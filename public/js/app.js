@@ -556,7 +556,8 @@ function updateHeader() {
     const parent = badge.parentNode;
     let mk = document.getElementById('resto-marker');
     const onTraiteur = location.hash === '#traiteur';
-    const show = State.mode === 'salle' ? !!State.tableId : (!!State.resto || onTraiteur);
+    const onInfos    = location.hash === '#infos';
+    const show = State.mode === 'salle' ? !!State.tableId : (!!State.resto || onTraiteur || onInfos);
     if (show && parent) {
       if (!mk) {
         mk = document.createElement('div');
@@ -568,8 +569,9 @@ function updateHeader() {
       try { mk.style.color = getComputedStyle(badge).color; } catch (_) {}
       if (State.mode === 'salle') {
         mk.innerHTML = `<strong>${t('mode_salle')} ${State.tableId}</strong>`;
-      } else if (!State.resto && onTraiteur) {
-        // Formulaire traiteur : accessible sans établissement choisi, pas de lieu à afficher.
+      } else if (!State.resto && (onTraiteur || onInfos)) {
+        // Formulaire traiteur ou page Infos : accessibles sans établissement
+        // choisi, pas de lieu à afficher — juste le repère de retour.
         mk.innerHTML = `<span style="color:#F26522;font-weight:700;white-space:nowrap">← ${t('back')}</span>`;
       } else {
         // Nom court (champ dédié nomCourt, sinon commune, sinon nom) + ellipse ;
@@ -587,8 +589,9 @@ function updateHeader() {
     // masquée dès qu'un contexte resto/traiteur est actif, comme ici.
     const infosBtn = document.getElementById('infos-btn');
     if (infosBtn) infosBtn.style.display = 'none';
+    // Panier sans objet sur la page Infos & Actualités (pas de commande en cours).
     const cartBtn = document.getElementById('cart-btn');
-    if (cartBtn) cartBtn.style.display = '';
+    if (cartBtn) cartBtn.style.display = onInfos ? 'none' : '';
   }
 
   // Bouton langue (drapeau de la langue active)
