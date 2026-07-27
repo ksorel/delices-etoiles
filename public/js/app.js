@@ -582,10 +582,13 @@ function updateHeader() {
     } else if (mk) {
       mk.remove();
     }
-    // Icône « Infos & Actualités » : masquée sur l'écran de sélection
-    // d'établissement (pas encore de contexte resto/traiteur), visible partout ailleurs.
+    // Icône « Infos & Actualités » : réservée à l'écran d'accueil (sélection
+    // d'établissement, voir renderRestoPicker qui l'affiche explicitement) ;
+    // masquée dès qu'un contexte resto/traiteur est actif, comme ici.
     const infosBtn = document.getElementById('infos-btn');
-    if (infosBtn) infosBtn.style.display = show ? '' : 'none';
+    if (infosBtn) infosBtn.style.display = 'none';
+    const cartBtn = document.getElementById('cart-btn');
+    if (cartBtn) cartBtn.style.display = '';
   }
 
   // Bouton langue (drapeau de la langue active)
@@ -2578,6 +2581,10 @@ let _accueilCfg;   // undefined = pas encore chargé ; null = pas de doc ; sinon
 async function renderRestoPicker() {
   const view = document.getElementById('view');
   if (!view) return;
+  // Écran d'accueil : le panier n'a pas de sens ici (pas d'établissement
+  // choisi) ; Infos & Actualités, en revanche, n'est utile qu'à ce moment-là.
+  document.getElementById('cart-btn')?.style.setProperty('display', 'none');
+  document.getElementById('infos-btn')?.style.setProperty('display', '');
   view.innerHTML = `<div class="loading"><div class="spinner"></div><p>${t('picker_loading')}</p></div>`;
 
   let lieux = [];
@@ -2949,13 +2956,21 @@ let _infosItems = []; // annonces affichées, pour retrouver poste/restoId au cl
 async function renderInfos(main) {
   updateHeader();
   main.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+  // Accessible depuis l'accueil, avant le choix d'un établissement : on
+  // affiche donc les annonces de tous les lieux, avec le nom de celui
+  // concerné quand l'annonce n'est pas commune à tout le réseau.
   let items = [];
+  let lieuxById = {};
   try {
-    const all = await fetchAnnonces();
-    const restoId = State.resto?.id || null;
-    items = all.filter(a => !a.restoId || a.restoId === restoId);
+    items = await fetchAnnonces();
   } catch (e) {
     console.warn('fetchAnnonces:', e.code || e.message);
+  }
+  try {
+    const lieux = await fetchLieux();
+    lieuxById = Object.fromEntries(lieux.map(l => [l.id, l]));
+  } catch (e) {
+    console.warn('fetchLieux (infos):', e.code || e.message);
   }
   _infosItems = items;
   if (!items.length) {
@@ -2978,12 +2993,14 @@ async function renderInfos(main) {
     const date = a.createdAt?.toDate?.()
       ? a.createdAt.toDate().toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' })
       : '';
+    const lieu = a.restoId ? (lieuxById[a.restoId]?.nomCourt || lieuxById[a.restoId]?.nom || '') : '';
     return `
       <div style="background:#fff;border:1.5px solid #F0E4D8;border-radius:16px;overflow:hidden;margin-bottom:14px">
         ${a.imageUrl ? `<img src="${a.imageUrl}" alt="" style="width:100%;height:160px;object-fit:cover;display:block">` : ''}
         <div style="padding:16px">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
             <span style="font-size:11px;font-weight:700;color:${cfg.color};background:${cfg.color}1a;padding:3px 10px;border-radius:10px;white-space:nowrap">${cfg.icon} ${cfg.label}</span>
+            ${lieu ? `<span style="font-size:11px;font-weight:700;color:#7a6a55;background:#F5F0EB;padding:3px 10px;border-radius:10px;white-space:nowrap;display:inline-flex;align-items:center;gap:3px">${PIN_SVG}${escapeHtml(lieu)}</span>` : ''}
             ${date ? `<span style="font-size:11px;color:#9a8576">${date}</span>` : ''}
           </div>
           <h3 style="font-size:16px;font-weight:800;color:#2B1D16;margin:0 0 4px">${escapeHtml(a.titre || '')}</h3>
