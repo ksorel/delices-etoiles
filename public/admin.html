@@ -2155,76 +2155,6 @@ function _openAnnonceModal(item) {
     </div>`;
   document.body.appendChild(modal);
 }
-window.Admin._toggleAnnonceType = function() {
-  const row = document.getElementById('an-poste-row');
-  const type = document.getElementById('an-type')?.value;
-  if (row) row.style.display = type === 'recrutement' ? 'block' : 'none';
-};
-window.Admin.addAnnonce  = function() {
-  if (!activeRestoForWrite() && activeResto !== 'ALL') { toast('⚠️ Choisissez un établissement'); return; }
-  _openAnnonceModal(null);
-};
-window.Admin.editAnnonce = function(id) { _openAnnonceModal((window.Admin._annonces || []).find(x => x.id === id)); };
-
-window.Admin.saveAnnonce = async function(isNew, id) {
-  const titre = document.getElementById('an-titre').value.trim();
-  const texte = document.getElementById('an-texte').value.trim();
-  const poste = (document.getElementById('an-poste')?.value || '').trim();
-  const type  = document.getElementById('an-type').value;
-  const actif = document.getElementById('an-actif').value === 'true';
-  const err   = document.getElementById('an-err');
-  const btn   = document.getElementById('an-save-btn');
-  const fail  = (m) => { if (err) { err.textContent = m; err.style.display = 'block'; } else { toast(m); } };
-
-  if (!titre) { fail('Le titre est obligatoire'); return; }
-  if (!texte) { fail('Le texte est obligatoire'); return; }
-  if (err) err.style.display = 'none';
-  setBtnBusy(btn, isNew ? 'Création…' : 'Enregistrement…');
-  try {
-    let imageUrl = document.getElementById('an-img-url')?.value || '';
-    const imgFile = document.getElementById('an-img-file')?.files?.[0];
-    if (imgFile) {
-      const blob = await _processCarrouselImage(imgFile);
-      const path = 'annonces/img-' + Date.now() + '.jpg';
-      const fileRef = ref(storage, path);
-      await uploadBytes(fileRef, blob, { contentType: 'image/jpeg' });
-      imageUrl = await getDownloadURL(fileRef);
-    }
-    const data = {
-      type, titre, texte,
-      poste: type === 'recrutement' ? poste : '',
-      imageUrl, actif,
-      restoId: activeRestoForWrite(),
-      updatedAt: serverTimestamp(),
-    };
-    if (isNew) {
-      data.createdAt = serverTimestamp();
-      await addDoc(collection(db, 'annonces'), data);
-    } else {
-      await updateDoc(doc(db, 'annonces', id), data);
-    }
-    document.getElementById('annonce-modal')?.remove();
-    toast('Annonce enregistrée ✓');
-  } catch(e) {
-    clearBtnBusy(btn);
-    fail('Erreur : ' + e.message);
-  }
-};
-
-window.Admin.toggleAnnonceActif = async function(id, currentActif) {
-  try {
-    await updateDoc(doc(db, 'annonces', id), { actif: !currentActif, updatedAt: serverTimestamp() });
-    toast(!currentActif ? 'Annonce activée ✓' : 'Annonce désactivée');
-  } catch(e) { toast('Erreur : ' + e.message); }
-};
-
-window.Admin.deleteAnnonce = async function(id) {
-  if (!await adminConfirm('Supprimer définitivement cette annonce ?', { confirmLabel: 'Supprimer', danger: true })) return;
-  try {
-    await deleteDoc(doc(db, 'annonces', id));
-    toast('Annonce supprimée');
-  } catch(e) { toast('Erreur : ' + e.message); }
-};
 
 // ── Candidatures (formulaire "Postuler" du portail client) ────
 const CAND_STATUT_CONFIG = {
@@ -2283,19 +2213,6 @@ function renderCandidatures(c) {
   );
   _unsubs.push(unsubCand);
 }
-window.Admin.setCandidatureStatut = async function(id, statut) {
-  try {
-    await updateDoc(doc(db, 'candidatures', id), { statut, updatedAt: serverTimestamp() });
-    toast('Statut mis à jour ✓');
-  } catch(e) { toast('Erreur : ' + e.message); }
-};
-window.Admin.deleteCandidature = async function(id) {
-  if (!await adminConfirm('Supprimer définitivement cette candidature ?', { confirmLabel: 'Supprimer', danger: true })) return;
-  try {
-    await deleteDoc(doc(db, 'candidatures', id));
-    toast('Candidature supprimée');
-  } catch(e) { toast('Erreur : ' + e.message); }
-};
 
 // ── Admin actions (exposés globalement) ───────────────────
 // ════════════════════════════════════════════════════════════
@@ -4261,6 +4178,93 @@ function _openLieuModal(l) {
   document.body.appendChild(modal);
   window.Admin._lieuOverlay = modal;
 }
+
+// ── Infos & Actualités : handlers ─────────────────────────
+window.Admin._toggleAnnonceType = function() {
+  const row = document.getElementById('an-poste-row');
+  const type = document.getElementById('an-type')?.value;
+  if (row) row.style.display = type === 'recrutement' ? 'block' : 'none';
+};
+window.Admin.addAnnonce  = function() {
+  if (!activeRestoForWrite() && activeResto !== 'ALL') { toast('⚠️ Choisissez un établissement'); return; }
+  _openAnnonceModal(null);
+};
+window.Admin.editAnnonce = function(id) { _openAnnonceModal((window.Admin._annonces || []).find(x => x.id === id)); };
+
+window.Admin.saveAnnonce = async function(isNew, id) {
+  const titre = document.getElementById('an-titre').value.trim();
+  const texte = document.getElementById('an-texte').value.trim();
+  const poste = (document.getElementById('an-poste')?.value || '').trim();
+  const type  = document.getElementById('an-type').value;
+  const actif = document.getElementById('an-actif').value === 'true';
+  const err   = document.getElementById('an-err');
+  const btn   = document.getElementById('an-save-btn');
+  const fail  = (m) => { if (err) { err.textContent = m; err.style.display = 'block'; } else { toast(m); } };
+
+  if (!titre) { fail('Le titre est obligatoire'); return; }
+  if (!texte) { fail('Le texte est obligatoire'); return; }
+  if (err) err.style.display = 'none';
+  setBtnBusy(btn, isNew ? 'Création…' : 'Enregistrement…');
+  try {
+    let imageUrl = document.getElementById('an-img-url')?.value || '';
+    const imgFile = document.getElementById('an-img-file')?.files?.[0];
+    if (imgFile) {
+      const blob = await _processCarrouselImage(imgFile);
+      const path = 'annonces/img-' + Date.now() + '.jpg';
+      const fileRef = ref(storage, path);
+      await uploadBytes(fileRef, blob, { contentType: 'image/jpeg' });
+      imageUrl = await getDownloadURL(fileRef);
+    }
+    const data = {
+      type, titre, texte,
+      poste: type === 'recrutement' ? poste : '',
+      imageUrl, actif,
+      restoId: activeRestoForWrite(),
+      updatedAt: serverTimestamp(),
+    };
+    if (isNew) {
+      data.createdAt = serverTimestamp();
+      await addDoc(collection(db, 'annonces'), data);
+    } else {
+      await updateDoc(doc(db, 'annonces', id), data);
+    }
+    document.getElementById('annonce-modal')?.remove();
+    toast('Annonce enregistrée ✓');
+  } catch(e) {
+    clearBtnBusy(btn);
+    fail('Erreur : ' + e.message);
+  }
+};
+
+window.Admin.toggleAnnonceActif = async function(id, currentActif) {
+  try {
+    await updateDoc(doc(db, 'annonces', id), { actif: !currentActif, updatedAt: serverTimestamp() });
+    toast(!currentActif ? 'Annonce activée ✓' : 'Annonce désactivée');
+  } catch(e) { toast('Erreur : ' + e.message); }
+};
+
+window.Admin.deleteAnnonce = async function(id) {
+  if (!await adminConfirm('Supprimer définitivement cette annonce ?', { confirmLabel: 'Supprimer', danger: true })) return;
+  try {
+    await deleteDoc(doc(db, 'annonces', id));
+    toast('Annonce supprimée');
+  } catch(e) { toast('Erreur : ' + e.message); }
+};
+
+// ── Candidatures : handlers ────────────────────────────────
+window.Admin.setCandidatureStatut = async function(id, statut) {
+  try {
+    await updateDoc(doc(db, 'candidatures', id), { statut, updatedAt: serverTimestamp() });
+    toast('Statut mis à jour ✓');
+  } catch(e) { toast('Erreur : ' + e.message); }
+};
+window.Admin.deleteCandidature = async function(id) {
+  if (!await adminConfirm('Supprimer définitivement cette candidature ?', { confirmLabel: 'Supprimer', danger: true })) return;
+  try {
+    await deleteDoc(doc(db, 'candidatures', id));
+    toast('Candidature supprimée');
+  } catch(e) { toast('Erreur : ' + e.message); }
+};
 
 window.Admin.showAddLieu = function() { _openLieuModal(null); };
 window.Admin.editLieu = function(id) { _openLieuModal(lieux.find(x => x.id === id) || { id }); };
