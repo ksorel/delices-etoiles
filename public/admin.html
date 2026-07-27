@@ -253,6 +253,26 @@
       overflow: hidden;
     }
     .fp-table:hover { box-shadow: 0 4px 12px rgba(0,0,0,.3); }
+    .fp-table.selected {
+      background: #F26522;
+      box-shadow: 0 0 0 3px rgba(242,101,34,.35), 0 4px 12px rgba(0,0,0,.3);
+      animation: fp-pulse-sel 1.2s ease-in-out infinite;
+    }
+    @keyframes fp-pulse-sel {
+      0%,100% { box-shadow: 0 0 0 3px rgba(242,101,34,.35), 0 4px 12px rgba(0,0,0,.3); }
+      50%     { box-shadow: 0 0 0 6px rgba(242,101,34,.15), 0 4px 12px rgba(0,0,0,.3); }
+    }
+    .fp-cell.fp-droptarget { background: #FFF0E8; }
+    .fp-cell.fp-droptarget::after {
+      content: '';
+      position: absolute; inset: 4px;
+      border: 2px dashed #F26522; border-radius: 6px;
+    }
+    .fp-action-bar {
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+      background: #FFF8F5; border: 1.5px solid #FDDCCC; border-radius: 10px;
+      padding: 10px 14px; margin-bottom: 12px;
+    }
     .fp-table-num {
       font-size: 11px; font-weight: 800;
       line-height: 1.1; text-align: center;
@@ -1499,7 +1519,7 @@ const FP_COLS = 10;
 const FP_ROWS = 8;
 const LEGACY_PLAN_RESTO = 'bassam'; // établissement initial (ère mono-resto) : hérite l'ancien plan global
 let _fpTables = []; // [{id, label, col, row}]
-let _fpDragging = null;
+let _fpSelected = null; // id de la table "prise en main" (à déplacer/renommer/supprimer)
 
 function _defaultFpTables() {
   return Array.from({length:20},(_,i) => ({ id: String(i+1), label:'T'+(i+1), col: i%5, row: Math.floor(i/5) }));
@@ -1528,37 +1548,52 @@ async function renderFloorPlan(c) {
 }
 
 function renderFPEditor(c) {
+  // Interaction "tap-pour-sélectionner / tap-pour-placer" : fonctionne à
+  // l'identique à la souris et au doigt (l'ancien glisser-déposer HTML natif
+  // ne fonctionnait pas du tout au toucher sur tablette).
+  const selectedTable = _fpSelected ? _fpTables.find(t => t.id === _fpSelected) : null;
+
   // Construire la grille
   let cells = '';
   for (let r=0; r<FP_ROWS; r++) {
     for (let cl=0; cl<FP_COLS; cl++) {
       const table = _fpTables.find(t => t.col===cl && t.row===r);
+      const isSelected = table && table.id === _fpSelected;
       const tableHtml = table ? `
-        <div class="fp-table" draggable="true"
+        <div class="fp-table${isSelected ? ' selected' : ''}"
           data-id="${table.id}"
-          title="Double-clic : renommer | Clic droit : supprimer | Glisser : déplacer"
-          ondragstart="window._fpDragStart(event,'${table.id}')"
-          ondblclick="event.stopPropagation();window._fpRename('${table.id}')"
-          oncontextmenu="event.preventDefault();window._fpRemove('${table.id}')">
+          title="Touchez pour sélectionner (renommer/supprimer/déplacer)"
+          onclick="event.stopPropagation();window._fpTableClick('${table.id}')">
           <div class="fp-table-num" title="${table.label}">${table.label.length > 7 ? table.label.slice(0,6)+'…' : table.label}</div>
-          <div class="fp-table-lbl">✎</div>
+          <div class="fp-table-lbl">${isSelected ? '✓' : '✎'}</div>
         </div>` : '';
-      cells += `<div class="fp-cell"
+      // Case vide "cible" mise en évidence tant qu'une table est sélectionnée.
+      const isDropTarget = selectedTable && !table;
+      cells += `<div class="fp-cell${isDropTarget ? ' fp-droptarget' : ''}"
         data-col="${cl}" data-row="${r}"
-        ondragover="event.preventDefault()"
-        ondrop="window._fpDrop(event,${cl},${r})"
-        onclick="window._fpAddTable(${cl},${r})">
+        onclick="window._fpCellClick(${cl},${r})">
         ${tableHtml}
       </div>`;
     }
   }
+
+  const actionBar = selectedTable ? `
+      <div class="fp-action-bar">
+        <span style="font-size:13px;font-weight:700;color:#C94E10">Table « ${selectedTable.label} » sélectionnée</span>
+        <span style="font-size:12px;color:var(--muted)">Touchez une case vide pour la déplacer</span>
+        <div style="margin-left:auto;display:flex;gap:8px">
+          <button class="btn btn-sm btn-secondary" onclick="window._fpRenameSelected()">✏️ Renommer</button>
+          <button class="btn btn-sm btn-danger" onclick="window._fpRemoveSelected()">🗑️ Supprimer</button>
+          <button class="btn btn-sm btn-secondary" onclick="window._fpDeselect()">✕ Annuler</button>
+        </div>
+      </div>` : '';
 
   c.innerHTML = `
     <div class="card">
       <div class="card-title">🗺️ Éditeur de plan de salle</div>
       <div class="fp-toolbar">
         <div style="font-size:13px;color:var(--muted)">
-          Clic cellule vide : ajouter · Double-clic : renommer · Glisser : déplacer · Clic droit : supprimer
+          Touchez une table pour la sélectionner (renommer, supprimer, déplacer) · Touchez une case vide pour ajouter une table
         </div>
         <button class="btn btn-primary btn-sm" style="margin-left:auto" onclick="window.Admin.saveFloorPlan()">
           💾 Enregistrer le plan
@@ -1567,12 +1602,13 @@ function renderFPEditor(c) {
           🔄 Réinitialiser
         </button>
       </div>
+      ${actionBar}
       <div class="fp-grid" style="grid-template-columns:repeat(${FP_COLS},64px)">
         ${cells}
       </div>
       <div class="fp-legend">
         <div class="fp-legend-item"><div class="fp-legend-dot" style="background:#2B1D16"></div>Table placée</div>
-        <div class="fp-legend-item"><div class="fp-legend-dot" style="background:#F9F5F0;border:1px dashed #ccc"></div>Cellule vide (cliquer pour ajouter)</div>
+        <div class="fp-legend-item"><div class="fp-legend-dot" style="background:#F9F5F0;border:1px dashed #ccc"></div>Cellule vide (toucher pour ajouter)</div>
       </div>
       <p style="font-size:12px;color:var(--muted);margin-top:8px">
         Le plan est partagé en temps réel avec le Dashboard staff qui affiche les statuts des commandes par table.
@@ -1582,24 +1618,22 @@ function renderFPEditor(c) {
 
 // Ces fonctions sont enregistrées sur window directement (pas via window.Admin)
 // pour être disponibles dès le chargement de la page
-window._fpDragStart = function(e, tableId) {
-  _fpDragging = tableId;
-  e.dataTransfer.effectAllowed = 'move';
-};
-
-window._fpDrop = function(e, col, row) {
-  e.preventDefault();
-  if (!_fpDragging) return;
-  const existing = _fpTables.find(t => t.col===col && t.row===row);
-  if (existing) return;
-  const table = _fpTables.find(t => t.id===_fpDragging);
-  if (table) { table.col = col; table.row = row; }
-  _fpDragging = null;
+window._fpTableClick = function(tableId) {
+  // Re-toucher la table déjà sélectionnée = annuler la sélection.
+  _fpSelected = _fpSelected === tableId ? null : tableId;
   renderFPEditor(document.getElementById('page-content'));
 };
 
-window._fpAddTable = async function(col, row) {
-  if (_fpTables.find(t => t.col===col && t.row===row)) return;
+window._fpCellClick = async function(col, row) {
+  if (_fpTables.find(t => t.col===col && t.row===row)) return; // case occupée, géré par _fpTableClick
+  if (_fpSelected) {
+    // Une table est sélectionnée : la déplacer ici plutôt que d'en créer une nouvelle.
+    const table = _fpTables.find(t => t.id === _fpSelected);
+    if (table) { table.col = col; table.row = row; }
+    _fpSelected = null;
+    renderFPEditor(document.getElementById('page-content'));
+    return;
+  }
   const nextId = String(Math.max(0,..._fpTables.map(t=>parseInt(t.id)||0)) + 1);
   const label  = await adminPrompt('Nom/numéro de la table :', nextId);
   if (!label) return;
@@ -1607,18 +1641,26 @@ window._fpAddTable = async function(col, row) {
   renderFPEditor(document.getElementById('page-content'));
 };
 
-window._fpRemove = async function(tableId) {
-  if (!await adminConfirm('Supprimer cette table du plan ?', { confirmLabel: 'Supprimer', danger: true })) return;
-  _fpTables = _fpTables.filter(t => t.id !== tableId);
+window._fpDeselect = function() {
+  _fpSelected = null;
   renderFPEditor(document.getElementById('page-content'));
 };
 
-window._fpRename = async function(tableId) {
-  const table = _fpTables.find(t => t.id === tableId);
+window._fpRemoveSelected = async function() {
+  const tableId = _fpSelected;
+  if (!tableId) return;
+  if (!await adminConfirm('Supprimer cette table du plan ?', { confirmLabel: 'Supprimer', danger: true })) return;
+  _fpTables = _fpTables.filter(t => t.id !== tableId);
+  _fpSelected = null;
+  renderFPEditor(document.getElementById('page-content'));
+};
+
+window._fpRenameSelected = async function() {
+  const table = _fpTables.find(t => t.id === _fpSelected);
   if (!table) return;
   const newLabel = await adminPrompt('Nouveau nom pour cette table :', table.label);
-  if (!newLabel || newLabel === table.label) return;
-  table.label = newLabel.trim();
+  if (newLabel && newLabel !== table.label) table.label = newLabel.trim();
+  _fpSelected = null;
   renderFPEditor(document.getElementById('page-content'));
 };
 
