@@ -2282,6 +2282,15 @@ function renderTraiteur(container) {
 }
 
 // ─── Espace Devis Client ─────────────────────────────────
+// Même ordre/valeurs que DEVIS_CAT_ORDER côté admin (admin.html) — les
+// lignes de devis sans catégorie (créées avant cette fonctionnalité)
+// retombent sur "autre".
+const DEVIS_CAT_ORDER = ['entree', 'plat', 'dessert', 'boisson', 'accompagnement', 'autre'];
+function _devisCatLabel(k) {
+  const key = 'devis_cat_' + k;
+  const v = t(key);
+  return v !== key ? v : k;
+}
 async function renderDevisClient(container) {
   const params  = new URLSearchParams(window.location.search);
   const devisId = params.get('id');
@@ -2320,14 +2329,28 @@ async function renderDevisClient(container) {
     // Build devis lines HTML
     let devisHtml = '';
     if (d.devis?.lignes?.length) {
-      const lignes = d.devis.lignes.map(l =>
+      const lineHtml = l =>
         '<div style="display:flex;justify-content:space-between;padding:10px 0;'
         + 'border-bottom:1px solid var(--border);font-size:14px">'
         + '<div><div style="font-weight:600;color:var(--brown)">' + escapeHtml(l.desc) + '</div>'
         + '<div style="font-size:12px;color:var(--muted)">' + l.qty + ' × ' + l.prix.toLocaleString('fr-FR') + ' FCFA</div></div>'
         + '<div style="font-weight:700;color:var(--brown)">' + l.total.toLocaleString('fr-FR') + ' F</div>'
-        + '</div>'
-      ).join('');
+        + '</div>';
+      // Regroupé par catégorie (façon carte de menu événementiel) seulement
+      // si le devis en compte plusieurs — sinon liste à plat inchangée
+      // (cas des devis créés avant cette fonctionnalité, tous en "autre").
+      const byCat = {};
+      d.devis.lignes.forEach(l => {
+        const k = DEVIS_CAT_ORDER.includes(l.categorie) ? l.categorie : 'autre';
+        (byCat[k] = byCat[k] || []).push(l);
+      });
+      const catsPresent = DEVIS_CAT_ORDER.filter(k => byCat[k]?.length);
+      const lignes = catsPresent.length > 1
+        ? catsPresent.map(k =>
+            '<div style="font-size:11px;font-weight:800;color:#F26522;text-transform:uppercase;letter-spacing:.05em;margin:14px 0 6px">'
+            + _devisCatLabel(k) + '</div>' + byCat[k].map(lineHtml).join('')
+          ).join('')
+        : d.devis.lignes.map(lineHtml).join('');
 
       devisHtml = '<div style="background:#fff;border-radius:14px;padding:20px;margin-bottom:16px;'
         + 'box-shadow:0 2px 12px rgba(43,29,22,.08)">'
@@ -3556,14 +3579,42 @@ window.App.downloadDevisPDF = async function(devisId) {
   y += 12;
   pdf.setTextColor(43, 29, 22); pdf.setFont('helvetica', 'normal');
   const lines = d.devis?.lignes || [];
-  lines.forEach((l, i) => {
-    if (i % 2 === 0) { pdf.setFillColor(249, 245, 240); pdf.rect(20, y - 5, W - 40, 8, 'F'); }
+  // Regroupées par catégorie (façon carte de menu) quand le devis en compte
+  // plusieurs — police PDF sans glyphes emoji, libellés en texte simple.
+  const CAT_LABELS_PLAIN = {
+    entree: 'Entrée', plat: 'Plat de résistance', dessert: 'Dessert',
+    boisson: 'Boisson', accompagnement: 'Accompagnement', autre: 'Autre',
+  };
+  const byCat = {};
+  lines.forEach(l => {
+    const k = DEVIS_CAT_ORDER.includes(l.categorie) ? l.categorie : 'autre';
+    (byCat[k] = byCat[k] || []).push(l);
+  });
+  const catsPresent  = DEVIS_CAT_ORDER.filter(k => byCat[k]?.length);
+  const grouped      = catsPresent.length > 1;
+  const orderedLines = grouped ? catsPresent.flatMap(k => byCat[k]) : lines;
+
+  let rowIndex = 0, lastCat = null;
+  orderedLines.forEach(l => {
+    const k = DEVIS_CAT_ORDER.includes(l.categorie) ? l.categorie : 'autre';
+    if (grouped && k !== lastCat) {
+      lastCat = k;
+      y += 3;
+      pdf.setFontSize(10); pdf.setFont('helvetica', 'bold');
+      pdf.setTextColor(242, 101, 34);
+      pdf.text(CAT_LABELS_PLAIN[k], 25, y);
+      pdf.setTextColor(43, 29, 22); pdf.setFont('helvetica', 'normal');
+      y += 7;
+      rowIndex = 0;
+    }
+    if (rowIndex % 2 === 0) { pdf.setFillColor(249, 245, 240); pdf.rect(20, y - 5, W - 40, 8, 'F'); }
     pdf.setFontSize(10);
     pdf.text(l.desc, 25, y);
     pdf.text(String(l.qty), 130, y, { align: 'center' });
     pdf.text(l.prix.toLocaleString('fr-FR') + ' F', 155, y, { align: 'right' });
     pdf.text(l.total.toLocaleString('fr-FR') + ' F', W - 25, y, { align: 'right' });
     y += 9;
+    rowIndex++;
   });
 
   y += 5;

@@ -2240,6 +2240,16 @@ const EVENT_LABELS  = {
   entreprise:'Repas entreprise', seminaire:'Séminaire', autre:'Autre événement',
 };
 
+// Catégorie des lignes de devis — regroupement à l'affichage (client + PDF),
+// façon carte de menu événementiel. "autre" en dernier = frais de service,
+// déplacement, location matériel… (défaut pour ne rien casser sur les
+// devis déjà enregistrés sans catégorie).
+const DEVIS_CAT_ORDER  = ['entree', 'plat', 'dessert', 'boisson', 'accompagnement', 'autre'];
+const DEVIS_CAT_LABELS = {
+  entree: '🥗 Entrée', plat: '🍖 Plat de résistance', dessert: '🍰 Dessert',
+  boisson: '🥤 Boisson', accompagnement: '🍚 Accompagnement', autre: '📦 Autre',
+};
+
 const STATUT_CONFIG = {
   nouveau:       { label:'Nouveau',       color:'#854F0B', bg:'#FEF3C7' },
   en_cours:      { label:'En cours',      color:'#1D4ED8', bg:'#EFF6FF' },
@@ -3382,6 +3392,8 @@ window.Admin.loadDemandeInfo = async function(devisId, loadLines) {
           if (inputs[0]) inputs[0].value = line.desc || '';
           if (inputs[1]) inputs[1].value = line.qty  || 1;
           if (inputs[2]) inputs[2].value = line.prix || 0;
+          const catSel = row.querySelector('.devis-line-cat');
+          if (catSel) catSel.value = line.categorie || 'autre';
         }
       });
       window.Admin.calcDevisTotal();
@@ -3393,6 +3405,7 @@ window.Admin.loadDemandeInfo = async function(devisId, loadLines) {
       if (d.statut === 'confirme' || d.statut === 'annule') {
         // Désactiver les champs
         document.querySelectorAll('#dv-lines input').forEach(i => i.disabled = true);
+        document.querySelectorAll('#dv-lines select').forEach(s => s.disabled = true);
         document.querySelectorAll('#dv-lines button').forEach(b => b.disabled = true);
         if (noteEl) noteEl.disabled = true;
 
@@ -3454,6 +3467,12 @@ window.Admin.addDevisLine = function() {
   // d'être coupé par overflow-x:hidden sur .main
   subRow.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;flex:1 1 100%;align-items:center';
 
+  const cat = document.createElement('select');
+  cat.className = 'devis-line-cat form-select';
+  cat.style.cssText = 'font-size:12px;flex:1 1 130px;min-width:120px;background:#fff';
+  cat.innerHTML = DEVIS_CAT_ORDER.map(function(k) { return '<option value="' + k + '">' + DEVIS_CAT_LABELS[k] + '</option>'; }).join('');
+  cat.value = 'autre';
+
   const qty = document.createElement('input');
   qty.className = 'form-input';
   qty.type = 'number';
@@ -3479,6 +3498,7 @@ window.Admin.addDevisLine = function() {
     + 'display:flex;align-items:center;justify-content:center';
   del.addEventListener('click', function() { row.remove(); window.Admin.calcDevisTotal(); });
 
+  subRow.appendChild(cat);
   subRow.appendChild(qty);
   subRow.appendChild(prix);
   subRow.appendChild(del);
@@ -3534,7 +3554,8 @@ window.Admin.saveDevis = async function() {
     const desc  = inputs[0]?.value.trim();
     const qty   = parseFloat(inputs[1]?.value) || 0;
     const price = parseFloat(inputs[2]?.value) || 0;
-    if (desc && price > 0) lines.push({ desc, qty, prix: price, total: qty * price });
+    const categorie = row.querySelector('.devis-line-cat')?.value || 'autre';
+    if (desc && price > 0) lines.push({ desc, qty, prix: price, total: qty * price, categorie });
   });
 
   if (!lines.length) { toast('Ajoutez au moins une ligne'); return; }
