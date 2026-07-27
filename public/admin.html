@@ -1273,14 +1273,14 @@ function renderStocksTable() {
         : '<span style="color:#10B981;font-weight:700">' + qty + ' ' + unit + '</span>' + bottleEq;
     return '<tr style="border-bottom:1px solid var(--border)">'
       + '<td style="padding:10px 14px">'
-      +   '<div style="font-weight:700;color:var(--brown)">' + s.name + '</div>'
+      +   '<div style="font-weight:700;color:var(--brown)">' + escapeAdminHtml(s.name) + '</div>'
       +   (activeResto==='ALL' ? '<div style="margin:3px 0">' + lieuChip(s.restoId) + '</div>' : '')
       +   '<div style="font-size:11px;color:var(--muted)">' + (s.category||'Boisson') + ' · Seuil alerte : ' + thr + ' ' + unit + '</div>'
       + '</td>'
       + '<td style="padding:10px 14px">' + qtyHtml + '</td>'
       + '<td style="padding:10px 14px;text-align:right;white-space:nowrap">'
-      +   '<button class="btn btn-sm" style="background:#ECFDF5;color:#065F46;margin-right:4px" data-sid="' + s.id + '" data-sname="' + s.name + '" onclick="window.Admin.stockEntry(this.dataset.sid,this.dataset.sname)">📥 Entrée</button>'
-      +   '<button class="btn btn-sm btn-secondary" data-sid="' + s.id + '" data-sname="' + s.name + '" data-sqty="' + qty + '" onclick="window.Admin.stockAdjust(this.dataset.sid,this.dataset.sname,parseInt(this.dataset.sqty))">✏️ Ajuster</button>'
+      +   '<button class="btn btn-sm" style="background:#ECFDF5;color:#065F46;margin-right:4px" data-sid="' + s.id + '" data-sname="' + escapeAdminHtml(s.name) + '" onclick="window.Admin.stockEntry(this.dataset.sid,this.dataset.sname)">📥 Entrée</button>'
+      +   '<button class="btn btn-sm btn-secondary" data-sid="' + s.id + '" data-sname="' + escapeAdminHtml(s.name) + '" data-sqty="' + qty + '" onclick="window.Admin.stockAdjust(this.dataset.sid,this.dataset.sname,parseInt(this.dataset.sqty))">✏️ Ajuster</button>'
       + '</td>'
       + '</tr>';
   }).join('');
@@ -1445,9 +1445,8 @@ function statCard(label, value, icon) {
 async function renderPaiements(c) {
   c.innerHTML = '<div class="loading"><div class="spinner"></div><p>Chargement des paiements…</p></div>';
   try {
-    const snap = await getDocs(query(collection(db, 'paiements'), orderBy('createdAt', 'desc')));
+    const snap = await getDocs(query(collection(db, 'paiements'), ...ridConstraints(), orderBy('createdAt', 'desc')));
     let pdocs = snap.docs;
-    if (activeResto !== 'ALL') pdocs = pdocs.filter(d => (d.data().restoId) === activeResto);
     if (!pdocs.length) {
       c.innerHTML = '<div class="card"><div class="card-title">💳 Paiements</div>'
         + '<p style="color:var(--muted);text-align:center;padding:24px">Aucun paiement enregistré pour cette sélection.</p></div>';
@@ -2408,8 +2407,9 @@ async function renderPrestations(c) {
           + '</div>'
           + '<div style="padding:8px 16px;border-top:1px solid var(--border);display:flex;gap:8px">'
           +   '<button onclick="window.Admin.advancePrestation(\x27' + d.id + '\x27,' + current + ')" '
-          +     'style="flex:1;padding:8px;background:#F26522;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer"'
-          +     (current >= steps.length - 1 ? ' disabled style="flex:1;padding:8px;background:#CCC;color:#fff;border:none;border-radius:8px;font-size:13px;cursor:not-allowed"' : '') + '>'
+          +     (current >= steps.length - 1
+                  ? 'disabled style="flex:1;padding:8px;background:#CCC;color:#fff;border:none;border-radius:8px;font-size:13px;cursor:not-allowed"'
+                  : 'style="flex:1;padding:8px;background:#F26522;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer"') + '>'
           +     (current >= steps.length - 1 ? '✅ Terminée' : '→ ' + (steps[current + 1] || 'Suivant')) + '</button>'
           +   '<button onclick="window.Admin.openPaiementsModal(\x27' + d.id + '\x27)" '
           +     'style="flex:1;padding:8px;background:#fff;color:var(--brown);border:1.5px solid var(--border);'
@@ -2439,10 +2439,10 @@ async function renderComptabilite(c) {
     const { collection, collectionGroup, query, where, orderBy, getDocs }
       = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
 
-    // Revenus restaurant (scopés par établissement ; cumul en mode « Tous »)
-    const restoSnap = await getDocs(query(collection(db, 'paiements'), orderBy('createdAt', 'desc')));
+    // Revenus restaurant (scopés par établissement au niveau requête — requis par
+    // les règles Firestore pour une session gérant ; cumul en mode « Tous »)
+    const restoSnap = await getDocs(query(collection(db, 'paiements'), ...ridConstraints(), orderBy('createdAt', 'desc')));
     let restoPaie = restoSnap.docs;
-    if (activeResto !== 'ALL') restoPaie = restoPaie.filter(d => d.data().restoId === activeResto);
     const revenuRestaurant = restoPaie.reduce((s, d) => s + (d.data().montant || 0), 0);
 
     // Revenus traiteur — CENTRAL (transverse) : uniquement en vue consolidée « Tous »
@@ -2483,6 +2483,7 @@ async function renderComptabilite(c) {
           const dateStr = d.date ? new Date(d.date).toLocaleDateString('fr-FR', { day:'numeric', month:'short', year:'numeric' }) : '—';
           return '<tr style="border-bottom:1px solid var(--border)">'
             + '<td style="padding:10px 12px;font-size:13px">' + dateStr + '</td>'
+            + (activeResto === 'ALL' ? '<td style="padding:10px 12px">' + (d.restoId ? lieuChip(d.restoId) : '<span style="font-size:11px;color:var(--muted)">🏢 Central</span>') + '</td>' : '')
             + '<td style="padding:10px 12px;font-size:13px">' + (catIcons[d.categorie]||'📦') + ' ' + (catLabels[d.categorie]||d.categorie) + '</td>'
             + '<td style="padding:10px 12px;font-size:13px;color:var(--muted)">' + (d.description||'') + '</td>'
             + '<td style="padding:10px 12px;font-size:13px;font-weight:700;color:#EF4444">' + (d.montant||0).toLocaleString('fr-FR') + ' F</td>'
@@ -2497,7 +2498,7 @@ async function renderComptabilite(c) {
             + '</td>'
             + '</tr>';
         }).join('')
-      : '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--muted)">Aucune dépense enregistrée</td></tr>';
+      : '<tr><td colspan="' + (activeResto === 'ALL' ? 7 : 6) + '" style="text-align:center;padding:24px;color:var(--muted)">Aucune dépense enregistrée</td></tr>';
 
     c.innerHTML = '<div style="font-size:13px;color:#7A6356;font-weight:700;margin-bottom:10px">'
       + (activeResto === 'ALL'
@@ -2542,6 +2543,7 @@ async function renderComptabilite(c) {
       +   '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">'
       +   '<thead><tr style="border-bottom:2px solid var(--border);text-align:left">'
       +   '<th style="padding:10px 12px;font-size:12px;font-weight:700;color:var(--muted)">Date</th>'
+      +   (activeResto === 'ALL' ? '<th style="padding:10px 12px;font-size:12px;font-weight:700;color:var(--muted)">Lieu</th>' : '')
       +   '<th style="padding:10px 12px;font-size:12px;font-weight:700;color:var(--muted)">Catégorie</th>'
       +   '<th style="padding:10px 12px;font-size:12px;font-weight:700;color:var(--muted)">Description</th>'
       +   '<th style="padding:10px 12px;font-size:12px;font-weight:700;color:var(--muted)">Montant</th>'
@@ -3904,7 +3906,7 @@ function _openLieuModal(l) {
         </div>
         <div>
           <label style="${LBL}">Nom affiché <span style="color:#F26522">*</span></label>
-          <input class="form-input" id="lieu-nom" value="${cur.nom || ''}" placeholder="Restaurant Délices Étoiles — Cocody" style="${INP}" ${FOCUS}>
+          <input class="form-input" id="lieu-nom" value="${(cur.nom || '').replace(/"/g,'&quot;')}" placeholder="Restaurant Délices Étoiles — Cocody" style="${INP}" ${FOCUS}>
         </div>
         <div>
           <label style="${LBL}">Nom court</label>
@@ -3914,11 +3916,11 @@ function _openLieuModal(l) {
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
           <div>
             <label style="${LBL}">Commune</label>
-            <input class="form-input" id="lieu-commune" value="${cur.commune || ''}" placeholder="Cocody" style="${INP}" ${FOCUS}>
+            <input class="form-input" id="lieu-commune" value="${(cur.commune || '').replace(/"/g,'&quot;')}" placeholder="Cocody" style="${INP}" ${FOCUS}>
           </div>
           <div>
             <label style="${LBL}">Adresse</label>
-            <input class="form-input" id="lieu-adresse" value="${cur.adresse || ''}" placeholder="Rue, repère…" style="${INP}" ${FOCUS}>
+            <input class="form-input" id="lieu-adresse" value="${(cur.adresse || '').replace(/"/g,'&quot;')}" placeholder="Rue, repère…" style="${INP}" ${FOCUS}>
           </div>
         </div>
         <div>
@@ -4555,8 +4557,8 @@ async function renderUsers(c) {
       : '<span style="color:#EF4444;font-weight:700;font-size:12px">● Désactivé</span>';
     return '<tr>'
       + '<td style="padding:10px 12px">'
-      +   '<div style="font-weight:700;color:var(--brown)">' + (emp.displayName || '—') + '</div>'
-      +   '<div style="font-size:12px;color:var(--muted)">' + (emp.username || (emp.email || '').replace('@delices-etoiles.staff','') || '—') + '</div>'
+      +   '<div style="font-weight:700;color:var(--brown)">' + escapeAdminHtml(emp.displayName || '—') + '</div>'
+      +   '<div style="font-size:12px;color:var(--muted)">' + escapeAdminHtml(emp.username || (emp.email || '').replace('@delices-etoiles.staff','') || '—') + '</div>'
       +   (!isOwner && emp.restoId
             ? '<div style="font-size:11px;color:#F26522;font-weight:700">📍 ' + ((lieux.find(l=>l.id===emp.restoId)||{}).nom || (lieux.find(l=>l.id===emp.restoId)||{}).commune || emp.restoId) + '</div>'
             : (isOwner ? '<div style="font-size:11px;color:#7A6356;font-weight:700">🏢 Tous les établissements</div>' : ''))
@@ -4564,8 +4566,8 @@ async function renderUsers(c) {
       + '<td style="padding:10px 12px">' + rolesBadges + '</td>'
       + '<td style="padding:10px 12px">' + statusBadge + '</td>'
       + '<td style="padding:10px 12px;text-align:right">'
-      +   '<button class="btn btn-sm btn-secondary" style="margin-right:4px" onclick="window.Admin.editEmployee(\'' + emp.uid + '\',\'' + empRoles.join(',') + '\',\'' + (emp.displayName||'') + '\',\'' + (emp.restoId||'') + '\')">✏️ Rôle</button>'
-      +   '<button class="btn btn-sm btn-secondary" style="margin-right:4px;background:#EFF6FF;color:#1D4ED8" onclick="window.Admin.resetPassword(\'' + emp.uid + '\',\'' + (emp.username||'') + '\')">🔑 MDP</button>'
+      +   '<button class="btn btn-sm btn-secondary" style="margin-right:4px" onclick="window.Admin.editEmployee(\'' + emp.uid + '\',\'' + empRoles.join(',') + '\',\'' + (emp.displayName||'').replace(/['"\\]/g,'') + '\',\'' + (emp.restoId||'') + '\')">✏️ Rôle</button>'
+      +   '<button class="btn btn-sm btn-secondary" style="margin-right:4px;background:#EFF6FF;color:#1D4ED8" onclick="window.Admin.resetPassword(\'' + emp.uid + '\',\'' + (emp.username||'').replace(/['"\\]/g,'') + '\')">🔑 MDP</button>'
       +   '<button class="btn btn-sm" style="background:' + (emp.active ? '#FEE2E2' : '#ECFDF5') + ';color:' + (emp.active ? '#991B1B' : '#065F46') + '" onclick="window.Admin.toggleEmployee(\'' + emp.uid + '\',' + !emp.active + ')">'
       +     (emp.active ? '🔒 Désactiver' : '🔓 Activer')
       +   '</button>'

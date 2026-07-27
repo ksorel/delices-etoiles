@@ -183,7 +183,9 @@ function showSessionChoice(sessions) {
   const sessionsHtml = sessions.map(s => {
     const time = s.createdAt?.toDate?.()?.toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' }) || '';
     return `
-      <div class="session-card" onclick="window.App.joinSession('${s.sessionId}')">
+      <div class="session-card" role="button" tabindex="0"
+           onclick="window.App.joinSession('${s.sessionId}')"
+           onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();window.App.joinSession('${s.sessionId}')}">
         <div class="session-card-icon">🪑</div>
         <div class="session-card-info">
           <div class="session-card-title">Addition en cours · #${s.sessionId}</div>
@@ -786,7 +788,9 @@ function renderMenu(container) {
     ? availableMenu
     : availableMenu.filter(m => m.category === activeCat);
   const cardsHtml = items.map(item => `
-    <div class="menu-card" data-item-id="${item.id}" onclick="window.App.openItem('${item.id}')">
+    <div class="menu-card" data-item-id="${item.id}" role="button" tabindex="0"
+         onclick="window.App.openItem('${item.id}')"
+         onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();window.App.openItem('${item.id}')}">
       <div class="card-img">
         ${item.imageUrl
           ? `<img src="${item.imageUrl}" alt="${itemName(item)}" loading="lazy">`
@@ -962,7 +966,9 @@ function openItem(itemId) {
       <div class="upsell-title">${t('upsell_accomp')}</div>
       <div class="upsell-list">
         ${upsells.accompagnements.map(u => `
-          <div class="upsell-chip" id="upsell-${u.id}" onclick="window.App.selectAccomp('${u.id}')">
+          <div class="upsell-chip" id="upsell-${u.id}" role="button" tabindex="0"
+               onclick="window.App.selectAccomp('${u.id}')"
+               onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();window.App.selectAccomp('${u.id}')}">
             <div class="upsell-chip-name">${itemName(u)}</div>
             <div class="upsell-chip-price">+${formatFCFA(u.price)}</div>
           </div>`).join('')}
@@ -974,7 +980,9 @@ function openItem(itemId) {
       <div class="upsell-title">${t('upsell_boisson')}</div>
       <div class="upsell-list">
         ${upsells.boissons.map(u => `
-          <div class="upsell-chip" id="upsell-${u.id}" onclick="window.App.toggleUpsell('${u.id}')">
+          <div class="upsell-chip" id="upsell-${u.id}" role="button" tabindex="0"
+               onclick="window.App.toggleUpsell('${u.id}')"
+               onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();window.App.toggleUpsell('${u.id}')}">
             <div class="upsell-chip-name">${itemName(u)}</div>
             <div class="upsell-chip-price">+${formatFCFA(u.price)}</div>
           </div>`).join('')}
@@ -1517,6 +1525,10 @@ function renderCheckout(container) {
       </div>
       ${noZones ? `<div style="background:#FEF3C7;color:#92400E;border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.5;margin-top:4px">⚠️ Aucune zone de livraison n'est disponible pour cet établissement pour le moment. La livraison n'est pas possible ici — vous pouvez commander sur place.</div>` : ''}
       <div id="frais-display" style="display:none;padding:10px 14px;background:var(--orange-light);border-radius:var(--r);font-size:13px;color:var(--orange-dark);font-weight:700;margin-top:4px"></div>
+      <div class="form-group" style="margin-top:12px">
+        <label class="form-label">${t('delivery_note')}</label>
+        <textarea class="form-input" id="liv-comment" maxlength="150" rows="2" placeholder="${t('delivery_note_ph')}" style="resize:vertical"></textarea>
+      </div>
     </div>
     <div class="checkout-section" style="margin-top:12px">
       <div class="checkout-section-title">${t('payment_title')}</div>
@@ -2075,7 +2087,7 @@ function renderTraiteur(container) {
         <label style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;
                       letter-spacing:.05em;display:block;margin-bottom:5px">${t('tr_lieu')}</label>
         <select id="tr-lieu-zone" class="form-input"
-                onchange="window.App.onZoneChange(this.value)"
+                onchange="window.App.onTrZoneChange(this.value)"
                 style="width:100%;padding:10px 12px;border:1.5px solid var(--border);
                        border-radius:10px;font-size:14px;outline:none;background:#fff">
           <option value="">${t('tr_lieu_loading')}</option>
@@ -3090,7 +3102,7 @@ window.App.loadTraiteurZones = async function() {
 };
 
 
-window.App.onZoneChange = function(zoneId) {
+window.App.onTrZoneChange = function(zoneId) {
   const box = document.getElementById('tr-zone-frais');
   if (!box) return;
   if (!zoneId) { box.style.display = 'none'; return; }

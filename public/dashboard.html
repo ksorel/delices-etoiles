@@ -1035,6 +1035,10 @@ function renderReservationCard(r) {
   };
   const st = stMap[r.status] || stMap.pending;
   const when = escapeHtml((r.date || '') + (r.heure ? ' à ' + r.heure : ''));
+  const restoCode = (r.restoId || '').slice(0, 3).toUpperCase();
+  const restoBadge = restoCode
+    ? '<span style="font-size:10px;background:#E6F1FB;color:#185FA5;padding:2px 7px;border-radius:10px;font-weight:700;margin-left:6px">📍 ' + restoCode + '</span>'
+    : '';
   const actions = r.status === 'pending'
     ? '<div style="display:flex;gap:8px;padding:10px 14px;border-top:1px solid var(--bg)">'
       + '<button onclick="confirmReservation(\'' + r.id + '\')" style="flex:1;min-height:44px;padding:9px;border:none;border-radius:8px;background:#ECFDF5;color:#059669;font-weight:700;font-size:13px;cursor:pointer">✅ Confirmer</button>'
@@ -1053,7 +1057,7 @@ function renderReservationCard(r) {
   return '<div class="order-card">'
     + '<div class="order-card-head">'
     +   '<div><div class="order-id">📅 ' + escapeHtml(r.nom || '—') + '</div>'
-    +   '<div class="order-time">' + when + (r.personnes ? ' · ' + Number(r.personnes) + ' pers.' : '') + '</div></div>'
+    +   '<div class="order-time">' + when + (r.personnes ? ' · ' + Number(r.personnes) + ' pers.' : '') + restoBadge + '</div></div>'
     +   '<span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:12px;background:' + st.bg + ';color:' + st.color + '">' + st.label + '</span>'
     + '</div>'
     + '<div style="padding:10px 14px;font-size:13px;color:#2B1D16">'
@@ -1131,6 +1135,7 @@ function buildCard(o) {
       📍 ${escapeHtml(o.livraison.adresse)} — ${escapeHtml(o.livraison.zoneName)}<br>
       📞 ${o.livraison.nom ? escapeHtml(o.livraison.nom) + ' · ' : ''}${escapeHtml(o.livraison.telephone)}<br>
       💳 ${o.livraison.operateur?.toUpperCase() || 'Mobile Money'}
+      ${o.livraison.comment ? '<br>📝 ' + escapeHtml(o.livraison.comment) : ''}
     </div>` : o.type === 'surplace' && o.telephone ? `
     <div class="delivery-info">
       📞 ${escapeHtml(o.telephone)}
@@ -1365,7 +1370,7 @@ async function renderFloorPlanModal(tables) {
       const liveLabel = liveTable.label || table.label;
       const shortLabel = liveLabel.length > 8 ? liveLabel.slice(0,7)+'…' : liveLabel;
       return `<div class="fp-dash-cell ${cls}"
-        onclick="window.filterByTable('${tid}','${liveLabel.replace(/'/g, '')}')"
+        onclick="window.filterByTable('${tid}','${liveLabel.replace(/['"\\]/g, '')}')"
         title="${escapeHtml(liveLabel)}">
         ${badge}
         <div class="fp-cell-name">${escapeHtml(shortLabel)}</div>
@@ -1678,12 +1683,20 @@ window.closeStaffOrder = function() {
 
 window.staffChangeResto = async function(restoId) {
   if (!restoId) return;
+  if (_staffOrderState.cart.length && !confirm('Changer d\'établissement videra le panier en cours. Continuer ?')) {
+    const sel = document.getElementById('so-resto');
+    if (sel) sel.value = _staffOrderState.restoId || '';
+    return;
+  }
   await _staffSetResto(restoId);
 };
 
 async function _staffSetResto(restoId) {
   _staffOrderState.restoId = restoId;
   _staffOrderState.activeCat = 'all';
+  _staffOrderState.expandedId = null;
+  _staffOrderState.cart = [];
+  _renderStaffCart();
   const list = document.getElementById('so-item-list');
   if (!list) return;
   list.innerHTML = '<div style="padding:30px;text-align:center;color:#9A8576;font-size:13px">Chargement du menu…</div>';
@@ -1725,7 +1738,8 @@ function _renderStaffItemList() {
   const cat = _staffOrderState.activeCat;
   const items = _staffOrderState.menu.filter(function(i){ return cat === 'all' || i.category === cat; });
   if (!items.length) {
-    list.innerHTML = '<div style="padding:30px;text-align:center;color:#9A8576;font-size:13px">Aucun plat dans cette catégorie.</div>';
+    const msg = cat === 'all' ? 'Aucun plat disponible pour cet établissement.' : 'Aucun plat dans cette catégorie.';
+    list.innerHTML = '<div style="padding:30px;text-align:center;color:#9A8576;font-size:13px">' + msg + '</div>';
     return;
   }
   list.innerHTML = items.map(function(item) {
@@ -1858,7 +1872,7 @@ window.staffSubmitOrder = async function() {
       return { id: c.id, name_fr: c.name_fr, name_en: c.name_en, price: c.price, qty: c.qty,
                glace: c.glace, format: c.format, variant: c.variant, comment: '', upsells: [] };
     });
-    await submitSalleOrder(table, currentUser.uid, 'especes', sessionId, cartItems);
+    await submitSalleOrder(table, currentUser.uid, 'especes', sessionId, cartItems, true);
     showToast('✅ Commande envoyée — Table ' + table);
     window.closeStaffOrder();
   } catch (e) {
