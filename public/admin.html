@@ -608,6 +608,8 @@ let zones       = [];
 let upsellRules = [];
 let orders      = [];
 let _unsubs     = []; // stocke tous les unsubscribe Firestore
+// Catégories considérées comme "boissons" (stocks, statistiques CA nourriture/boissons).
+const DRINK_CATS_STOCK = ['bieres','eaux','jus','spiritueux','boissons'];
 
 // ── Auth ──────────────────────────────────────────────────
 window.doAdminLogin = async () => {
@@ -1319,39 +1321,123 @@ function renderStocksTable() {
 }
 
 // ── Statistiques ─────────────────────────────────────────
+let _statsOrders = [];  // commandes chargées une fois, filtrées en mémoire par période
+let _statsPeriod = '7j';
+const STATS_PERIODS = { today: "Aujourd'hui", '7j': '7 jours', '30j': '30 jours', all: 'Depuis toujours' };
+
 async function renderStats(c) {
   c.innerHTML = '<div class="loading"><div class="spinner"></div><p>Calcul des statistiques…</p></div>';
   try {
     // Scopé par établissement (comme le tableau de bord) : ridConstraints() est
     // vide en mode « Tous », donc le comportement propriétaire est inchangé.
     const snap = await getDocs(query(collection(db, 'commandes'), ...ridConstraints(), orderBy('createdAt', 'desc')));
-    const orders = snap.docs.map(function(d) { return { id: d.id, ...d.data() }; });
-    const done   = orders.filter(function(o) { return o.status === 'done'; });
-    const total  = done.reduce(function(s, o) { return s + (o.total || 0); }, 0);
-    const today  = new Date(); today.setHours(0,0,0,0);
-    const todayO = done.filter(function(o) {
-      return o.createdAt?.toDate && o.createdAt.toDate() >= today;
-    });
-    const todayCA = todayO.reduce(function(s, o) { return s + (o.total || 0); }, 0);
-
-    c.innerHTML = '<div class="card">'
-      + '<div class="card-title">📊 Statistiques</div>'
-      + '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin-bottom:20px">'
-      + statCard('Commandes totales', orders.length, '📋')
-      + statCard('Commandes servies', done.length, '✅')
-      + statCard('CA total', total.toLocaleString('fr-FR') + ' FCFA', '💰')
-      + statCard("CA aujourd'hui", todayCA.toLocaleString('fr-FR') + ' FCFA', '📅')
-      + '</div></div>';
+    _statsOrders = snap.docs.map(function(d) { return { id: d.id, ...d.data() }; });
+    renderStatsBody(c, _statsPeriod);
   } catch(e) {
     c.innerHTML = '<div class="card"><p style="color:red">Erreur : ' + e.message + '</p></div>';
   }
 }
 
+// Purement synchrone : ne relit jamais Firestore, filtre juste _statsOrders déjà
+// chargées — permet de changer de période instantanément.
+function renderStatsBody(c, period) {
+  _statsPeriod = period;
+  const now = new Date();
+  let from = null;
+  if (period === 'today') { from = new Date(now); from.setHours(0,0,0,0); }
+  else if (period === '7j')  { from = new Date(now); from.setDate(from.getDate()-6);  from.setHours(0,0,0,0); }
+  else if (period === '30j') { from = new Date(now); from.setDate(from.getDate()-29); from.setHours(0,0,0,0); }
+
+  const inPeriod = from
+    ? _statsOrders.filter(function(o) { return o.createdAt?.toDate && o.createdAt.toDate() >= from; })
+    : _statsOrders;
+  const done  = inPeriod.filter(function(o) { return o.status === 'done'; });
+  const total = done.reduce(function(s, o) { return s + (o.total || 0); }, 0);
+  const avgBasket = done.length ? Math.round(total / done.length) : 0;
+
+  // Répartition du CA par mode de commande
+  const TYPE_INFO = {
+    salle:      { label: '🪑 Salle',      color: '#2B1D16' },
+    livraison:  { label: '🚴 Livraison',  color: '#F26522' },
+    surplace:   { label: '🍽️ Sur place',  color: '#185FA5' },
+  };
+  const byType = { salle: 0, livraison: 0, surplace: 0 };
+  done.forEach(function(o) { if (byType[o.type] != null) byType[o.type] += (o.total || 0); });
+  const maxType = Math.max(1, byType.salle, byType.livraison, byType.surplace);
+
+  // CA par jour (graphique en barres) — 30 derniers jours au plus, même en
+  // mode "Depuis toujours" (au-delà, un graphique jour par jour devient illisible).
+  const chartDays = period === 'today' ? 1 : period === '7j' ? 7 : 30;
+  const chartFrom = new Date(now); chartFrom.setDate(chartFrom.getDate() - (chartDays - 1)); chartFrom.setHours(0,0,0,0);
+  const buckets = [];
+  for (let i = 0; i < chartDays; i++) {
+    const d = new Date(chartFrom); d.setDate(d.getDate() + i);
+    buckets.push({ date: d, total: 0 });
+  }
+  done.forEach(function(o) {
+    if (!o.createdAt?.toDate) return;
+    const od = o.createdAt.toDate();
+    if (od < chartFrom) return;
+    const idx = Math.floor((od - chartFrom) / 86400000);
+    if (buckets[idx]) buckets[idx].total += (o.total || 0);
+  });
+  const maxDay = Math.max(1, ...buckets.map(function(b) { return b.total; }));
+
+  const periodBar = Object.keys(STATS_PERIODS).map(function(p) {
+    return '<button class="period-btn' + (p === period ? ' active' : '') + '" onclick="window.Admin.setStatsPeriod(\'' + p + '\')">'
+      + STATS_PERIODS[p] + '</button>';
+  }).join('');
+
+  const showDayLabel = chartDays <= 7;
+  const chartBars = buckets.map(function(b) {
+    const h = Math.max(3, Math.round((b.total / maxDay) * 90));
+    const dayLabel = b.date.toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit' });
+    return '<div style="flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:4px;height:100%">'
+      + '<div title="' + dayLabel + ' : ' + b.total.toLocaleString('fr-FR') + ' FCFA" '
+      + 'style="width:100%;max-width:22px;height:' + h + '%;background:var(--orange);border-radius:3px 3px 0 0"></div>'
+      + (showDayLabel ? '<div style="font-size:9px;color:var(--muted);white-space:nowrap">' + dayLabel + '</div>' : '')
+      + '</div>';
+  }).join('');
+
+  const typeRows = Object.keys(TYPE_INFO).map(function(k) {
+    const val = byType[k] || 0;
+    const pct = Math.round((val / maxType) * 100);
+    return '<div style="margin-bottom:12px">'
+      + '<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px">'
+      + '<span>' + TYPE_INFO[k].label + '</span><span style="font-weight:700">' + val.toLocaleString('fr-FR') + ' FCFA</span>'
+      + '</div>'
+      + '<div style="background:var(--bg);border-radius:6px;height:8px;overflow:hidden">'
+      + '<div style="width:' + pct + '%;height:100%;background:' + TYPE_INFO[k].color + '"></div>'
+      + '</div></div>';
+  }).join('');
+
+  c.innerHTML = '<div class="card">'
+    + '<div class="card-title">📊 Statistiques</div>'
+    + '<div class="stats-period-bar">' + periodBar + '</div>'
+    + '<div class="kpi-grid">'
+    + statCard('Commandes', inPeriod.length, '📋')
+    + statCard('Servies', done.length, '✅')
+    + statCard('CA', total.toLocaleString('fr-FR') + ' FCFA', '💰')
+    + statCard('Panier moyen', avgBasket.toLocaleString('fr-FR') + ' FCFA', '🧾')
+    + '</div>'
+    + '<div class="chart-row">'
+    + '<div class="chart-card">'
+    + '<div class="chart-title">Évolution du CA (' + chartDays + ' derniers jours)</div>'
+    + '<div style="display:flex;align-items:flex-end;gap:2px;height:120px">' + chartBars + '</div>'
+    + '</div>'
+    + '<div class="chart-card">'
+    + '<div class="chart-title">Répartition par mode</div>'
+    + typeRows
+    + '</div>'
+    + '</div>'
+    + '</div>';
+}
+
 function statCard(label, value, icon) {
-  return '<div style="background:var(--bg);border-radius:var(--r);padding:16px;border:1px solid var(--border);text-align:center">'
-    + '<div style="font-size:28px;margin-bottom:6px">' + icon + '</div>'
-    + '<div style="font-size:22px;font-weight:800;color:var(--orange)">' + value + '</div>'
-    + '<div style="font-size:12px;color:var(--muted);margin-top:4px">' + label + '</div>'
+  return '<div class="kpi-box">'
+    + '<div style="font-size:22px;margin-bottom:4px">' + icon + '</div>'
+    + '<div class="kpi-val">' + value + '</div>'
+    + '<div class="kpi-lbl">' + label + '</div>'
     + '</div>';
 }
 
@@ -2485,16 +2571,16 @@ window.Admin = {
     if (dispoId) {
       // Le catalogue est partagé : on retire l'article de CET établissement
       // uniquement (les autres établissements gardent leur propre dispo).
-      if (!confirm('Retirer cet article de cet établissement ? (il reste disponible dans le catalogue pour les autres établissements)')) return;
+      if (!await adminConfirm('Retirer cet article de cet établissement ? (il reste disponible dans le catalogue pour les autres établissements)', { confirmLabel: 'Retirer', danger: true })) return;
       await deleteDoc(doc(db,'menu-dispo',dispoId));
     } else {
-      if (!confirm('Supprimer cet article ?')) return;
+      if (!await adminConfirm('Supprimer cet article ?', { confirmLabel: 'Supprimer', danger: true })) return;
       await deleteDoc(doc(db,'menus',id)); // legacy, pas encore migré
     }
     await loadData(); renderPage(currentPage); toast('Article retiré de cet établissement');
   },
   async deleteAvis(id) {
-    if (!confirm('Supprimer cet avis ? Cette action est irréversible.')) return;
+    if (!await adminConfirm('Supprimer cet avis ? Cette action est irréversible.', { confirmLabel: 'Supprimer', danger: true })) return;
     try {
       await deleteDoc(doc(db,'avis',id));
       toast('Avis supprimé');
@@ -2509,7 +2595,7 @@ window.Admin = {
   async editZone(id) {
     const z = zones.find(z=>z.id===id);
     if (!z) return;
-    const frais = prompt(`Nouveaux frais pour "${z.name}" (FCFA) :`, z.frais);
+    const frais = await adminPrompt(`Nouveaux frais pour "${z.name}" (FCFA) :`, z.frais);
     if (frais === null) return;
     await updateDoc(doc(db,'zones-livraison',id), {frais:parseInt(frais)||0});
     await loadData(); renderPage(currentPage); toast('Frais mis à jour');
@@ -2657,7 +2743,7 @@ window.Admin = {
     renderPage(currentPage);
   },
   async clearMenuDuJour() {
-    if (!confirm('Retirer le menu du jour ?')) return;
+    if (!await adminConfirm('Retirer le menu du jour ?', { confirmLabel: 'Retirer', danger: true })) return;
     await deleteDoc(doc(db, 'plat-du-jour', platJourDocId()));
     toast('Menu du jour retire');
     renderPage(currentPage);
@@ -2739,13 +2825,13 @@ window.Admin = {
     }
   },
   async clearPlatDuJour(id) {
-    if (!confirm('Retirer le plat du jour ?')) return;
+    if (!await adminConfirm('Retirer le plat du jour ?', { confirmLabel: 'Retirer', danger: true })) return;
     await updateDoc(doc(db,'plat-du-jour',id), { active: false });
     toast('Plat du jour retiré');
     renderPage(currentPage);
   },
   async deleteRule(id) {
-    if (!confirm('Supprimer cette règle ?')) return;
+    if (!await adminConfirm('Supprimer cette règle ?', { confirmLabel: 'Supprimer', danger: true })) return;
     await deleteDoc(doc(db,'upselling-rules',id));
     await loadData(); renderPage(currentPage); toast('Règle supprimée');
   },
@@ -2812,7 +2898,7 @@ window.Admin = {
     renderStockTab(document.getElementById('stock-tab-content'), drinkItems);
   },
   async initAllStocks() {
-    if (!confirm('Initialiser tous les articles boissons avec un stock de 0 (s\'ils n\'existent pas encore) ?')) return;
+    if (!await adminConfirm('Initialiser tous les articles boissons avec un stock de 0 (s\'ils n\'existent pas encore) ?')) return;
     const drinkItems = menuItems.filter(m => DRINK_CATS_STOCK.includes(m.category));
     let created = 0;
     for (const item of drinkItems) {
@@ -2847,7 +2933,7 @@ window.Admin = {
   },
   async editStock(itemId, name) {
     const stock = _stocks.find(s => s.itemId === itemId) || {};
-    const newQty = prompt(`Corriger le stock pour "${name}" :\nStock actuel: ${stock.quantity||0}`, stock.quantity||0);
+    const newQty = await adminPrompt(`Corriger le stock pour "${name}" :\nStock actuel: ${stock.quantity||0}`, stock.quantity||0);
     if (newQty === null) return;
     const qty = parseInt(newQty) || 0;
     await setDoc(doc(db,'stocks',itemId), {
@@ -2947,16 +3033,11 @@ window.Admin = {
 
     // Copy to clipboard + show
     try { await navigator.clipboard.writeText(orderText); } catch(e){}
-    alert('BON DE COMMANDE GÉNÉRÉ :\n\n' + orderText + '\n\n(Copié dans le presse-papier)');
+    await adminAlert('BON DE COMMANDE GÉNÉRÉ :\n\n' + orderText + '\n\n(Copié dans le presse-papier)');
     toast('Bon de commande généré et copié ✓');
   },
-  setPeriod(btn, period) {
-    _statsPeriod = period;
-    if (btn) {
-      document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-    }
-    loadStatsData();
+  setStatsPeriod(period) {
+    renderStatsBody(document.getElementById('page-content'), period);
   },
   filterMenu() {
     const search = (document.getElementById('menu-search')?.value||'').toLowerCase();
@@ -3369,7 +3450,7 @@ window.Admin.sendDevisEmail = async function() {
 
 
 window.Admin.confirmerDevis = async function(devisId) {
-  if (!confirm('Confirmer la prestation ? Le devis sera accepté et passera dans Prestations.')) return;
+  if (!await adminConfirm('Confirmer la prestation ? Le devis sera accepté et passera dans Prestations.')) return;
   try {
     const { doc, updateDoc, serverTimestamp }
       = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
@@ -3734,7 +3815,7 @@ window.Admin.ajouterDepense = async function() {
 };
 
 window.Admin.supprimerDepense = async function(depId) {
-  if (!confirm('Supprimer cette dépense ?')) return;
+  if (!await adminConfirm('Supprimer cette dépense ?', { confirmLabel: 'Supprimer', danger: true })) return;
   try {
     const { doc, deleteDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
     await deleteDoc(doc(db, 'depenses', depId));
@@ -3948,7 +4029,7 @@ window.Admin.saveLieu = async function(isNew) {
 
 window.Admin.toggleLieuActif = async function(id, currentActif) {
   const next = !currentActif;
-  if (!confirm(next ? 'Activer cet établissement ?' : 'Désactiver cet établissement ? Il sera retiré du portail client (données conservées).')) return;
+  if (!await adminConfirm(next ? 'Activer cet établissement ?' : 'Désactiver cet établissement ? Il sera retiré du portail client (données conservées).', next ? {} : { confirmLabel: 'Désactiver', danger: true })) return;
   try {
     await updateDoc(doc(db,'restos',id), { actif: next, updatedAt: serverTimestamp() });
     await loadData();
@@ -4104,7 +4185,7 @@ window.Admin.addCarrouselImage = async function(input) {
 window.Admin.deleteCarrouselImage = async function(idx) {
   const cfg = window.Admin._carrousel;
   if (!cfg || !cfg.slides[idx]) return;
-  if (!confirm('Supprimer cette image du carrousel ?')) return;
+  if (!await adminConfirm('Supprimer cette image du carrousel ?', { confirmLabel: 'Supprimer', danger: true })) return;
   const slide = cfg.slides[idx];
   try {
     const slides = cfg.slides.filter((_, i) => i !== idx).map((s, i) => ({ ...s, ordre: i + 1 }));
@@ -4263,8 +4344,8 @@ window.Admin.addStockItem = function() {
   }, err => { if (err.code !== 'permission-denied') console.error('onSnapshot err:', err); });
 };
 
-window.Admin.stockEntry = function(id, name) {
-  const qty = parseInt(prompt('Quantité reçue pour "' + name + '" :'));
+window.Admin.stockEntry = async function(id, name) {
+  const qty = parseInt(await adminPrompt('Quantité reçue pour "' + name + '" :'));
   if (!qty || qty <= 0) return;
   updateDoc(doc(db, 'stocks', id), {
     qty: admin_increment(qty),
@@ -4276,8 +4357,8 @@ window.Admin.stockEntry = function(id, name) {
   }).catch(function(e) { toast('Erreur : ' + e.message); });
 };
 
-window.Admin.stockAdjust = function(id, name, current) {
-  const val = parseInt(prompt('Nouvelle quantité pour "' + name + '" (actuel : ' + current + ') :'));
+window.Admin.stockAdjust = async function(id, name, current) {
+  const val = parseInt(await adminPrompt('Nouvelle quantité pour "' + name + '" (actuel : ' + current + ') :'));
   if (isNaN(val) || val < 0) return;
   const diff = val - current;
   updateDoc(doc(db, 'stocks', id), { qty: val, updatedAt: serverTimestamp() })
@@ -4718,7 +4799,7 @@ window.Admin.editEmployee = async function(uid, currentRole, name, currentResto)
 
 
 window.Admin.resetPassword = async function(uid, username) {
-  const newPass = prompt('Nouveau mot de passe pour ' + (username || 'cet employé') + ' (min. 6 caractères) :');
+  const newPass = await adminPrompt('Nouveau mot de passe pour ' + (username || 'cet employé') + ' (min. 6 caractères) :');
   if (!newPass) return;
   if (newPass.length < 6) { toast('⚠️ Mot de passe trop court (min. 6 caractères)'); return; }
   try {
@@ -4755,7 +4836,7 @@ window.Admin.saveRole = async function(uid) {
 
 window.Admin.toggleEmployee = async function(uid, disabled) {
   const action = disabled ? 'désactiver' : 'activer';
-  if (!confirm('Voulez-vous ' + action + ' cet employé ?')) return;
+  if (!await adminConfirm('Voulez-vous ' + action + ' cet employé ?', disabled ? { confirmLabel: 'Désactiver', danger: true } : {})) return;
   try {
     const fn = httpsCallable(functions, 'toggleEmployee');
     await fn({ uid, disabled });
@@ -5344,7 +5425,7 @@ function _adminDialogBase(bodyHtml, onMount) {
 // ou null si annulé/vide.
 function adminPrompt(message, defaultValue) {
   const body = '<div style="padding:22px 24px 18px">'
-    + '<div style="font-size:15px;font-weight:700;color:var(--brown);margin-bottom:12px">' + message + '</div>'
+    + '<div style="font-size:15px;font-weight:700;color:var(--brown);margin-bottom:12px;white-space:pre-line">' + message + '</div>'
     + '<input id="admin-dialog-input" class="form-input" style="width:100%" value="' + (defaultValue || '').replace(/"/g,'&quot;') + '">'
     + '</div>'
     + '<div style="display:flex;gap:8px;padding:14px 24px;background:#F9F5F0;border-top:1px solid var(--border)">'
@@ -5363,7 +5444,7 @@ function adminPrompt(message, defaultValue) {
 function adminConfirm(message, opts) {
   opts = opts || {};
   const body = '<div style="padding:22px 24px 18px">'
-    + '<div style="font-size:15px;font-weight:700;color:var(--brown);line-height:1.5">' + message + '</div>'
+    + '<div style="font-size:15px;font-weight:700;color:var(--brown);line-height:1.5;white-space:pre-line">' + message + '</div>'
     + '</div>'
     + '<div style="display:flex;gap:8px;padding:14px 24px;background:#F9F5F0;border-top:1px solid var(--border)">'
     + '<button id="admin-dialog-cancel" class="btn btn-secondary" style="flex:1">' + (opts.cancelLabel || 'Annuler') + '</button>'
@@ -5374,6 +5455,18 @@ function adminConfirm(message, opts) {
     document.getElementById('admin-dialog-cancel').onclick = () => close(false);
     document.getElementById('admin-dialog-ok').onclick = () => close(true);
   }).then(r => !!r);
+}
+// Remplace alert(message) — simple accusé de réception (un seul bouton OK).
+function adminAlert(message) {
+  const body = '<div style="padding:22px 24px 18px">'
+    + '<div style="font-size:14px;color:var(--brown);line-height:1.5;white-space:pre-line">' + message + '</div>'
+    + '</div>'
+    + '<div style="display:flex;gap:8px;padding:14px 24px;background:#F9F5F0;border-top:1px solid var(--border)">'
+    + '<button id="admin-dialog-ok" class="btn btn-primary" style="flex:1">OK</button>'
+    + '</div>';
+  return _adminDialogBase(body, close => {
+    document.getElementById('admin-dialog-ok').onclick = () => close(true);
+  });
 }
 
 // ── État "en cours" pour un bouton d'action de modale ──────
