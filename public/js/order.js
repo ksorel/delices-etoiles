@@ -2,7 +2,7 @@
 //  order.js — Soumission des commandes vers Firestore
 // ════════════════════════════════════════════════════════════
 
-import { createOrder } from './db.js';
+import { createOrder, touchClientVisit } from './db.js';
 import { getLang }     from './i18n.js';
 
 // ─── Total du panier (article + ses upsells payants, ×qty) ─
@@ -101,6 +101,7 @@ export async function submitLivraisonOrder(livraison, clientUid, cartItems = [])
     comment:       livraison.comment || '',
   });
 
+  touchClientVisit(livraison.telephone, livraison.nom || null);
   return orderId;
 }
 

@@ -10,7 +10,8 @@ import { fetchMenu, fetchZones, fetchUpsellRules, getOrCreateTable, fetchPlatDuJ
          getRestoId, setRestoId, fetchLieux, fetchLieu, fetchAccueilCarousel,
          submitReservation, createOrder, listenReservation, findReservation, findOrder,
          fetchAvisForItem, hasVerifiedPurchase, getExistingAvis, submitAvis, setAvisRating,
-         updateOrderStatus, fetchAnnonces, submitCandidature } from './db.js';
+         updateOrderStatus, fetchAnnonces, submitCandidature,
+         touchClientVisit, fetchLoyaltyConfig, fetchClientLoyalty, computeLoyaltyStatus } from './db.js';
 import { getDoc, doc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { requestNotificationPermission, listenForegroundMessages } from './fcm.js';
 // Lien partagé vers un article précis (?item=<id>) : ouvert automatiquement
@@ -3264,6 +3265,7 @@ window.App.confirmSurplace = async function() {
       clientUid: State.uid || null,
       items, itemIds: cartItems.map(i => i.id), total: computeTotal(cartItems), operateur: 'especes',
     });
+    touchClientVisit(normalizePhone(tel), null);
     clearCart(); updateCartBadge();
     localStorage.setItem('de_last_order', JSON.stringify({ orderId, operateur: 'especes', mode: 'surplace', ts: Date.now() }));
     renderView('confirm', { orderId, operateur: 'especes' });

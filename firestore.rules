@@ -108,6 +108,19 @@ service cloud.firestore {
       allow read, write: if isAdmin() || request.auth.uid == uid;
     }
 
+    // ─── Fidélité — un doc par numéro de téléphone (identifiant stable,
+    // les clients étant authentifiés en anonyme) ───────────────────
+    // Un client peut créer son propre doc (première visite) et mettre à jour
+    // sa date de visite/son nom, mais jamais sa propre carte "recompenses" —
+    // seul le staff peut la modifier (marquer une récompense comme utilisée).
+    match /clients/{telephone} {
+      allow read: if isAuth();
+      allow create: if isAuth() && !('recompenses' in request.resource.data);
+      allow update: if isStaff()
+                    || (isAuth() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['derniereVisite', 'nom']));
+      allow delete: if isAdmin();
+    }
+
     // ─── Plat du jour (lecture publique, écriture admin + gérant scopé) ──────────
     match /plat-du-jour/{docId} {
       allow read: if true;

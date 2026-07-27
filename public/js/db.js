@@ -163,6 +163,74 @@ export async function submitCandidature(data) {
   return ref.id;
 }
 
+// ─── Fidélité ─────────────────────────────────────────────
+// Réglages effectifs pour un établissement : ceux du resto s'il les a
+// personnalisés (loyalty.useNetwork === false), sinon le réglage réseau
+// par défaut (config/fidelite-reseau, réservé au propriétaire en écriture).
+// Retourne null si aucun programme n'est configuré nulle part.
+export async function fetchLoyaltyConfig(restoId) {
+  try {
+    const restoSnap = await getDoc(doc(db, 'config', restoId));
+    const loyalty = restoSnap.exists() ? restoSnap.data().loyalty : null;
+    if (loyalty && loyalty.useNetwork === false && loyalty.periodDays > 0) {
+      return { ...loyalty, source: 'resto' };
+    }
+  } catch (_) {}
+  try {
+    const netSnap = await getDoc(doc(db, 'config', 'fidelite-reseau'));
+    if (netSnap.exists() && netSnap.data().periodDays > 0) {
+      return { ...netSnap.data(), source: 'reseau' };
+    }
+  } catch (_) {}
+  return null;
+}
+
+// Fiche fidélité d'un client (peut ne pas exister s'il n'a jamais commandé
+// via un canal qui capture le téléphone — livraison, sur place).
+export async function fetchClientLoyalty(telephone) {
+  if (!telephone) return null;
+  const snap = await getDoc(doc(db, 'clients', telephone));
+  return snap.exists() ? snap.data() : null;
+}
+
+// Calcule l'état fidélité (jours restants / récompense disponible) pour un
+// client à un établissement donné, à partir des réglages déjà résolus.
+export function computeLoyaltyStatus(clientDoc, cfg, restoId) {
+  if (!cfg || !cfg.periodDays) return null;
+  const rec = clientDoc?.recompenses?.[restoId];
+  const refDate = rec?.derniereRecompenseAt?.toDate?.() || clientDoc?.premiereVisite?.toDate?.() || null;
+  if (!refDate) return { available: false, daysLeft: cfg.periodDays, cfg };
+  const elapsedDays = (Date.now() - refDate.getTime()) / 86400000;
+  const daysLeft = Math.max(0, Math.ceil(cfg.periodDays - elapsedDays));
+  return { available: elapsedDays >= cfg.periodDays, daysLeft, cfg };
+}
+
+// Enregistre une visite (appelé à chaque commande livraison/sur place, les
+// seuls canaux qui capturent le téléphone client) — ne touche jamais
+// "recompenses" (réservé au staff, voir redeemLoyaltyReward).
+export async function touchClientVisit(telephone, nom) {
+  if (!telephone) return;
+  try {
+    const ref  = doc(db, 'clients', telephone);
+    const snap = await getDoc(ref);
+    const now  = serverTimestamp();
+    if (!snap.exists()) {
+      await setDoc(ref, { telephone, nom: nom || null, premiereVisite: now, derniereVisite: now });
+    } else {
+      await updateDoc(ref, { derniereVisite: now, ...(nom ? { nom } : {}) });
+    }
+  } catch (e) { console.warn('touchClientVisit:', e.code || e.message); }
+}
+
+// Marque la récompense comme utilisée pour un établissement (staff) —
+// relance le compteur de jours pour ce client à ce lieu précis.
+export async function redeemLoyaltyReward(telephone, restoId) {
+  const ref = doc(db, 'clients', telephone);
+  await updateDoc(ref, {
+    ['recompenses.' + restoId + '.derniereRecompenseAt']: serverTimestamp(),
+  });
+}
+
 // TOUS les lieux (actifs ou non) — pour l'admin.
 export async function fetchAllLieux() {
   const snap = await getDocs(query(collection(db, 'restos'), orderBy('ordre')));

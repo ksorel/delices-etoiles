@@ -480,6 +480,7 @@ function closeSidebar() {
     <div class="nav-item active" onclick="showPage('dashboard',this)"><span class="nav-icon">📊</span>Tableau de bord</div>
     <div class="nav-item" onclick="showPage('etablissements',this)"><span class="nav-icon">🏢</span>Établissements</div>
     <div class="nav-item admin-only" onclick="showPage('carrousel',this)"><span class="nav-icon">🖼️</span>Carrousel accueil</div>
+    <div class="nav-item admin-only" onclick="showPage('fidelite-reseau',this)"><span class="nav-icon">🎁</span>Fidélité réseau</div>
     <div class="nav-item" onclick="showPage('menu',this)"><span class="nav-icon">🍽️</span>Articles</div>
     <div class="nav-item" onclick="showPage('zones',this)"><span class="nav-icon">🗺️</span>Zones livraison</div>
     <div class="nav-item" onclick="showPage('upselling',this)"><span class="nav-icon">⬆️</span>Upselling</div>
@@ -838,7 +839,7 @@ window.showPage = (page, el) => {
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
   el.classList.add('active');
   const titles = {
-    dashboard:'Tableau de bord', etablissements:'Établissements', carrousel:'Carrousel d\'accueil', menu:'Gestion des articles',
+    dashboard:'Tableau de bord', etablissements:'Établissements', carrousel:'Carrousel d\'accueil', 'fidelite-reseau':'Fidélité réseau', menu:'Gestion des articles',
     zones:'Zones de livraison', upselling:'Règles d\'upselling', platdujour:'Plat du jour', avis:'Avis clients', cache:'Gestion du cache',
     annonces:'Infos & Actualités', candidatures:'Candidatures',
     qrcodes:'QR Codes tables', floorplan:'Plan de salle', commandes:'Historique commandes',
@@ -866,6 +867,7 @@ async function renderPage(page) {
     case 'dashboard':  renderDashboard(c); break;
     case 'etablissements': await renderEtablissements(c); break;
     case 'carrousel':  await renderCarrousel(c); break;
+    case 'fidelite-reseau': await renderFideliteReseau(c); break;
     case 'menu':       renderMenu(c,a); break;
     case 'zones':      renderZones(c,a); break;
     case 'upselling':  renderUpselling(c,a); break;
@@ -1505,7 +1507,8 @@ async function renderConfig(c) {
       tel1: '', tel1_label: 'Fixe', tel1_show: true,
       tel2: '', tel2_label: 'Mobile', tel2_show: true,
       email: '', email_show: true
-    }
+    },
+    loyalty: { useNetwork: true, periodDays: 30, rewardType: 'texte', rewardTexte: '', rewardPercent: 10 },
   };
   try {
     let snap = await getDoc(doc(db, 'config', activeResto));
@@ -1513,6 +1516,7 @@ async function renderConfig(c) {
     if (snap.exists()) cfg = { ...cfg, ...snap.data() };
     cfg.restoId = activeResto;           // l'identifiant suit l'établissement sélectionné
     if (!cfg.payments) cfg.payments = { especes:true, wave:true, orange:false, mtn:false };
+    cfg.loyalty = { useNetwork: true, periodDays: 30, rewardType: 'texte', rewardTexte: '', rewardPercent: 10, ...(cfg.loyalty || {}) };
   } catch(e) {}
 
   const pm = cfg.payments;
@@ -1604,11 +1608,74 @@ async function renderConfig(c) {
     +   '</div>'
     + '</div>'
 
+    + '<div><label class="form-label" style="margin-bottom:8px">🎁 Fidélité</label>'
+    +   '<div style="background:var(--bg);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:12px">'
+    +     '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">'
+    +       '<input type="checkbox" id="loy-use-network" ' + (cfg.loyalty.useNetwork !== false ? 'checked' : '') + ' '
+    +       'style="width:16px;height:16px" onchange="window.Admin._toggleLoyaltyFields()"> '
+    +       'Utiliser le réglage réseau par défaut (voir page « Fidélité réseau »)'
+    +     '</label>'
+    +     '<div id="loy-custom-fields" style="display:' + (cfg.loyalty.useNetwork !== false ? 'none' : 'flex') + ';flex-direction:column;gap:12px;padding-top:4px;border-top:1px dashed var(--border)">'
+    +       '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">'
+    +         '<input class="form-input" id="loy-period" type="number" min="1" step="1" value="' + (cfg.loyalty.periodDays || 30) + '" style="max-width:110px">'
+    +         '<span style="font-size:13px;color:var(--muted)">jours entre deux récompenses pour un même client, à cet établissement</span>'
+    +       '</div>'
+    +       '<div>'
+    +         '<select class="form-select" id="loy-reward-type" onchange="window.Admin._toggleLoyaltyRewardType()">'
+    +           '<option value="texte"' + (cfg.loyalty.rewardType !== 'reduction' ? ' selected' : '') + '>Texte libre (ex: Boisson offerte)</option>'
+    +           '<option value="reduction"' + (cfg.loyalty.rewardType === 'reduction' ? ' selected' : '') + '>Réduction automatique (%)</option>'
+    +         '</select>'
+    +       '</div>'
+    +       '<input class="form-input" id="loy-reward-texte" placeholder="ex: Un dessert offert" '
+    +         'value="' + (cfg.loyalty.rewardTexte || '').replace(/"/g,'&quot;') + '" '
+    +         'style="display:' + (cfg.loyalty.rewardType === 'reduction' ? 'none' : 'block') + '">'
+    +       '<div id="loy-reward-percent-row" style="display:' + (cfg.loyalty.rewardType === 'reduction' ? 'flex' : 'none') + ';align-items:center;gap:10px">'
+    +         '<input class="form-input" id="loy-reward-percent" type="number" min="1" max="100" value="' + (cfg.loyalty.rewardPercent || 10) + '" style="max-width:110px">'
+    +         '<span style="font-size:13px;color:var(--muted)">% de réduction appliquée automatiquement à la commande récompensée</span>'
+    +       '</div>'
+    +     '</div>'
+    +   '</div>'
+    + '</div>'
+
     + '<button onclick="window.Admin.saveConfig(this)" class="btn btn-primary" style="align-self:flex-start">💾 Enregistrer</button>'
     + '<div id="cfg-msg" style="font-size:13px;display:none"></div>'
     + '</div></div>';
 }
 
+// ── Fidélité réseau (réglage par défaut, propriétaire uniquement) ──
+async function renderFideliteReseau(c) {
+  c.innerHTML = '<div class="loading"><div class="spinner"></div><p>Chargement…</p></div>';
+  let cfg = { periodDays: 30, rewardType: 'texte', rewardTexte: '', rewardPercent: 10 };
+  try {
+    const snap = await getDoc(doc(db, 'config', 'fidelite-reseau'));
+    if (snap.exists()) cfg = { ...cfg, ...snap.data() };
+  } catch(e) {}
+
+  c.innerHTML = '<div class="card">'
+    + '<div class="card-title">🎁 Fidélité réseau</div>'
+    + '<p style="font-size:12px;color:var(--muted);margin-bottom:16px;line-height:1.5">Réglage par défaut utilisé par tout établissement qui n\x27a pas personnalisé sa propre fidélité (Configuration → Fidélité de chaque établissement).</p>'
+    + '<div style="display:flex;flex-direction:column;gap:14px;max-width:480px">'
+    +   '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">'
+    +     '<input class="form-input" id="fr-period" type="number" min="1" step="1" value="' + (cfg.periodDays || 30) + '" style="max-width:110px">'
+    +     '<span style="font-size:13px;color:var(--muted)">jours entre deux récompenses pour un même client</span>'
+    +   '</div>'
+    +   '<div>'
+    +     '<select class="form-select" id="fr-reward-type" onchange="window.Admin._toggleFrRewardType()">'
+    +       '<option value="texte"' + (cfg.rewardType !== 'reduction' ? ' selected' : '') + '>Texte libre (ex: Boisson offerte)</option>'
+    +       '<option value="reduction"' + (cfg.rewardType === 'reduction' ? ' selected' : '') + '>Réduction automatique (%)</option>'
+    +     '</select>'
+    +   '</div>'
+    +   '<input class="form-input" id="fr-reward-texte" placeholder="ex: Un dessert offert" '
+    +     'value="' + (cfg.rewardTexte || '').replace(/"/g,'&quot;') + '" '
+    +     'style="display:' + (cfg.rewardType === 'reduction' ? 'none' : 'block') + '">'
+    +   '<div id="fr-reward-percent-row" style="display:' + (cfg.rewardType === 'reduction' ? 'flex' : 'none') + ';align-items:center;gap:10px">'
+    +     '<input class="form-input" id="fr-reward-percent" type="number" min="1" max="100" value="' + (cfg.rewardPercent || 10) + '" style="max-width:110px">'
+    +     '<span style="font-size:13px;color:var(--muted)">% de réduction appliquée automatiquement à la commande récompensée</span>'
+    +   '</div>'
+    +   '<button onclick="window.Admin.saveFideliteReseau(this)" class="btn btn-primary" style="align-self:flex-start">💾 Enregistrer</button>'
+    +   '<div id="fr-msg" style="font-size:13px;display:none"></div>'
+    + '</div></div>';
+}
 
 // ── Plan de salle ─────────────────────────────────────────
 const FP_COLS = 10;
@@ -4573,6 +4640,13 @@ window.Admin.saveConfig = async function(btn) {
         email:       document.getElementById('cfg-email')?.value.trim()      || '',
         email_show:  document.getElementById('cfg-email-show')?.checked      ?? true,
       },
+      loyalty: {
+        useNetwork:    document.getElementById('loy-use-network')?.checked ?? true,
+        periodDays:    Math.max(1, parseInt(document.getElementById('loy-period')?.value) || 30),
+        rewardType:    document.getElementById('loy-reward-type')?.value || 'texte',
+        rewardTexte:   document.getElementById('loy-reward-texte')?.value.trim() || '',
+        rewardPercent: Math.min(100, Math.max(1, parseInt(document.getElementById('loy-reward-percent')?.value) || 10)),
+      },
       updatedAt: serverTimestamp(),
     }, { merge: true });
     msg.style.cssText = 'display:block;color:#10B981;font-weight:700';
@@ -4590,6 +4664,47 @@ window.Admin.saveConfig = async function(btn) {
         msg.textContent = '⚠️ Token rafraîchi - réessayez';
       } catch(e2) {}
     }
+  }
+  clearBtnBusy(btn);
+};
+
+window.Admin._toggleLoyaltyFields = function() {
+  const box = document.getElementById('loy-custom-fields');
+  const useNetwork = document.getElementById('loy-use-network')?.checked;
+  if (box) box.style.display = useNetwork ? 'none' : 'flex';
+};
+window.Admin._toggleLoyaltyRewardType = function() {
+  const type = document.getElementById('loy-reward-type')?.value;
+  const texteEl    = document.getElementById('loy-reward-texte');
+  const percentRow = document.getElementById('loy-reward-percent-row');
+  if (texteEl)    texteEl.style.display    = type === 'reduction' ? 'none' : 'block';
+  if (percentRow) percentRow.style.display = type === 'reduction' ? 'flex' : 'none';
+};
+
+window.Admin._toggleFrRewardType = function() {
+  const type = document.getElementById('fr-reward-type')?.value;
+  const texteEl    = document.getElementById('fr-reward-texte');
+  const percentRow = document.getElementById('fr-reward-percent-row');
+  if (texteEl)    texteEl.style.display    = type === 'reduction' ? 'none' : 'block';
+  if (percentRow) percentRow.style.display = type === 'reduction' ? 'flex' : 'none';
+};
+window.Admin.saveFideliteReseau = async function(btn) {
+  const msg = document.getElementById('fr-msg');
+  setBtnBusy(btn, 'Enregistrement…');
+  try {
+    await setDoc(doc(db, 'config', 'fidelite-reseau'), {
+      periodDays:    Math.max(1, parseInt(document.getElementById('fr-period')?.value) || 30),
+      rewardType:    document.getElementById('fr-reward-type')?.value || 'texte',
+      rewardTexte:   document.getElementById('fr-reward-texte')?.value.trim() || '',
+      rewardPercent: Math.min(100, Math.max(1, parseInt(document.getElementById('fr-reward-percent')?.value) || 10)),
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+    msg.style.cssText = 'display:block;color:#10B981;font-weight:700';
+    msg.textContent   = '✅ Réglage réseau enregistré';
+    setTimeout(() => msg.style.display = 'none', 3000);
+  } catch(e) {
+    msg.style.cssText = 'display:block;color:#EF4444;font-size:14px;padding:10px;background:#FEE2E2;border-radius:8px';
+    msg.textContent   = 'Erreur : ' + (e.message || e.code || '');
   }
   clearBtnBusy(btn);
 };
