@@ -1972,6 +1972,7 @@ function updateTrackingView(order) {
       <div class="eta-value" style="color:#065F46">${isLiv ? 'Livrée !' : 'Bon appétit !'}</div></div>
     </div>` : ''}
     ${payBadge}
+    <div id="tracking-loyalty-badge"></div>
     <ul class="stepper">${stepsHtml}</ul>
     <div class="tracking-items">
       <div class="tracking-items-title">Votre commande</div>
@@ -1987,6 +1988,42 @@ function updateTrackingView(order) {
              font-size:13px;font-weight:600;text-decoration:underline;cursor:pointer;padding:14px 8px 4px">
       ${getLang() === 'en' ? 'Cancel my order' : 'Annuler ma commande'}
     </button>` : ''}`;
+  _updateLoyaltyBadge(order, 'tracking-loyalty-badge');
+}
+// ─── Badge fidélité (page + modale de suivi) ─────────────
+// Récompense périodique (X jours), pas liée au nombre de commandes —
+// uniquement pour livraison/sur place (seuls canaux avec un téléphone).
+// Mise en cache par orderId : le statut ne change pas pendant la session
+// de suivi (une nouvelle commande ne débloque pas instantanément une
+// récompense, seul le staff la marque "utilisée").
+const _loyaltyBadgeCache = {};
+async function _updateLoyaltyBadge(order, elId) {
+  const badgeEl = document.getElementById(elId);
+  if (!badgeEl) return;
+  const tel = order.type === 'livraison' ? order.livraison?.telephone
+    : order.type === 'surplace' ? order.telephone : null;
+  if (!tel || !order.restoId) { badgeEl.innerHTML = ''; return; }
+  const cacheKey = order.id + ':' + elId;
+  if (_loyaltyBadgeCache[cacheKey]) { badgeEl.innerHTML = _loyaltyBadgeCache[cacheKey]; return; }
+  try {
+    const [cfg, clientDoc] = await Promise.all([fetchLoyaltyConfig(order.restoId), fetchClientLoyalty(tel)]);
+    const status = computeLoyaltyStatus(clientDoc, cfg, order.restoId);
+    let html = '';
+    if (status?.available) {
+      const rewardLabel = status.cfg.rewardType === 'reduction'
+        ? status.cfg.rewardPercent + '% ' + t('loyalty_reduction_suffix')
+        : (status.cfg.rewardTexte || t('loyalty_default_reward'));
+      html = '<div style="background:#FFF3E0;border:1.5px solid #F9C98A;border-radius:var(--r);padding:12px 14px;'
+        + 'font-size:13px;font-weight:700;color:#9A5B00;margin-bottom:12px">🎁 ' + t('loyalty_available') + ' ' + escapeHtml(rewardLabel) + '</div>';
+    } else if (status && status.daysLeft > 0) {
+      html = '<div style="background:var(--bg);border-radius:var(--r);padding:10px 14px;font-size:12px;'
+        + 'color:var(--text-muted);margin-bottom:12px">🎁 ' + t('loyalty_days_left').replace('{n}', status.daysLeft) + '</div>';
+    }
+    _loyaltyBadgeCache[cacheKey] = html;
+    // L'utilisateur a pu quitter la vue pendant le fetch — revérifier l'élément.
+    const el2 = document.getElementById(elId);
+    if (el2) el2.innerHTML = html;
+  } catch (e) { console.warn('loyalty badge:', e); }
 }
 // ─── Toast ────────────────────────────────────────────────
 function showToast(msg) {
@@ -4091,11 +4128,13 @@ window.App.openTrackingModal = function(orderId) {
     body.innerHTML = '<div style="background:#FFF8F5;border-radius:12px;border-left:4px solid #F26522;padding:14px 16px;margin-bottom:20px">'
       + '<div style="font-size:14px;color:#4A3020">' + (msgs[status] || msgs.pending) + '</div>'
       + '</div>'
+      + '<div id="tracking-modal-loyalty"></div>'
       + stepsHtml
       + (status === 'pending' ? '<button type="button" onclick="window.App.cancelOrder(\x27' + orderId + '\x27)" '
           + 'style="display:block;width:100%;text-align:center;background:none;border:none;color:#DC2626;'
           + 'font-size:13px;font-weight:600;text-decoration:underline;cursor:pointer;padding:14px 8px 4px">'
           + (isEn ? 'Cancel my order' : 'Annuler ma commande') + '</button>' : '');
+    _updateLoyaltyBadge(order, 'tracking-modal-loyalty');
     if (status === 'done') {
       // Notez vos plats : accès direct à la fiche article (section avis) pour
       // chacun des plats commandés, sans avoir à les rechercher dans le menu.

@@ -391,7 +391,8 @@
 import { auth, db }              from '/js/config.js';
 import { startOnboarding, forceOnboarding } from '/js/onboarding.js';
 import { initAssistant } from '/js/assistant.js';
-import { setRestoId, fetchMenu, createSession, getOpenSessions } from '/js/db.js';
+import { setRestoId, fetchMenu, createSession, getOpenSessions,
+         fetchLoyaltyConfig, fetchClientLoyalty, computeLoyaltyStatus, redeemLoyaltyReward } from '/js/db.js';
 import { submitSalleOrder } from '/js/order.js';
 import { hasFormats, hasVariantes, getFormatLabels, getPrixForFormat, isBoisson } from '/js/upselling.js';
 // Init assistant IA dashboard
@@ -1005,7 +1006,51 @@ function renderOrders() {
   }
 
   grid.innerHTML = filtered.map(order => buildCard(order)).join('');
+  filtered.forEach(o => _loadStaffLoyaltyBadge(o));
 }
+
+// ── Badge fidélité côté staff (commandes livraison/sur place) ──────
+// Récompense périodique (X jours), pas liée au nombre de commandes.
+// Mise en cache par commande : le statut ne change pas tant que le
+// staff n'a pas explicitement marqué la récompense comme utilisée.
+const _staffLoyaltyCache = {};
+async function _loadStaffLoyaltyBadge(o) {
+  const tel = o.type === 'livraison' ? o.livraison?.telephone : o.type === 'surplace' ? o.telephone : null;
+  const el  = document.getElementById('loyalty-badge-' + o.id);
+  if (!tel || !o.restoId || !el) return;
+  const cacheKey = o.id;
+  if (_staffLoyaltyCache[cacheKey] !== undefined) { el.innerHTML = _staffLoyaltyCache[cacheKey]; return; }
+  try {
+    const [cfg, clientDoc] = await Promise.all([fetchLoyaltyConfig(o.restoId), fetchClientLoyalty(tel)]);
+    const status = computeLoyaltyStatus(clientDoc, cfg, o.restoId);
+    let html = '';
+    if (status?.available) {
+      const rewardLabel = status.cfg.rewardType === 'reduction'
+        ? status.cfg.rewardPercent + '% de réduction' : (status.cfg.rewardTexte || 'Récompense');
+      html = '<div style="background:#FFF3E0;border:1.5px solid #F9C98A;border-radius:8px;padding:8px 10px;'
+        + 'font-size:12px;font-weight:700;color:#9A5B00;margin:8px 0;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">'
+        + '<span>🎁 ' + escapeHtml(rewardLabel) + '</span>'
+        + '<button class="btn btn-sm" style="background:#9A5B00;color:#fff;flex-shrink:0" onclick="window.redeemLoyalty(\'' + o.id + '\',\'' + tel + '\',\'' + o.restoId + '\')">Marquer utilisée</button>'
+        + '</div>';
+    }
+    _staffLoyaltyCache[cacheKey] = html;
+    const el2 = document.getElementById('loyalty-badge-' + o.id);
+    if (el2) el2.innerHTML = html;
+  } catch (e) { console.warn('staff loyalty badge:', e); }
+}
+window.redeemLoyalty = async function(orderId, telephone, restoId) {
+  if (!confirm('Confirmer que la récompense fidélité a bien été remise au client ?')) return;
+  try {
+    await redeemLoyaltyReward(telephone, restoId);
+    delete _staffLoyaltyCache[orderId];
+    showToast('🎁 Récompense marquée comme utilisée');
+    const el = document.getElementById('loyalty-badge-' + orderId);
+    if (el) el.innerHTML = '';
+  } catch (e) {
+    console.error('[redeemLoyalty]', e);
+    alert('Impossible de marquer la récompense. Réessayez.');
+  }
+};
 
 // ── Réservations de table ─────────────────────────────────
 function showToast(msg) {
@@ -1306,6 +1351,7 @@ function buildCard(o) {
       <div class="order-items">${itemsHtml}</div>
       <div class="order-footer">
         ${deliveryHtml}
+        <div id="loyalty-badge-${o.id}"></div>
         <div class="order-total">Total : ${new Intl.NumberFormat('fr-FR').format(o.total||0)} FCFA</div>
         <div class="status-btns">${actionBtns}</div>
       </div>
