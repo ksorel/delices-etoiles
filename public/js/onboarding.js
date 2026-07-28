@@ -76,8 +76,13 @@ class Onboarding {
   }
 
   _showStep(index) {
-    const step   = this.steps[index];
-    const target = step.target ? document.querySelector(step.target) : null;
+    const step = this.steps[index];
+    // offsetParent === null détecte un élément display:none (ex: sections
+    // réservées au propriétaire, masquées pour une session gérant) — dans ce
+    // cas on retombe sur l'affichage centré plutôt qu'un cadre invisible
+    // planté en haut à gauche de l'écran.
+    let target = step.target ? document.querySelector(step.target) : null;
+    if (target && target.offsetParent === null) target = null;
     const total  = this.steps.length;
 
     // Mettre en évidence l'élément cible
@@ -243,32 +248,48 @@ class Onboarding {
 export const DASHBOARD_STEPS = [
   { target: null, position: 'center',
     title: '👋 Bienvenue sur le Dashboard !',
-    text: 'Ce tableau de bord vous permet de gérer les commandes en temps réel. Ce tour rapide vous explique les fonctions essentielles en moins de 2 minutes.' },
+    text: 'Ce tableau de bord vous permet de gérer les commandes, réservations et le plan de salle en temps réel. Ce tour rapide vous explique les fonctions essentielles en moins de 2 minutes.' },
+  { target: '#role-badge', position: 'bottom',
+    title: '🏷️ Votre rôle',
+    text: 'Ce badge indique votre ou vos rôles (Serveur, Bar, Cuisine, Livreur, Caissier...). Les onglets et boutons affichés s\'adaptent automatiquement à ce que votre rôle autorise.' },
   { target: '.filters', position: 'bottom',
     title: '🔍 Filtrer les commandes',
     text: 'Utilisez ces boutons pour afficher uniquement les commandes en attente, en préparation, prêtes ou livrées. Très utile en période de rush.' },
+  { target: '[data-filter="reservations"]', position: 'bottom',
+    title: '📅 Réservations',
+    text: 'Consultez et confirmez/refusez les demandes de réservation de table reçues depuis le portail client.' },
+  { target: '#fp-btn', position: 'bottom',
+    title: '🗺️ Plan de salle',
+    text: 'Visualisez l\'état de vos tables en un coup d\'œil. Touchez une table pour filtrer directement les commandes qui lui sont liées.' },
   { target: '.orders-grid', position: 'top',
     title: '📋 Les cartes de commande',
-    text: 'Chaque carte représente une commande. Elle affiche la table, les articles, le mode de paiement et le statut. Les nouvelles commandes apparaissent automatiquement.' },
+    text: 'Chaque carte représente une commande : table, articles, mode de paiement, statut. Un badge 🎁 apparaît quand une récompense fidélité est disponible pour ce client — vous pouvez alors la marquer comme utilisée.' },
   { target: '#sound-btn', position: 'bottom',
     title: '🔔 Alerte sonore',
     text: 'Activez le son pour être averti à chaque nouvelle commande, même si vous n\'êtes pas devant l\'écran. Indispensable en cuisine.' },
   { target: '#staff-order-btn', position: 'bottom',
     title: '➕ Commande serveur',
-    text: 'En tant que serveur ou admin, saisissez une commande directement depuis le dashboard au nom d\'un client.' },
+    text: 'En tant que serveur ou admin, saisissez une commande directement depuis le dashboard au nom d\'un client — pratique s\'il n\'a pas de téléphone pour scanner le QR code.' },
+  { target: null, position: 'center',
+    title: '📲 Installer sur tablette/téléphone',
+    text: 'Depuis le menu de votre navigateur (⋮ sur Android, partage sur iPhone), choisissez « Installer l\'application » ou « Ajouter à l\'écran d\'accueil » pour lancer le Dashboard en un tap, comme une vraie application.' },
 ];
 
 // ── Étapes Admin ──────────────────────────────────────────
 export const ADMIN_STEPS = [
   { target: null, position: 'center',
     title: '👋 Bienvenue dans l\'Administration !',
-    text: 'Ce panneau vous permet de gérer tout le restaurant : articles, stocks, utilisateurs, zones, statistiques et configuration. Suivez ce tour pour maîtriser les fonctions essentielles.' },
+    text: 'Ce panneau vous permet de gérer tout le réseau : établissements, menu, stocks, personnel, fidélité, traiteur, statistiques et bien plus. Suivez ce tour pour repérer où se trouve chaque fonction.' },
 
   { target: '.sidebar', position: 'right',
     title: '🗂️ Navigation',
-    text: 'Toutes les sections sont accessibles depuis cette barre latérale. Articles, Stocks, Utilisateurs, Plan de salle, QR Codes, Plat du jour, Statistiques, Configuration...' },
+    text: 'Toutes les sections sont accessibles depuis cette barre latérale. Un gérant ne voit que ce qui concerne son établissement ; le propriétaire voit tout, y compris les réglages réseau.' },
 
-  { target: '[onclick*="menu"]', position: 'right',
+  { target: '[onclick*="etablissements"]', position: 'right',
+    title: '🏢 Établissements',
+    text: 'Créez et modifiez les établissements du réseau : nom, logo, adresse, réseaux sociaux, activation/désactivation. Le sélecteur en haut de l\'écran permet de basculer entre eux ou de tout voir en même temps.' },
+
+  { target: '[onclick*="\'menu\'"]', position: 'right',
     title: '🍽️ Gestion des articles',
     text: 'Ajoutez, modifiez ou désactivez des articles. Uploadez les photos depuis le formulaire d\'édition. Les articles désactivés disparaissent immédiatement du menu client.' },
 
@@ -277,24 +298,48 @@ export const ADMIN_STEPS = [
     text: 'Suivez les stocks en casiers (24 bouteilles). Quand le stock atteint 0, l\'article est automatiquement masqué du menu client. Ajoutez une entrée à chaque livraison fournisseur.' },
 
   { target: '[onclick*="users"]', position: 'right',
-    title: '👥 Gestion des utilisateurs',
-    text: 'Créez les comptes de vos employés avec un identifiant court (ex: cuisine01). Attribuez les rôles : Serveur, Bar, Cuisine, Livreur, Caissier. Réinitialisez les mots de passe depuis ici.' },
+    title: '👥 Utilisateurs',
+    text: 'Créez les comptes de vos employés avec un identifiant court (ex: cuisine01). Attribuez un ou plusieurs rôles : Serveur, Bar, Cuisine, Livreur, Caissier. Réinitialisez les mots de passe depuis ici.' },
 
   { target: '[onclick*="floorplan"]', position: 'right',
     title: '🗺️ Plan de salle',
-    text: 'Configurez la disposition de vos tables par glisser-déposer. Double-cliquez pour renommer. Les QR Codes sont automatiquement synchronisés avec les noms de tables.' },
+    text: 'Configurez la disposition de vos tables (tap pour sélectionner, tap pour déplacer — fonctionne aussi bien à la souris qu\'au doigt). Les QR Codes sont automatiquement synchronisés avec les noms de tables.' },
 
-  { target: '[onclick*="config"]', position: 'right',
+  { target: '[onclick*="qrcodes"]', position: 'right',
+    title: '📱 QR Codes',
+    text: 'Générez et imprimez les QR Codes de chaque table, à scanner par les clients pour commander directement en salle.' },
+
+  { target: '[onclick*="carrousel"]', position: 'right',
+    title: '📢 Contenu affiché au client',
+    text: 'Carrousel d\'accueil, Plat du jour et Infos & Actualités (annonces, recrutement) sont gérés depuis des pages dédiées de la barre latérale. Les Avis clients laissés sur vos plats se modèrent depuis là aussi.' },
+
+  { target: '[onclick*="candidatures"]', position: 'right',
+    title: '📨 Candidatures',
+    text: 'Les candidatures reçues via une annonce de recrutement (page Infos & Actualités du client) arrivent ici : consultez, changez le statut, contactez le candidat par téléphone ou WhatsApp en un clic.' },
+
+  { target: '[onclick*="\'zones\'"]', position: 'right',
+    title: '🗺️ Zones de livraison & Upselling',
+    text: 'Zones livraison définit les secteurs livrables et leurs frais. Upselling (juste en dessous) configure les accompagnements/boissons suggérés automatiquement au client pendant sa commande.' },
+
+  { target: '[onclick*="fidelite-reseau"]', position: 'right',
+    title: '🎁 Fidélité',
+    text: 'Réglez ici la récompense par défaut du réseau (tous les X jours, texte libre ou % de réduction). Chaque établissement peut personnaliser son propre réglage depuis sa Configuration.' },
+
+  { target: '[onclick*="\'config\'"]', position: 'right',
     title: '⚙️ Configuration',
-    text: 'Modifiez le nom du restaurant, l\'identifiant (pour la chaîne multi-restaurant) et le numéro du gérant affiché sur la page de connexion du dashboard.' },
+    text: 'Nom du restaurant, contacts affichés au client, modes de paiement acceptés, délai d\'expiration des commandes non traitées, et réglage fidélité propre à cet établissement.' },
 
   { target: '[onclick*="stats"]', position: 'right',
     title: '📈 Statistiques',
-    text: 'Consultez le chiffre d\'affaires, les commandes servies et le CA du jour en temps réel.' },
+    text: 'Chiffre d\'affaires, panier moyen, répartition par type de service (salle/livraison/sur place) et graphique — filtrable par période (7 jours, 30 jours, tout).' },
 
   { target: '[onclick*="paiements"]', position: 'right',
-    title: '💳 Paiements',
-    text: 'Historique complet de tous les règlements encaissés : espèces, Wave, Orange Money, MTN.' },
+    title: '💳 Paiements & Comptabilité',
+    text: 'Paiements liste tous les règlements encaissés. Comptabilité (en bas de la barre latérale, section Traiteur) résume revenus, dépenses et solde net.' },
+
+  { target: '[onclick*="devis-demandes"]', position: 'right',
+    title: '🎉 Traiteur',
+    text: 'Demandes, Devis et Prestations gèrent le circuit événementiel de bout en bout. Un devis se compose de lignes que vous pouvez classer par catégorie (Entrée, Plat, Dessert, Boisson...) pour un rendu façon carte de menu, envoyé au client par lien.' },
 ];
 
 
