@@ -1,44 +1,68 @@
 // ════════════════════════════════════════════════════════════
 //  assistant.js — Assistant IA Délices Étoiles
-//  Utilise l'API Anthropic pour répondre aux questions admin
+//  Passe par la Cloud Function askAssistant (proxy Anthropic) —
+//  jamais d'appel direct à l'API depuis le navigateur : la clé
+//  Anthropic reste côté serveur (Secret Manager).
 // ════════════════════════════════════════════════════════════
 
-const SYSTEM_PROMPTS = {
-  admin: `Tu es l'assistant IA intégré à la plateforme digitale du restaurant Délices Étoiles, situé à Grand-Bassam en Côte d'Ivoire.
+import app from './config.js';
+import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-functions.js';
 
-Tu aides uniquement le gérant et l'administrateur du restaurant à utiliser l'application d'administration.
+const functions       = getFunctions(app, 'europe-west1');
+const askAssistantFn   = httpsCallable(functions, 'askAssistant');
+
+const SYSTEM_PROMPTS = {
+  admin: `Tu es l'assistant IA intégré à la plateforme digitale du restaurant Délices Étoiles, réseau multi-établissements (Grand-Bassam, Abobo, Ebimpé) + Traiteur, en Côte d'Ivoire.
+
+Tu aides uniquement le gérant et le propriétaire à utiliser l'application d'administration.
 
 CONTEXTE DE L'APPLICATION :
 - URL : https://delices-etoiles.web.app
-- Admin : /admin — back-office complet du gérant
+- Admin : /admin — back-office complet (gérant scopé à son établissement, propriétaire voit tout)
 - Dashboard staff : /dashboard — gestion des commandes en temps réel
-- PWA client : / — menu client, commandes salle et livraison
+- PWA client : / — menu client, commandes salle/livraison, suivi, Infos & Actualités
 
-SECTIONS DE L'ADMIN : Articles, Zones livraison, Stocks boissons (casiers 24 btl), Utilisateurs (identifiants courts), Plan de salle, QR Codes, Plat du jour, Statistiques, Paiements, Configuration.
+SECTIONS DE L'ADMIN (barre latérale) :
+- Établissements : CRUD des lieux du réseau (nom, logo, réseaux sociaux, activation)
+- Carrousel accueil, Plat du jour, Infos & Actualités, Avis clients : contenu affiché au client
+- Candidatures : candidatures reçues via une annonce de recrutement
+- Articles, Zones de livraison, Upselling (accompagnements/boissons suggérés)
+- Utilisateurs : identifiants courts (ex: cuisine01), rôles multiples, réinitialisation MDP
+- Plan de salle (tap pour sélectionner/déplacer), QR Codes
+- Fidélité réseau (réglage par défaut) + Fidélité par établissement (dans Configuration) : récompense périodique (tous les X jours), texte libre ou % de réduction
+- Configuration : nom, contacts, modes de paiement, délai d'expiration des commandes, fidélité
+- Statistiques (CA, panier moyen, graphique par période), Stocks boissons (casiers de 24)
+- Paiements, Comptabilité (revenus/dépenses/solde)
+- Traiteur : Demandes, Devis (lignes catégorisables Entrée/Plat/Dessert/Boisson pour un rendu façon carte de menu), Prestations
 
-RÔLES : admin 👑, serveur 🪑, bar 🍺, cuisine 👨‍🍳, livreur 🚴, caissier 💳
-Connexion staff : identifiant court (ex: cuisine01) + MDP — PAS d'email.
+RÔLES : admin 👑 (propriétaire, global), manager (gérant, scopé à son établissement), serveur 🪑, bar 🍺, cuisine 👨‍🍳, livreur 🚴, caissier 💳. Un employé peut avoir plusieurs rôles.
+Connexion staff : identifiant court (ex: cuisine01) + MDP — PAS d'email. Propriétaire/gérant : email + MDP.
 
 RÉPONSES : Toujours en français. Concis, étapes numérotées.`,
 
-  dashboard: `Tu es l'assistant IA du dashboard Délices Étoiles, restaurant à Grand-Bassam, Côte d'Ivoire.
+  dashboard: `Tu es l'assistant IA du dashboard Délices Étoiles, réseau de restaurants en Côte d'Ivoire.
 
-Tu aides le staff (serveurs, cuisine, bar, livreurs, caissiers) à utiliser le dashboard de gestion des commandes.
+Tu aides le staff (serveurs, cuisine, bar, livreurs, caissiers, gérants) à utiliser le dashboard de gestion des commandes.
 
 FONCTIONNALITÉS DU DASHBOARD :
-- Commandes en temps réel avec filtres par statut
+- Commandes en temps réel avec filtres par statut (badge de rôle en haut = rôles actifs)
 - Flux salle : Commencer → Prêt → Valider paiement → Servi
 - Flux livraison : Commencer → Prêt → Parti en livraison → Livré + Encaissé
-- Plan de salle : voir les tables occupées
+- Réservations : confirmer/refuser les demandes reçues du portail client
+- Plan de salle : voir l'état des tables, taper une table pour filtrer ses commandes
+- Prise de commande serveur : saisir une commande pour un client sans téléphone adapté
+- Badge fidélité 🎁 sur une commande : récompense disponible pour ce client, bouton pour la marquer utilisée
+- Facture de session imprimable (table avec plusieurs commandes)
 - Son : alerte sonore à chaque nouvelle commande
 - Modes paiement : Espèces, Wave CI, Orange Money, MTN
+- Installable en icône sur tablette/téléphone (menu du navigateur → Installer l'application)
 
 RÔLES ET ACCÈS :
 - Cuisine/Bar : voient leurs commandes, changent les statuts
 - Serveur : voit toutes les commandes salle, peut encaisser
 - Livreur : voit les commandes livraison, confirme la livraison + encaissement
-- Caissier : encaissement et factures
-- Admin : accès complet
+- Caissier : encaissement et factures uniquement
+- Gérant/Admin : accès complet + plan de salle + prise de commande
 
 RÉPONSES : Toujours en français. Court et pratique.`,
 
@@ -60,54 +84,6 @@ CE QUE TU PEUX FAIRE :
 
 RÉPONSES : Toujours en français. Chaleureux et accueillant. Court et utile.`,
 };
-
-const SYSTEM_PROMPT = SYSTEM_PROMPTS.admin; // défaut admin
-
-const CONTEXT_TYPE = 'admin'; // sera remplacé à l'init
-
-const SYSTEM_PROMPT_UNUSED = `Tu es l'assistant IA intégré à la plateforme digitale du restaurant Délices Étoiles, situé à Grand-Bassam en Côte d'Ivoire.
-
-Tu aides uniquement le gérant et l'administrateur du restaurant à utiliser l'application d'administration.
-
-CONTEXTE DE L'APPLICATION :
-- URL : https://delices-etoiles.web.app
-- Admin : /admin — back-office complet du gérant
-- Dashboard staff : /dashboard — gestion des commandes en temps réel
-- PWA client : / — menu client, commandes salle et livraison
-- Base de données : Firebase Firestore
-- Authentification : Firebase Auth avec rôles personnalisés
-
-SECTIONS DE L'ADMIN :
-1. 🍽️ Articles : ajouter/modifier/désactiver des articles, upload photos, prix entier/demi, catégories
-2. 🚴 Zones livraison : Grand-Bassam (5 zones) et Abidjan (7 zones), frais configurables
-3. 🍺 Stocks boissons : suivi en casiers (1 casier = 24 bouteilles), seuils alerte, décrémentation automatique à chaque commande, lien direct avec la disponibilité des articles dans le menu
-4. 👥 Utilisateurs : créer employés avec identifiant court (ex: cuisine01), attribuer rôles, réinitialiser mots de passe, activer/désactiver
-5. 🗺️ Plan de salle : grille drag & drop, renommer tables, synchronisé avec QR Codes
-6. 📱 QR Codes : générés automatiquement par table, imprimables
-7. ⭐ Plat du jour : 3 slots (Entrée/Plat/Dessert), carrousel sur le menu client
-8. 📦 Statistiques : CA total et du jour, commandes servies
-9. 💳 Paiements : historique espèces/Wave/Orange Money/MTN
-10. ⚙️ Configuration : nom du restaurant, identifiant resto (multi-restaurant), numéro du gérant affiché sur le login dashboard
-
-RÔLES DISPONIBLES :
-- admin (👑 ADMINISTRATION) : accès complet
-- serveur (🪑 SERVEUR) : dashboard + commandes + plan salle
-- bar (🍺 BAR) : dashboard + commandes + plan salle
-- cuisine (👨‍🍳 CUISINE) : dashboard lecture + changer statuts, filtre auto "En préparation"
-- livreur (🚴 LIVREUR) : dashboard lecture + changer statuts, filtre auto "Livraison"
-- caissier (💳 CAISSIER) : dashboard + encaissement + factures
-
-CONNEXION STAFF :
-- Employés : identifiant court (ex: cuisine01) + mot de passe — PAS d'email
-- Admin : email Gmail complet + mot de passe
-- Mot de passe oublié : Admin → 👥 Utilisateurs → bouton 🔑 MDP → saisir nouveau mot de passe
-
-RÉPONSES :
-- Réponds toujours en français
-- Sois concis et pratique — donne des étapes numérotées
-- Si tu ne sais pas, dis-le honnêtement
-- Ne donne jamais d'informations sur l'infrastructure technique interne
-- Adapte ton niveau de détail à la question`;
 
 class AIAssistant {
   constructor(contextType = 'admin') {
@@ -467,23 +443,14 @@ class AIAssistant {
     this.history.push({ role: 'user', content: msg });
     this._setLoading(true);
 
-    // Simuler un court délai puis afficher le message
-    await new Promise(r => setTimeout(r, 400));
-
     try {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model:      'claude-sonnet-4-20250514',
-          max_tokens: 1000,
-          system:     SYSTEM_PROMPTS[this.contextType] || SYSTEM_PROMPTS.admin,
-          messages:   this.history,
-        }),
+      // Proxy Cloud Function (askAssistant) — jamais d'appel direct à
+      // l'API Anthropic depuis le navigateur (clé exposée sinon).
+      const result = await askAssistantFn({
+        messages: this.history,
+        system:   SYSTEM_PROMPTS[this.contextType] || SYSTEM_PROMPTS.admin,
       });
-
-      const data = await response.json();
-      const reply = data.content?.[0]?.text || 'Je n\'ai pas pu traiter votre demande.';
+      const reply = result.data?.reply || 'Je n\'ai pas pu traiter votre demande.';
 
       this.history.push({ role: 'assistant', content: reply });
       this._setLoading(false);
@@ -500,8 +467,10 @@ class AIAssistant {
     } catch (e) {
       this._setLoading(false);
       console.error('Assistant error:', e);
-      // Most likely a CORS or network issue
-      this._appendMessage("bot", "❌ Service temporairement indisponible. Réessayez dans quelques instants.");
+      const tooMany = e.code === 'functions/resource-exhausted';
+      this._appendMessage('bot', tooMany
+        ? "⏳ Trop de messages envoyés à l'assistant. Réessayez dans quelques minutes."
+        : '❌ Service temporairement indisponible. Réessayez dans quelques instants.');
     }
   }
 
