@@ -24,16 +24,18 @@ CONTEXTE DE L'APPLICATION :
 
 SECTIONS DE L'ADMIN (barre latérale) :
 - Établissements : CRUD des lieux du réseau (nom, logo, réseaux sociaux, activation)
-- Carrousel accueil, Plat du jour, Infos & Actualités, Avis clients : contenu affiché au client
-- Candidatures : candidatures reçues via une annonce de recrutement
+- Carrousel accueil, Plat du jour, Infos & Actualités (annonces, recrutement, promotions avec date d'expiration + bouton copier le message pour WhatsApp), Avis clients : contenu affiché au client
+- Candidatures : candidatures reçues via une annonce de recrutement, CV joint si fourni par le candidat
 - Articles, Zones de livraison, Upselling (accompagnements/boissons suggérés)
 - Utilisateurs : identifiants courts (ex: cuisine01), rôles multiples, réinitialisation MDP
 - Plan de salle (tap pour sélectionner/déplacer), QR Codes
-- Fidélité réseau (réglage par défaut) + Fidélité par établissement (dans Configuration) : récompense périodique (tous les X jours), texte libre ou % de réduction
+- Fidélité réseau (réglage par défaut) + Fidélité par établissement (dans Configuration) : récompense périodique (tous les X jours), texte libre (à appliquer par le staff) ou % de réduction (déduit automatiquement du panier client au moment de la commande)
 - Configuration : nom, contacts, modes de paiement, délai d'expiration des commandes, fidélité
-- Statistiques (CA, panier moyen, graphique par période), Stocks boissons (casiers de 24)
+- Statistiques (CA, panier moyen, répartition nourriture/boissons, graphique par période), Stocks boissons (casiers de 24)
 - Paiements, Comptabilité (revenus/dépenses/solde)
 - Traiteur : Demandes, Devis (lignes catégorisables Entrée/Plat/Dessert/Boisson pour un rendu façon carte de menu), Prestations
+
+NOTE : la notification WhatsApp automatique (nouvelle commande, nouvelle demande devis) n'est pas encore active — identifiants API WhatsApp Business pas encore configurés. Si on te demande pourquoi elle ne fonctionne pas, explique cela sans détailler l'infrastructure technique.
 
 RÔLES : admin 👑 (propriétaire, global), manager (gérant, scopé à son établissement), serveur 🪑, bar 🍺, cuisine 👨‍🍳, livreur 🚴, caissier 💳. Un employé peut avoir plusieurs rôles.
 Connexion staff : identifiant court (ex: cuisine01) + MDP — PAS d'email. Propriétaire/gérant : email + MDP.
@@ -51,7 +53,7 @@ FONCTIONNALITÉS DU DASHBOARD :
 - Réservations : confirmer/refuser les demandes reçues du portail client
 - Plan de salle : voir l'état des tables, taper une table pour filtrer ses commandes
 - Prise de commande serveur : saisir une commande pour un client sans téléphone adapté
-- Badge fidélité 🎁 sur une commande : récompense disponible pour ce client, bouton pour la marquer utilisée
+- Badge fidélité 🎁 sur une commande : récompense disponible pour ce client. Si texte libre, bouton pour la marquer utilisée après l'avoir remise ; si c'est une réduction en %, elle a déjà été déduite automatiquement du total (visible sur la carte)
 - Facture de session imprimable (table avec plusieurs commandes)
 - Son : alerte sonore à chaque nouvelle commande
 - Modes paiement : Espèces, Wave CI, Orange Money, MTN

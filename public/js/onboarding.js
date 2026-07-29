@@ -269,7 +269,7 @@ export const DASHBOARD_STEPS = [
     text: 'Visualisez l\'état de vos tables en un coup d\'œil. Touchez une table pour filtrer directement les commandes qui lui sont liées.' },
   { target: '.orders-grid', position: 'top',
     title: '📋 Les cartes de commande',
-    text: 'Chaque carte représente une commande : table, articles, mode de paiement, statut. Un badge 🎁 apparaît quand une récompense fidélité est disponible pour ce client — vous pouvez alors la marquer comme utilisée.' },
+    text: 'Chaque carte représente une commande : table, articles, mode de paiement, statut. Un badge 🎁 apparaît quand une récompense fidélité est disponible pour ce client — marquez-la comme utilisée si c\'est un texte libre (une réduction en % s\'applique déjà automatiquement au total, visible sur la carte).' },
   { target: '#sound-btn', position: 'bottom',
     title: '🔔 Alerte sonore',
     text: 'Activez le son pour être averti à chaque nouvelle commande, même si vous n\'êtes pas devant l\'écran. Indispensable en cuisine.' },
@@ -317,11 +317,11 @@ export const ADMIN_STEPS = [
 
   { target: '[onclick*="carrousel"]', position: 'right',
     title: '📢 Contenu affiché au client',
-    text: 'Carrousel d\'accueil, Plat du jour et Infos & Actualités (annonces, recrutement) sont gérés depuis des pages dédiées de la barre latérale. Les Avis clients laissés sur vos plats se modèrent depuis là aussi.' },
+    text: 'Carrousel d\'accueil, Plat du jour et Infos & Actualités (annonces, recrutement, promotions) sont gérés depuis des pages dédiées de la barre latérale. Une promotion peut avoir une date d\'expiration et un bouton pour copier le message prêt pour WhatsApp. Les Avis clients laissés sur vos plats se modèrent depuis là aussi.' },
 
   { target: '[onclick*="candidatures"]', position: 'right',
     title: '📨 Candidatures',
-    text: 'Les candidatures reçues via une annonce de recrutement (page Infos & Actualités du client) arrivent ici : consultez, changez le statut, contactez le candidat par téléphone ou WhatsApp en un clic.' },
+    text: 'Les candidatures reçues via une annonce de recrutement (page Infos & Actualités du client, CV joint si le candidat en a fourni un) arrivent ici : consultez, changez le statut, contactez le candidat par téléphone ou WhatsApp en un clic.' },
 
   { target: '[onclick*="\'zones\'"]', position: 'right',
     title: '🗺️ Zones de livraison & Upselling',
@@ -329,7 +329,7 @@ export const ADMIN_STEPS = [
 
   { target: '[onclick*="fidelite-reseau"]', position: 'right',
     title: '🎁 Fidélité',
-    text: 'Réglez ici la récompense par défaut du réseau (tous les X jours, texte libre ou % de réduction). Chaque établissement peut personnaliser son propre réglage depuis sa Configuration.' },
+    text: 'Réglez ici la récompense par défaut du réseau (tous les X jours, texte libre ou % de réduction). Chaque établissement peut personnaliser son propre réglage depuis sa Configuration. Une réduction en % se déduit automatiquement du panier du client dès qu\'elle est disponible ; un texte libre reste à appliquer par le staff.' },
 
   { target: '[onclick*="\'config\'"]', position: 'right',
     title: '⚙️ Configuration',
@@ -337,7 +337,7 @@ export const ADMIN_STEPS = [
 
   { target: '[onclick*="stats"]', position: 'right',
     title: '📈 Statistiques',
-    text: 'Chiffre d\'affaires, panier moyen, répartition par type de service (salle/livraison/sur place) et graphique — filtrable par période (7 jours, 30 jours, tout).' },
+    text: 'Chiffre d\'affaires, panier moyen, répartition par type de service (salle/livraison/sur place) et par famille (nourriture/boissons), graphique — filtrable par période (7 jours, 30 jours, tout).' },
 
   { target: '[onclick*="paiements"]', position: 'right',
     title: '💳 Paiements & Comptabilité',
