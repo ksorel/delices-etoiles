@@ -3071,7 +3071,8 @@ async function renderInfos(main) {
   let items = [];
   let lieuxById = {};
   try {
-    items = await fetchAnnonces();
+    const todayIso = new Date().toISOString().slice(0, 10);
+    items = (await fetchAnnonces()).filter(a => !a.dateFin || a.dateFin >= todayIso);
   } catch (e) {
     console.warn('fetchAnnonces:', e.code || e.message);
   }
@@ -3095,6 +3096,7 @@ async function renderInfos(main) {
   const TYPE_CFG = {
     recrutement: { icon: '💼', label: t('infos_type_recrutement'), color: '#0EA5E9' },
     actu:        { icon: '📢', label: t('infos_type_actu'),        color: '#F26522' },
+    promo:       { icon: '💥', label: t('infos_type_promo'),       color: '#B91C1C' },
   };
   const locale = getLang() === 'en' ? 'en-US' : 'fr-FR';
   const cardsHtml = items.map(a => {

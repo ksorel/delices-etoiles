@@ -2131,6 +2131,7 @@ function renderAvis(c) {
 const ANNONCE_TYPE_CFG = {
   recrutement: { label: 'Recrutement', icon: '💼', color: '#0369A1', bg: '#E0F2FE' },
   actu:        { label: 'Actualité',   icon: '📢', color: '#C2410C', bg: '#FFF0E8' },
+  promo:       { label: 'Promotion',   icon: '💥', color: '#B91C1C', bg: '#FEE2E2' },
 };
 function renderAnnonces(c, a) {
   a.innerHTML = `<button class="btn btn-primary btn-sm" onclick="window.Admin.addAnnonce()">+ Ajouter une annonce</button>`;
@@ -2150,6 +2151,11 @@ function renderAnnonces(c, a) {
       const lieu = !item.restoId
         ? '<span style="font-size:11px;color:var(--muted)">🏢 Réseau</span>'
         : (activeResto === 'ALL' ? lieuChip(item.restoId) : '');
+      const expired = item.dateFin && item.dateFin < new Date().toISOString().slice(0, 10);
+      const dateFinHtml = item.dateFin
+        ? '<div style="font-size:11px;margin-top:2px;color:' + (expired ? '#B91C1C' : 'var(--muted)') + '">'
+          + (expired ? '⏰ Expirée le ' : 'Jusqu\x27au ') + new Date(item.dateFin + 'T12:00:00').toLocaleDateString('fr-FR', { day:'numeric', month:'short', year:'numeric' }) + '</div>'
+        : '';
       return '<tr style="border-bottom:1px solid var(--border)">'
         + '<td style="padding:10px 12px">'
         +   '<span style="font-size:11px;font-weight:700;color:' + cfg.color + ';background:' + cfg.bg + ';padding:2px 9px;border-radius:10px;white-space:nowrap">' + cfg.icon + ' ' + cfg.label + '</span>'
@@ -2157,12 +2163,14 @@ function renderAnnonces(c, a) {
         + '<td style="padding:10px 12px">'
         +   '<div style="font-weight:700;color:var(--brown)">' + escapeAdminHtml(item.titre || '') + '</div>'
         +   (item.poste ? '<div style="font-size:12px;color:var(--muted)">' + escapeAdminHtml(item.poste) + '</div>' : '')
+        +   dateFinHtml
         +   (lieu ? '<div style="margin-top:3px">' + lieu + '</div>' : '')
         + '</td>'
         + '<td style="padding:10px 12px">'
         +   '<label class="toggle"><input type="checkbox" ' + (actif ? 'checked' : '') + ' onchange="window.Admin.toggleAnnonceActif(\x27' + item.id + '\x27,' + actif + ')"><span class="slider"></span></label>'
         + '</td>'
         + '<td style="padding:10px 12px;text-align:right;white-space:nowrap">'
+        +   (item.type === 'promo' ? '<button class="btn btn-sm btn-secondary" style="margin-right:4px;background:#ECFDF5;color:#065F46" onclick="window.Admin.copyPromoWhatsApp(\x27' + item.id + '\x27)">📤 WhatsApp</button>' : '')
         +   '<button class="btn btn-sm btn-secondary" style="margin-right:4px" onclick="window.Admin.editAnnonce(\x27' + item.id + '\x27)">✏️ Modifier</button>'
         +   '<button class="btn btn-sm btn-danger" onclick="window.Admin.deleteAnnonce(\x27' + item.id + '\x27)">🗑️</button>'
         + '</td>'
@@ -2221,13 +2229,19 @@ function _openAnnonceModal(item) {
         <div>
           <label style="${LBL}">Type</label>
           <select class="form-input" id="an-type" style="${INP};cursor:pointer" ${FOCUS} onchange="window.Admin._toggleAnnonceType()">
-            <option value="actu"${cur.type !== 'recrutement' ? ' selected' : ''}>📢 Actualité</option>
+            <option value="actu"${cur.type !== 'recrutement' && cur.type !== 'promo' ? ' selected' : ''}>📢 Actualité</option>
+            <option value="promo"${cur.type === 'promo' ? ' selected' : ''}>💥 Promotion</option>
             <option value="recrutement"${cur.type === 'recrutement' ? ' selected' : ''}>💼 Recrutement</option>
           </select>
         </div>
         <div id="an-poste-row" style="display:${cur.type === 'recrutement' ? 'block' : 'none'}">
           <label style="${LBL}">Poste recherché</label>
           <input class="form-input" id="an-poste" value="${(cur.poste || '').replace(/"/g,'&quot;')}" placeholder="ex: Serveur(se), Cuisinier…" style="${INP}" ${FOCUS}>
+        </div>
+        <div id="an-datefin-row" style="display:${cur.type === 'promo' ? 'block' : 'none'}">
+          <label style="${LBL}">Valable jusqu'au (optionnel)</label>
+          <input class="form-input" id="an-datefin" type="date" value="${cur.dateFin || ''}" style="${INP}" ${FOCUS}>
+          <div style="font-size:11px;color:#9A8576;margin-top:6px">Passé cette date, la promotion disparaît automatiquement du portail client.</div>
         </div>
         <div>
           <label style="${LBL}">Titre <span style="color:#F26522">*</span></label>
@@ -4315,9 +4329,11 @@ function _openLieuModal(l) {
 
 // ── Infos & Actualités : handlers ─────────────────────────
 window.Admin._toggleAnnonceType = function() {
-  const row = document.getElementById('an-poste-row');
+  const posteRow   = document.getElementById('an-poste-row');
+  const dateFinRow = document.getElementById('an-datefin-row');
   const type = document.getElementById('an-type')?.value;
-  if (row) row.style.display = type === 'recrutement' ? 'block' : 'none';
+  if (posteRow)   posteRow.style.display   = type === 'recrutement' ? 'block' : 'none';
+  if (dateFinRow) dateFinRow.style.display = type === 'promo' ? 'block' : 'none';
 };
 window.Admin.addAnnonce  = function() {
   if (!activeRestoForWrite() && activeResto !== 'ALL') { toast('⚠️ Choisissez un établissement'); return; }
@@ -4329,6 +4345,7 @@ window.Admin.saveAnnonce = async function(isNew, id) {
   const titre = document.getElementById('an-titre').value.trim();
   const texte = document.getElementById('an-texte').value.trim();
   const poste = (document.getElementById('an-poste')?.value || '').trim();
+  const dateFin = (document.getElementById('an-datefin')?.value || '').trim();
   const type  = document.getElementById('an-type').value;
   const actif = document.getElementById('an-actif').value === 'true';
   const err   = document.getElementById('an-err');
@@ -4352,6 +4369,7 @@ window.Admin.saveAnnonce = async function(isNew, id) {
     const data = {
       type, titre, texte,
       poste: type === 'recrutement' ? poste : '',
+      dateFin: type === 'promo' && dateFin ? dateFin : null,
       imageUrl, actif,
       restoId: activeRestoForWrite(),
       updatedAt: serverTimestamp(),
@@ -4383,6 +4401,28 @@ window.Admin.deleteAnnonce = async function(id) {
     await deleteDoc(doc(db, 'annonces', id));
     toast('Annonce supprimée');
   } catch(e) { toast('Erreur : ' + e.message); }
+};
+
+// L'API WhatsApp Business n'est pas encore configurée (identifiants non
+// obtenus) : pas d'envoi automatique en masse possible pour l'instant. En
+// attendant, on prepare le message pret a coller dans une diffusion WhatsApp
+// manuelle (liste de diffusion ou statut) — copie dans le presse-papier.
+window.Admin.copyPromoWhatsApp = async function(id) {
+  const promo = (window.Admin._annonces || []).find(x => x.id === id);
+  if (!promo) return;
+  const lieu = promo.restoId ? (lieuLabel(promo.restoId) || '') : '';
+  const dateFin = promo.dateFin
+    ? '\n\n⏰ Valable jusqu\x27au ' + new Date(promo.dateFin + 'T12:00:00').toLocaleDateString('fr-FR', { day:'numeric', month:'short', year:'numeric' })
+    : '';
+  const msg = '💥 *' + promo.titre + '*' + (lieu ? ' — ' + lieu : '') + '\n\n'
+    + promo.texte + dateFin
+    + '\n\n🍽️ Délices Étoiles — https://delices-etoiles.web.app';
+  try {
+    await navigator.clipboard.writeText(msg);
+    toast('📋 Message copié — colle-le dans WhatsApp (diffusion ou statut)');
+  } catch(e) {
+    await adminAlert(msg);
+  }
 };
 
 // ── Candidatures : handlers ────────────────────────────────
