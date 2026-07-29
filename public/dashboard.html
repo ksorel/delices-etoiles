@@ -1352,6 +1352,7 @@ function buildCard(o) {
       <div class="order-footer">
         ${deliveryHtml}
         <div id="loyalty-badge-${o.id}"></div>
+        ${o.loyaltyDiscount ? `<div style="font-size:11px;color:#9A5B00;font-weight:700;margin-bottom:2px">🎁 Réduction fidélité appliquée : -${new Intl.NumberFormat('fr-FR').format(o.loyaltyDiscount.montant||0)} FCFA</div>` : ''}
         <div class="order-total">Total : ${new Intl.NumberFormat('fr-FR').format(o.total||0)} FCFA</div>
         <div class="status-btns">${actionBtns}</div>
       </div>

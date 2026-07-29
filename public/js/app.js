@@ -11,7 +11,7 @@ import { fetchMenu, fetchZones, fetchUpsellRules, getOrCreateTable, fetchPlatDuJ
          submitReservation, createOrder, listenReservation, findReservation, findOrder,
          fetchAvisForItem, hasVerifiedPurchase, getExistingAvis, submitAvis, setAvisRating,
          updateOrderStatus, fetchAnnonces, submitCandidature,
-         touchClientVisit, fetchLoyaltyConfig, fetchClientLoyalty, computeLoyaltyStatus } from './db.js';
+         touchClientVisit, fetchLoyaltyConfig, fetchClientLoyalty, computeLoyaltyStatus, redeemLoyaltyReward } from './db.js';
 import { getDoc, doc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { requestNotificationPermission, listenForegroundMessages } from './fcm.js';
 // Lien partagé vers un article précis (?item=<id>) : ouvert automatiquement
@@ -96,7 +96,7 @@ function _revalidateCart() {
   if (changes.length) _cartPersist();
   return changes;
 }
-import { submitSalleOrder, submitLivraisonOrder, formatFCFA, computeTotal, serializeItems } from './order.js';
+import { submitSalleOrder, submitLivraisonOrder, formatFCFA, computeTotal, serializeItems, applyLoyaltyDiscount } from './order.js';
 import { initAssistant } from './assistant.js';
 // ─── Icônes réseaux sociaux (établissement) ──────────────
 const FB_SVG = '<svg viewBox="0 0 24 24" width="26" height="26" style="display:block"><path fill="#1877F2" d="M24 12.07C24 5.4 18.63 0 12 0S0 5.4 0 12.07C0 18.1 4.39 23.1 10.13 24v-8.44H7.08v-3.49h3.05V9.41c0-3.02 1.79-4.69 4.53-4.69 1.31 0 2.68.24 2.68.24v2.97h-1.51c-1.49 0-1.96.93-1.96 1.89v2.25h3.33l-.53 3.49h-2.8V24C19.61 23.1 24 18.1 24 12.07z"/></svg>';
@@ -1715,13 +1715,17 @@ async function confirmSalle() {
     }
     const operateur  = window._selectedPayment || 'especes';
     const cartItems  = getItems();
-    const totalCart  = computeTotal(cartItems);
     const salleTelNorm = salleTel ? normalizePhone(salleTel) : null;
-    const orderId    = await submitSalleOrder(State.tableId, State.uid, operateur, State.sessionId, cartItems, false, salleTelNorm);
+    const restoId = State.resto?.id || getRestoId();
+    const discountPercent = salleTelNorm ? await _checkLoyaltyDiscountPercent(salleTelNorm, restoId) : null;
+    const { sousTotal: totalCart, loyaltyDiscount } = applyLoyaltyDiscount(computeTotal(cartItems), discountPercent);
+    const orderId    = await submitSalleOrder(State.tableId, State.uid, operateur, State.sessionId, cartItems, false, salleTelNorm, discountPercent);
     if (salleTelNorm) touchClientVisit(salleTelNorm, null);
+    if (loyaltyDiscount) redeemLoyaltyReward(salleTelNorm, restoId).catch(e => console.warn('redeemLoyaltyReward:', e));
     clearCart();
     updateCartBadge();
     localStorage.setItem('de_last_order', JSON.stringify({ orderId, operateur, total: totalCart, mode: 'salle', ts: Date.now() }));
+    if (loyaltyDiscount) showToast('🎁 Réduction fidélité appliquée : -' + loyaltyDiscount.montant.toLocaleString('fr-FR') + ' FCFA');
     renderView('confirm', { orderId, operateur });
     // Afficher les instructions de paiement Mobile Money
     if (operateur !== 'especes') {
@@ -1776,21 +1780,26 @@ async function confirmLivraison() {
       return;
     }
     const cartItems = getItems();
-    const sousTotal = computeTotal(cartItems);
+    const telNorm = normalizePhone(tel);
+    const restoId = State.resto?.id || getRestoId();
+    const discountPercent = await _checkLoyaltyDiscountPercent(telNorm, restoId);
+    const { sousTotal, loyaltyDiscount } = applyLoyaltyDiscount(computeTotal(cartItems), discountPercent);
     const orderId = await submitLivraisonOrder({
-      telephone: normalizePhone(tel), adresse,
+      telephone: telNorm, adresse,
       zoneId:          zone.id,
       zoneName:        zone.name || zone.nom,
       fraisLivraison:  zone.frais || 0,
       operateur:       window._selectedPayment || 'wave',
       comment:         document.getElementById('liv-comment')?.value || '',
-    }, State.uid, cartItems);
+    }, State.uid, cartItems, discountPercent);
+    if (loyaltyDiscount) redeemLoyaltyReward(telNorm, restoId).catch(e => console.warn('redeemLoyaltyReward:', e));
     clearCart();
     updateCartBadge();
     const operateur  = window._selectedPayment || 'wave';
     const totalOrder = sousTotal + (zone.frais || 0);
     localStorage.setItem('de_last_order', JSON.stringify({ orderId, operateur, total: totalOrder, mode: 'livraison', ts: Date.now() }));
     renderView('confirm', { orderId, operateur });
+    if (loyaltyDiscount) showToast('🎁 Réduction fidélité appliquée : -' + loyaltyDiscount.montant.toLocaleString('fr-FR') + ' FCFA');
     // Afficher les instructions de paiement Mobile Money
     if (operateur !== 'especes') {
       showPaymentInstructions(operateur, totalOrder, orderId);
@@ -2010,6 +2019,21 @@ function updateTrackingView(order) {
       ${getLang() === 'en' ? 'Cancel my order' : 'Annuler ma commande'}
     </button>` : ''}`;
   _updateLoyaltyBadge(order, 'tracking-loyalty-badge');
+}
+// Vérifie au checkout si une réduction fidélité automatique s'applique pour
+// ce client (téléphone) à cet établissement — renvoie le % ou null. Échoue
+// silencieusement (pas de réduction) plutôt que de bloquer la commande si la
+// vérification échoue (réseau...).
+async function _checkLoyaltyDiscountPercent(telephone, restoId) {
+  if (!telephone || !restoId) return null;
+  try {
+    const [cfg, clientDoc] = await Promise.all([fetchLoyaltyConfig(restoId), fetchClientLoyalty(telephone)]);
+    const status = computeLoyaltyStatus(clientDoc, cfg, restoId);
+    if (status?.available && cfg.rewardType === 'reduction' && cfg.rewardPercent > 0) {
+      return cfg.rewardPercent;
+    }
+  } catch (e) { console.warn('_checkLoyaltyDiscountPercent:', e); }
+  return null;
 }
 // ─── Badge fidélité (page + modale de suivi) ─────────────
 // Récompense périodique (X jours), pas liée au nombre de commandes —
@@ -3352,16 +3376,23 @@ window.App.confirmSurplace = async function() {
   try {
     const cartItems = getItems();
     const items = serializeItems(cartItems, getLang());
+    const telNorm = normalizePhone(tel);
+    const restoId = State.resto?.id || getRestoId();
+    const discountPercent = await _checkLoyaltyDiscountPercent(telNorm, restoId);
+    const { sousTotal: total, loyaltyDiscount } = applyLoyaltyDiscount(computeTotal(cartItems), discountPercent);
     const orderId = await createOrder({
-      type: 'surplace', restoId: State.resto?.id || getRestoId(),
-      telephone: normalizePhone(tel),
+      type: 'surplace', restoId,
+      telephone: telNorm,
       clientUid: State.uid || null,
-      items, itemIds: cartItems.map(i => i.id), total: computeTotal(cartItems), operateur: 'especes',
+      items, itemIds: cartItems.map(i => i.id), total, operateur: 'especes',
+      ...(loyaltyDiscount ? { loyaltyDiscount } : {}),
     });
-    touchClientVisit(normalizePhone(tel), null);
+    touchClientVisit(telNorm, null);
+    if (loyaltyDiscount) redeemLoyaltyReward(telNorm, restoId).catch(e => console.warn('redeemLoyaltyReward:', e));
     clearCart(); updateCartBadge();
     localStorage.setItem('de_last_order', JSON.stringify({ orderId, operateur: 'especes', mode: 'surplace', ts: Date.now() }));
     renderView('confirm', { orderId, operateur: 'especes' });
+    if (loyaltyDiscount) showToast('🎁 Réduction fidélité appliquée : -' + loyaltyDiscount.montant.toLocaleString('fr-FR') + ' FCFA');
   } catch(e) {
     errEl.textContent = 'Erreur : ' + (e.message || 'commande impossible'); errEl.style.display = 'block';
     if (btn) { btn.disabled = false; btn.textContent = 'Valider ma commande →'; }

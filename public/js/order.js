@@ -46,13 +46,25 @@ export function serializeItems(items, lang = 'fr') {
   });
 }
 
+// Applique une réduction fidélité (%) au sous-total d'articles — jamais aux
+// frais de livraison. Renvoie { sousTotal, loyaltyDiscount } où
+// loyaltyDiscount est null si aucune réduction n'est applicable.
+export function applyLoyaltyDiscount(sousTotal, percent) {
+  if (!percent || percent <= 0) return { sousTotal, loyaltyDiscount: null };
+  const montant = Math.round(sousTotal * percent / 100);
+  return {
+    sousTotal: sousTotal - montant,
+    loyaltyDiscount: { percent, montant },
+  };
+}
+
 // ─── Commande salle ───────────────────────────────────────
-export async function submitSalleOrder(tableId, clientUid, operateur = 'especes', sessionId = null, cartItems = [], saisieParServeur = false, telephone = null) {
+export async function submitSalleOrder(tableId, clientUid, operateur = 'especes', sessionId = null, cartItems = [], saisieParServeur = false, telephone = null, loyaltyDiscountPercent = null) {
   if (!cartItems.length) throw new Error('Panier vide');
 
   const lang  = getLang();
   const lines = serializeItems(cartItems, lang);
-  const total = computeTotal(cartItems);
+  const { sousTotal: total, loyaltyDiscount } = applyLoyaltyDiscount(computeTotal(cartItems), loyaltyDiscountPercent);
 
   const orderId = await createOrder({
     type:          'salle',
@@ -69,19 +81,20 @@ export async function submitSalleOrder(tableId, clientUid, operateur = 'especes'
     // Fidélité : optionnel, laissé par le client au checkout (le seul canal
     // sans téléphone obligatoire) — absent si non renseigné.
     ...(telephone ? { telephone } : {}),
+    ...(loyaltyDiscount ? { loyaltyDiscount } : {}),
   });
 
   return orderId;
 }
 
 // ─── Commande livraison ───────────────────────────────────
-export async function submitLivraisonOrder(livraison, clientUid, cartItems = []) {
+export async function submitLivraisonOrder(livraison, clientUid, cartItems = [], loyaltyDiscountPercent = null) {
   if (!cartItems.length) throw new Error('Panier vide');
 
-  const lang       = getLang();
-  const lines      = serializeItems(cartItems, lang);
-  const sous_total = computeTotal(cartItems);
-  const total      = sous_total + (livraison.fraisLivraison || 0);
+  const lang = getLang();
+  const lines = serializeItems(cartItems, lang);
+  const { sousTotal: sous_total, loyaltyDiscount } = applyLoyaltyDiscount(computeTotal(cartItems), loyaltyDiscountPercent);
+  const total = sous_total + (livraison.fraisLivraison || 0);
 
   const orderId = await createOrder({
     type:      'livraison',
@@ -102,6 +115,7 @@ export async function submitLivraisonOrder(livraison, clientUid, cartItems = [])
     },
     paymentStatus: 'awaiting_payment',
     comment:       livraison.comment || '',
+    ...(loyaltyDiscount ? { loyaltyDiscount } : {}),
   });
 
   touchClientVisit(livraison.telephone, livraison.nom || null);
