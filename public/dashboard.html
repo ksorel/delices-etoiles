@@ -1015,7 +1015,7 @@ function renderOrders() {
 // staff n'a pas explicitement marqué la récompense comme utilisée.
 const _staffLoyaltyCache = {};
 async function _loadStaffLoyaltyBadge(o) {
-  const tel = o.type === 'livraison' ? o.livraison?.telephone : o.type === 'surplace' ? o.telephone : null;
+  const tel = o.type === 'livraison' ? o.livraison?.telephone : (o.type === 'surplace' || o.type === 'salle') ? o.telephone : null;
   const el  = document.getElementById('loyalty-badge-' + o.id);
   if (!tel || !o.restoId || !el) return;
   const cacheKey = o.id;

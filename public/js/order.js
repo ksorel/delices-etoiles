@@ -47,7 +47,7 @@ export function serializeItems(items, lang = 'fr') {
 }
 
 // ─── Commande salle ───────────────────────────────────────
-export async function submitSalleOrder(tableId, clientUid, operateur = 'especes', sessionId = null, cartItems = [], saisieParServeur = false) {
+export async function submitSalleOrder(tableId, clientUid, operateur = 'especes', sessionId = null, cartItems = [], saisieParServeur = false, telephone = null) {
   if (!cartItems.length) throw new Error('Panier vide');
 
   const lang  = getLang();
@@ -66,6 +66,9 @@ export async function submitSalleOrder(tableId, clientUid, operateur = 'especes'
     operateur,
     paymentStatus: operateur !== 'especes' ? 'awaiting_payment' : 'pending_cash',
     saisieParServeur: !!saisieParServeur,
+    // Fidélité : optionnel, laissé par le client au checkout (le seul canal
+    // sans téléphone obligatoire) — absent si non renseigné.
+    ...(telephone ? { telephone } : {}),
   });
 
   return orderId;

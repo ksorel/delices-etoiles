@@ -1465,6 +1465,12 @@ function renderCheckout(container) {
         </div>
       </div>
       <div class="checkout-section" style="margin-top:12px">
+        <div class="checkout-section-title">🎁 ${t('loyalty_optin_title')}</div>
+        <p style="font-size:12px;color:var(--text-muted);margin:0 0 10px">${t('loyalty_optin_sub')}</p>
+        <input class="form-input" id="salle-tel" type="tel" placeholder="${PHONE_PLACEHOLDER}" ${PHONE_INPUT_ATTRS}>
+        <div id="salle-tel-err" style="display:none;color:var(--error);font-size:12px;margin-top:6px"></div>
+      </div>
+      <div class="checkout-section" style="margin-top:12px">
         <div class="checkout-section-title">${t('payment_title')}</div>
         ${buildPaymentOptions('salle')}
       </div>
@@ -1673,6 +1679,19 @@ function reopenPayment() {
 }
 async function confirmSalle() {
   const btn = document.getElementById('confirm-btn');
+  // Téléphone fidélité optionnel : validé seulement s'il est renseigné —
+  // seul canal salle (QR) sans champ obligatoire, on ne veut pas ajouter
+  // de friction à un flux volontairement rapide.
+  const salleTel = (document.getElementById('salle-tel')?.value || '').trim();
+  const salleTelErr = document.getElementById('salle-tel-err');
+  if (salleTel && !isValidPhoneCI(salleTel)) {
+    if (salleTelErr) {
+      salleTelErr.textContent = getLang() === 'en' ? ('Invalid phone number, expected format: ' + PHONE_PLACEHOLDER) : ('Numéro de téléphone invalide, format attendu : ' + PHONE_PLACEHOLDER);
+      salleTelErr.style.display = 'block';
+    }
+    return;
+  }
+  if (salleTelErr) salleTelErr.style.display = 'none';
   if (btn) { btn.disabled = true; btn.textContent = 'Envoi…'; }
   try {
     // Garantir l'authentification + forcer refresh du token
@@ -1697,7 +1716,9 @@ async function confirmSalle() {
     const operateur  = window._selectedPayment || 'especes';
     const cartItems  = getItems();
     const totalCart  = computeTotal(cartItems);
-    const orderId    = await submitSalleOrder(State.tableId, State.uid, operateur, State.sessionId, cartItems);
+    const salleTelNorm = salleTel ? normalizePhone(salleTel) : null;
+    const orderId    = await submitSalleOrder(State.tableId, State.uid, operateur, State.sessionId, cartItems, false, salleTelNorm);
+    if (salleTelNorm) touchClientVisit(salleTelNorm, null);
     clearCart();
     updateCartBadge();
     localStorage.setItem('de_last_order', JSON.stringify({ orderId, operateur, total: totalCart, mode: 'salle', ts: Date.now() }));
@@ -2001,7 +2022,7 @@ async function _updateLoyaltyBadge(order, elId) {
   const badgeEl = document.getElementById(elId);
   if (!badgeEl) return;
   const tel = order.type === 'livraison' ? order.livraison?.telephone
-    : order.type === 'surplace' ? order.telephone : null;
+    : (order.type === 'surplace' || order.type === 'salle') ? order.telephone : null;
   if (!tel || !order.restoId) { badgeEl.innerHTML = ''; return; }
   const cacheKey = order.id + ':' + elId;
   if (_loyaltyBadgeCache[cacheKey]) { badgeEl.innerHTML = _loyaltyBadgeCache[cacheKey]; return; }
