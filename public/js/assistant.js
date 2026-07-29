@@ -100,6 +100,16 @@ class AIAssistant {
     this._createFAB();
     this._createPanel();
     this._addWelcomeMessage();
+    // Filet de sécurité pour toujours pouvoir fermer la fenêtre (Échap, ou
+    // clic en dehors) même dans un cas où le panneau déborderait de l'écran.
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && this.isOpen) this.close();
+    });
+    document.addEventListener('click', (e) => {
+      if (!this.isOpen) return;
+      if (this.panel.contains(e.target) || this.fab.contains(e.target)) return;
+      this.close();
+    });
   }
 
   _injectCSS() {
@@ -143,7 +153,10 @@ class AIAssistant {
         bottom: 90px;
         right: 16px;
         width: 340px;
-        max-height: 520px;
+        /* Sur une fenêtre courte, un max-height fixe pousse l'entête (et le
+           bouton fermer) au-dessus du haut de l'écran, hors d'atteinte —
+           on plafonne donc aussi par rapport à la hauteur de viewport réelle. */
+        max-height: min(520px, calc(100vh - 110px));
         background: #fff;
         border-radius: 20px;
         box-shadow: 0 8px 40px rgba(43,29,22,.22);

@@ -85,8 +85,13 @@ class Onboarding {
     if (target && target.offsetParent === null) target = null;
     const total  = this.steps.length;
 
-    // Mettre en évidence l'élément cible
+    // Mettre en évidence l'élément cible — on scrolle D'ABORD (instantané,
+    // pas "smooth") puis on mesure : sinon, sur un long menu, le cadre se
+    // positionnait sur les coordonnées d'AVANT le défilement (animé, donc
+    // pas encore terminé au moment de la mesure) et ne suivait jamais la
+    // cible réelle une fois le scroll achevé.
     if (target) {
+      target.scrollIntoView({ behavior: 'auto', block: 'nearest' });
       const r   = target.getBoundingClientRect();
       const pad = 6;
       Object.assign(this.spotlight.style, {
@@ -96,13 +101,14 @@ class Onboarding {
         width:  (r.width  + pad * 2) + 'px',
         height: (r.height + pad * 2) + 'px',
       });
-      target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     } else {
       this.spotlight.style.display = 'none';
     }
 
-    // Dots de progression
-    const dots = Array.from({ length: total }, (_, i) =>
+    // Dots de progression — masqués au-delà de 10 étapes (le tour Admin en
+    // compte 16) : ils poussaient les boutons Passer/Suivant hors de la
+    // bulle, faute de place. Le texte "Étape X sur Y" reste toujours affiché.
+    const dots = total > 10 ? '' : Array.from({ length: total }, (_, i) =>
       `<div style="width:7px;height:7px;border-radius:50%;background:${i === index ? '#F26522' : '#E0D4C8'};
        transform:${i === index ? 'scale(1.3)' : 'scale(1)'};transition:all .2s;flex-shrink:0"></div>`
     ).join('');
@@ -121,8 +127,8 @@ class Onboarding {
       <div style="font-size:13px;color:#7A6356;line-height:1.6;margin-bottom:16px">
         ${step.text}
       </div>
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:4px">
-        <div style="display:flex;gap:5px;align-items:center">${dots}</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:4px;flex-wrap:wrap">
+        <div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap">${dots}</div>
         <div style="display:flex;gap:6px;align-items:center">
           <button id="ob-skip-btn"
             style="font-size:12px;color:#7A6356;background:none;border:none;

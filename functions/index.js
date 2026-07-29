@@ -627,10 +627,20 @@ exports.askAssistant = region.runWith({ secrets: ['ANTHROPIC_KEY'] }).https.onCa
         let raw = '';
         res.on('data', chunk => raw += chunk);
         res.on('end', () => {
-          try {
-            const parsed = JSON.parse(raw);
-            resolve(parsed.content?.[0]?.text || "Je n'ai pas pu traiter votre demande.");
-          } catch(e) { reject(e); }
+          let parsed;
+          try { parsed = JSON.parse(raw); } catch(e) { reject(e); return; }
+          // Anthropic répond 4xx/5xx avec { type:'error', error:{ type, message } } —
+          // sans ce contrôle, une erreur (mauvaise clé, modèle invalide, quota...)
+          // se traduisait silencieusement par "Je n'ai pas pu traiter votre demande"
+          // sans jamais apparaître dans les logs.
+          if (res.statusCode < 200 || res.statusCode >= 300) {
+            console.error('askAssistant: Anthropic API error', res.statusCode, parsed);
+            reject(new Error(parsed?.error?.message || ('Anthropic API a répondu ' + res.statusCode)));
+            return;
+          }
+          const text = parsed.content?.[0]?.text;
+          if (!text) { console.error('askAssistant: réponse inattendue', parsed); }
+          resolve(text || "Je n'ai pas pu traiter votre demande.");
         });
       });
       req.on('error', reject);
@@ -641,7 +651,7 @@ exports.askAssistant = region.runWith({ secrets: ['ANTHROPIC_KEY'] }).https.onCa
     return { reply };
   } catch(e) {
     console.error('askAssistant error:', e);
-    throw new functions.https.HttpsError('internal', 'Erreur lors de la génération de la réponse.');
+    throw new functions.https.HttpsError('internal', e.message || 'Erreur lors de la génération de la réponse.');
   }
 });
 
