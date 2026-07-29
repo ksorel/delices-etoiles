@@ -760,6 +760,60 @@ exports.uploadDevisFile = region.https.onRequest(async (req, res) => {
   }
 });
 
+// Upload de CV (formulaire "Postuler" d'une annonce recrutement) — mêmes
+// limites/validation server-side que uploadDevisFile, chemin candidatures/.
+exports.uploadCandidatureFile = region.https.onRequest(async (req, res) => {
+  res.set('Access-Control-Allow-Origin', 'https://delices-etoiles.web.app');
+  res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  if (req.method === 'OPTIONS') { res.status(204).send(''); return; }
+  if (req.method !== 'POST')   { res.status(405).json({ error: 'Method not allowed' }); return; }
+
+  const authHeader = req.headers.authorization || '';
+  const idToken    = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+  if (!idToken) { res.status(401).json({ error: { message: 'Non authentifié' } }); return; }
+
+  try {
+    await admin.auth().verifyIdToken(idToken);
+  } catch(e) {
+    res.status(401).json({ error: { message: 'Token invalide' } }); return;
+  }
+
+  const { fileData, fileName, mimeType } = req.body.data || {};
+  if (!fileData || !fileName) {
+    res.status(400).json({ error: { message: 'Fichier manquant' } }); return;
+  }
+  if (!DEVIS_ALLOWED_MIME.includes(mimeType)) {
+    res.status(400).json({ error: { message: 'Type de fichier non autorisé (PDF, Word, JPG ou PNG uniquement)' } }); return;
+  }
+
+  const buffer = Buffer.from(fileData, 'base64');
+  if (buffer.length > DEVIS_MAX_SIZE) {
+    res.status(400).json({ error: { message: 'Fichier trop volumineux (max 5 Mo)' } }); return;
+  }
+
+  try {
+    const bucket   = admin.storage().bucket();
+    const safeName = Date.now() + '_' + fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const filePath = 'candidatures/' + safeName;
+    const fileRef  = bucket.file(filePath);
+
+    await fileRef.save(buffer, {
+      metadata: { contentType: mimeType },
+    });
+    // Pas de makePublic() ici (contrairement aux devis) : un CV contient des
+    // infos personnelles. URL signee (non devinable, 1 an) plutot qu'un objet
+    // public — elle n'est de toute facon jamais visible que par le staff,
+    // seul lecteur autorise de la fiche candidature (regles Firestore).
+    const [signedUrl] = await fileRef.getSignedUrl({ action: 'read', expires: Date.now() + 1000 * 60 * 60 * 24 * 365 });
+
+    res.json({ result: { url: signedUrl, nom: fileName } });
+  } catch(e) {
+    console.error('uploadCandidatureFile error:', e);
+    res.status(500).json({ error: { message: e.message } });
+  }
+});
+
 // ─────────────────────────────────────────────────────────
 //  TRAITEUR — Notifications J-7 et J-1
 // ─────────────────────────────────────────────────────────

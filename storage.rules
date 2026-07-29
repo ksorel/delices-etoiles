@@ -29,6 +29,15 @@ service firebase.storage {
       allow create: if request.auth != null;
     }
 
+    // ─── CV joints à une candidature (formulaire "Postuler") ──
+    // Contient des infos personnelles : lecture reservée au staff (comme la
+    // liste des candidatures elle-même, scopée par établissement côté Firestore).
+    match /candidatures/{fileName} {
+      allow read: if request.auth != null
+                  && request.auth.token.role in ['admin','manager','serveur','bar','cuisine','livreur','caissier','custom'];
+      allow create: if request.auth != null;
+    }
+
     // ─── Justificatifs de dépenses (comptabilité) ─────────────
     match /depenses/{fileName} {
       allow read:  if request.auth != null && request.auth.token.role in ['admin', 'manager'];

@@ -3108,6 +3108,9 @@ window.App.openCandidatureForm = function(annonceId) {
     +         '<input id="cand-tel" type="tel" style="' + I + '" placeholder="' + PHONE_PLACEHOLDER + '" ' + PHONE_INPUT_ATTRS + '></div>'
     +       '<div><label style="' + L + '">' + t('cand_message') + '</label>'
     +         '<textarea id="cand-message" rows="3" maxlength="500" style="' + I + ';resize:vertical" placeholder="' + t('cand_message_ph') + '"></textarea></div>'
+    +       '<div><label style="' + L + '">' + t('cand_cv_label') + '</label>'
+    +         '<input id="cand-cv-file" type="file" accept=".pdf,.doc,.docx,image/jpeg,image/png" style="' + I + ';padding:9px 14px">'
+    +         '<div style="font-size:11px;color:#9a8576;margin-top:5px">' + t('cand_cv_hint') + '</div></div>'
     +       '<div id="cand-err" style="display:none;background:#FEE2E2;color:#991B1B;padding:10px 14px;border-radius:10px;font-size:13px"></div>'
     +       '<button id="cand-submit" onclick="window.App.submitCandidatureForm(\x27' + annonceId + '\x27)" '
     +         'style="width:100%;padding:14px;background:var(--orange);color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer">'
@@ -3131,16 +3134,48 @@ window.App.submitCandidatureForm = async function(annonceId) {
   if (!nom) { showErr(t('cand_missing_nom')); return; }
   if (!tel) { showErr(t('cand_missing_tel')); return; }
   if (!isValidPhoneCI(tel)) { showErr(getLang() === 'en' ? ('Invalid phone number, expected format: ' + PHONE_PLACEHOLDER) : ('Numéro de téléphone invalide, format attendu : ' + PHONE_PLACEHOLDER)); return; }
+  const cvFile = document.getElementById('cand-cv-file')?.files?.[0] || null;
+  const cvAllowedMime = ['application/pdf', 'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'image/jpeg', 'image/png'];
+  if (cvFile) {
+    if (cvFile.size > 5 * 1024 * 1024) { showErr(t('tr_file_too_big')); return; }
+    if (!cvAllowedMime.includes(cvFile.type)) { showErr(t('cand_cv_type_invalid')); return; }
+  }
   if (errEl) errEl.style.display = 'none';
   const btn = document.getElementById('cand-submit');
   if (btn) { btn.disabled = true; btn.textContent = '…'; }
   try {
     if (!State.uid) State.uid = await authWithRetry();
+
+    // CV optionnel : upload validé côté serveur (type/taille) avant de créer
+    // la candidature, même circuit que les pièces jointes devis traiteur.
+    let cvUrl = null, cvNom = null;
+    if (cvFile) {
+      const currentUser = auth.currentUser;
+      const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload  = () => resolve(reader.result.split(',')[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(cvFile);
+      });
+      const idToken = await currentUser.getIdToken(true);
+      const cfResp  = await fetch('https://europe-west1-delices-etoiles.cloudfunctions.net/uploadCandidatureFile', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
+        body: JSON.stringify({ data: { fileData: base64, fileName: cvFile.name, mimeType: cvFile.type } }),
+      });
+      const cfData = await cfResp.json();
+      if (!cfResp.ok) throw new Error(cfData?.error?.message || 'Erreur upload CV');
+      cvUrl = cfData.result.url;
+      cvNom = cfData.result.nom;
+    }
+
     await submitCandidature({
       annonceId,
       posteTitre: annonce.poste || annonce.titre || '',
       restoId:    annonce.restoId || null,
       nom, telephone: normalizePhone(tel), message,
+      cvUrl, cvNom,
       clientUid:  State.uid || null,
     });
     const modal = document.getElementById('candidature-modal');
