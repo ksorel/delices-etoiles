@@ -91,32 +91,46 @@ function buildRoleClaims(input, restoId) {
 }
 
 // ─────────────────────────────────────────────────────────
-//  1. TRIGGER : Nouvelle commande → Notification WhatsApp
+//  1. TRIGGER : Nouvelle commande → Notification WhatsApp + stock
 // ─────────────────────────────────────────────────────────
-exports.onNewOrder = region.runWith({ secrets: ['WHATSAPP_TOKEN', 'WHATSAPP_PHONE_ID', 'WHATSAPP_STAFF_NUMBERS'] }).firestore
+// Secrets WHATSAPP_* retirés de runWith() : Sorel n'a pas encore les
+// identifiants API WhatsApp (2026-07-29). Un runWith({secrets:[...]}) sur un
+// secret jamais créé dans Secret Manager fait échouer TOUT déploiement de
+// fonctions (validation faite sur l'ensemble du fichier, pas seulement sur
+// la fonction ciblée par --only) — pas seulement celle-ci.
+// Pour réactiver la notification une fois les identifiants obtenus :
+// 1) npx firebase-tools functions:secrets:set WHATSAPP_TOKEN (+ PHONE_ID, STAFF_NUMBERS)
+// 2) rajouter .runWith({ secrets: ['WHATSAPP_TOKEN','WHATSAPP_PHONE_ID','WHATSAPP_STAFF_NUMBERS'] })
+//    juste après "region." ci-dessous.
+exports.onNewOrder = region.firestore
   .document('commandes/{orderId}')
   .onCreate(async (snap, context) => {
     const order = { id: context.params.orderId, ...snap.data() };
-    if (!process.env.WHATSAPP_TOKEN) return null;
 
-    const staffNumbers = (process.env.WHATSAPP_STAFF_NUMBERS || '').split(',').filter(Boolean);
-    if (!staffNumbers.length) return null;
+    // Notification WhatsApp — no-op tant que WHATSAPP_TOKEN n'est pas injecté
+    // (secret non déclaré ci-dessus). Isolée dans son propre bloc : avant, un
+    // "return null" précoce ici sautait aussi le décompte de stock ci-dessous
+    // dès que la notif était indisponible — les deux étaient à tort liés.
+    if (process.env.WHATSAPP_TOKEN) {
+      const staffNumbers = (process.env.WHATSAPP_STAFF_NUMBERS || '').split(',').filter(Boolean);
+      if (staffNumbers.length) {
+        const itemsList = (order.items || [])
+          .map(i => `• ${i.qty}x ${i.name} — ${fcfa(i.price * i.qty)}`)
+          .join('\n');
+        const msg = order.type === 'salle'
+          ? `🍽️ *Nouvelle commande salle*\nTable : ${order.tableId}\n${itemsList}\n*Total : ${fcfa(order.total)}*`
+          : `🚴 *Nouvelle livraison*\n${order.deliveryInfo?.name || ''}\n${itemsList}\n*Total : ${fcfa(order.total)}*`;
 
-    const itemsList = (order.items || [])
-      .map(i => `• ${i.qty}x ${i.name} — ${fcfa(i.price * i.qty)}`)
-      .join('\n');
-    const msg = order.type === 'salle'
-      ? `🍽️ *Nouvelle commande salle*\nTable : ${order.tableId}\n${itemsList}\n*Total : ${fcfa(order.total)}*`
-      : `🚴 *Nouvelle livraison*\n${order.deliveryInfo?.name || ''}\n${itemsList}\n*Total : ${fcfa(order.total)}*`;
-
-    for (const number of staffNumbers) {
-      try {
-        await axios.post(
-          `https://graph.facebook.com/v18.0/${process.env.WHATSAPP_PHONE_ID}/messages`,
-          { messaging_product: 'whatsapp', to: number.trim(), type: 'text', text: { body: msg } },
-          { headers: { Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`, 'Content-Type': 'application/json' } }
-        );
-      } catch (e) { console.error('WhatsApp error:', e.message); }
+        for (const number of staffNumbers) {
+          try {
+            await axios.post(
+              `https://graph.facebook.com/v18.0/${process.env.WHATSAPP_PHONE_ID}/messages`,
+              { messaging_product: 'whatsapp', to: number.trim(), type: 'text', text: { body: msg } },
+              { headers: { Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`, 'Content-Type': 'application/json' } }
+            );
+          } catch (e) { console.error('WhatsApp error:', e.message); }
+        }
+      }
     }
     // Décrémenter le stock des boissons commandées
     try {
@@ -658,7 +672,9 @@ exports.askAssistant = region.runWith({ secrets: ['ANTHROPIC_KEY'] }).https.onCa
 // ─────────────────────────────────────────────────────────
 //  8. TRIGGER : Nouvelle demande devis traiteur
 // ─────────────────────────────────────────────────────────
-exports.onNewDevis = region.runWith({ secrets: ['WHATSAPP_TOKEN', 'WHATSAPP_PHONE_ID', 'WHATSAPP_STAFF_NUMBERS'] }).firestore
+// Secrets WHATSAPP_* retirés de runWith() — voir le commentaire détaillé sur
+// onNewOrder plus haut (identifiants API pas encore obtenus, 2026-07-29).
+exports.onNewDevis = region.firestore
   .document('devis/{devisId}')
   .onCreate(async (snap, context) => {
     const devis = snap.data();
