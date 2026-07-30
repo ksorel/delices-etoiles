@@ -323,13 +323,26 @@
       }
       .sidebar-overlay.open { display: block; }
 
-      /* Topbar mobile */
+      /* Topbar mobile — le bouton d'action de page (ex: "+ Ajouter une règle")
+         partage la ligne avec le sélecteur d'établissement (propriétaire) et le
+         bouton "Quitter" ; sur un écran étroit leur largeur cumulée dépasse le
+         topbar, et comme .main a overflow-x:hidden, tout ce qui déborde devient
+         invisible et inatteignable. On autorise le retour à la ligne pour que
+         rien ne soit jamais coupé hors champ. */
       .topbar {
         padding: 12px 16px;
         position: sticky;
         top: 0;
         z-index: 100;
         background: #fff;
+        flex-wrap: wrap;
+        row-gap: 8px;
+      }
+      .topbar-right {
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        row-gap: 8px;
+        width: 100%;
       }
       .page-title { font-size: 16px; }
       .content { padding: 12px; }
@@ -510,13 +523,13 @@ function closeSidebar() {
   <!-- Main -->
   <div class="main">
     <div class="topbar">
-      <div style="display:flex;align-items:center;gap:12px">
+      <div class="topbar-left" style="display:flex;align-items:center;gap:12px">
         <button class="hamburger" id="hamburger-btn" onclick="toggleSidebar()" aria-label="Menu">
           <span></span><span></span><span></span>
         </button>
         <div class="page-title" id="page-title">Tableau de bord</div>
       </div>
-      <div style="display:flex;align-items:center;gap:8px">
+      <div class="topbar-right" style="display:flex;align-items:center;gap:8px">
         <div id="resto-switcher-wrap"></div>
         <div id="topbar-action"></div>
         <button id="topbar-logout" onclick="doAdminLogout()"
