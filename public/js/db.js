@@ -450,6 +450,33 @@ export async function findReservation(restoId, telephone, date) {
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
+// ─── Créneaux horaires (réservation) ─────────────────────
+// Réglage par établissement, config/{restoId}.reservation — valeurs par
+// défaut si l'admin n'a rien configuré (évite d'imposer un réglage avant
+// que le propriétaire ait pensé à l'ouvrir).
+const RESERVATION_DEFAULTS = { ouverture: '11:00', fermeture: '22:00', dureeCreneauMin: 30, capacitePersonnes: 20 };
+export async function fetchReservationConfig(restoId) {
+  try {
+    const snap = await getDoc(doc(db, 'config', rid(restoId)));
+    const cfg = snap.exists() ? snap.data().reservation : null;
+    return { ...RESERVATION_DEFAULTS, ...(cfg || {}) };
+  } catch (_) {
+    return { ...RESERVATION_DEFAULTS };
+  }
+}
+
+// Réservations existantes d'un établissement à une date donnée (hors
+// refusées) — sert à calculer la capacité restante par créneau.
+export async function fetchReservationsForDate(restoId, date) {
+  const q = query(
+    collection(db, 'reservations'),
+    where('restoId', '==', rid(restoId)),
+    where('date', '==', date)
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(r => r.status !== 'refused');
+}
+
 // Retrouver les commandes d'un client par téléphone (livraison/sur place — la
 // commande en salle via QR table n'a pas de téléphone), la plus récente d'abord.
 // ⚠️ Index composite requis : restoId ASC, telephone ASC, createdAt DESC

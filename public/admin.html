@@ -1378,13 +1378,21 @@ function renderStatsBody(c, period) {
   // par défaut en "nourriture" (cas rare, impact négligeable sur ce KPI).
   const menuCatById = {};
   menuItems.forEach(function(m) { menuCatById[m.id] = m.category; });
+  // Si une réduction fidélité a été appliquée, o.total < somme des subtotals
+  // d'articles ; on répartit la réduction au prorata sur les 2 catégories pour
+  // que caFood + caDrink retombe exactement sur le total "CA" affiché plus haut.
   let caFood = 0, caDrink = 0;
   done.forEach(function(o) {
-    (o.items || []).forEach(function(it) {
+    const items = o.items || [];
+    const articleTotal = items.reduce(function(s, it) { return s + (it.subtotal || 0); }, 0);
+    const scale = articleTotal > 0 ? (o.total || 0) / articleTotal : 1;
+    items.forEach(function(it) {
       const isDrink = DRINK_CATS_STOCK.includes(menuCatById[it.id]);
-      if (isDrink) caDrink += (it.subtotal || 0); else caFood += (it.subtotal || 0);
+      const net = (it.subtotal || 0) * scale;
+      if (isDrink) caDrink += net; else caFood += net;
     });
   });
+  caFood = Math.round(caFood); caDrink = Math.round(caDrink);
   const maxFoodDrink = Math.max(1, caFood, caDrink);
 
   // CA par jour (graphique en barres) — 30 derniers jours au plus, même en
@@ -1546,6 +1554,7 @@ async function renderConfig(c) {
     cfg.restoId = activeResto;           // l'identifiant suit l'établissement sélectionné
     if (!cfg.payments) cfg.payments = { especes:true, wave:true, orange:false, mtn:false };
     cfg.loyalty = { useNetwork: true, periodDays: 30, rewardType: 'texte', rewardTexte: '', rewardPercent: 10, ...(cfg.loyalty || {}) };
+    cfg.reservation = { ouverture: '11:00', fermeture: '22:00', dureeCreneauMin: 30, capacitePersonnes: 20, ...(cfg.reservation || {}) };
   } catch(e) {}
 
   const pm = cfg.payments;
@@ -1663,6 +1672,27 @@ async function renderConfig(c) {
     +         '<span style="font-size:13px;color:var(--muted)">% de réduction appliquée automatiquement à la commande récompensée</span>'
     +       '</div>'
     +     '</div>'
+    +   '</div>'
+    + '</div>'
+
+    + '<div><label class="form-label" style="margin-bottom:8px">📅 Créneaux de réservation</label>'
+    +   '<div style="background:var(--bg);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:12px">'
+    +     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'
+    +       '<div><label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Ouverture</label>'
+    +         '<input class="form-input" id="rsv-ouverture" type="time" value="' + (cfg.reservation.ouverture || '11:00') + '"></div>'
+    +       '<div><label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Fermeture</label>'
+    +         '<input class="form-input" id="rsv-fermeture" type="time" value="' + (cfg.reservation.fermeture || '22:00') + '"></div>'
+    +     '</div>'
+    +     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'
+    +       '<div><label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Durée d\x27un créneau</label>'
+    +         '<select class="form-select" id="rsv-duree">'
+    +           '<option value="30"' + (cfg.reservation.dureeCreneauMin === 30 ? ' selected' : '') + '>30 minutes</option>'
+    +           '<option value="60"' + (cfg.reservation.dureeCreneauMin === 60 ? ' selected' : '') + '>1 heure</option>'
+    +         '</select></div>'
+    +       '<div><label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Capacité par créneau</label>'
+    +         '<input class="form-input" id="rsv-capacite" type="number" min="1" value="' + (cfg.reservation.capacitePersonnes || 20) + '"></div>'
+    +     '</div>'
+    +     '<div style="font-size:12px;color:var(--muted)">Le client ne peut choisir qu\x27un créneau dans ces horaires. Passé le nombre de personnes indiqué (cumulé sur les réservations déjà reçues), le créneau devient indisponible.</div>'
     +   '</div>'
     + '</div>'
 
@@ -4354,6 +4384,10 @@ window.Admin.saveAnnonce = async function(isNew, id) {
 
   if (!titre) { fail('Le titre est obligatoire'); return; }
   if (!texte) { fail('Le texte est obligatoire'); return; }
+  if (type === 'promo' && dateFin) {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    if (dateFin < todayStr) { fail('La date de fin ne peut pas être dans le passé'); return; }
+  }
   if (err) err.style.display = 'none';
   setBtnBusy(btn, isNew ? 'Création…' : 'Enregistrement…');
   try {
@@ -4716,6 +4750,12 @@ window.Admin.saveConfig = async function(btn) {
         rewardType:    document.getElementById('loy-reward-type')?.value || 'texte',
         rewardTexte:   document.getElementById('loy-reward-texte')?.value.trim() || '',
         rewardPercent: Math.min(100, Math.max(1, parseInt(document.getElementById('loy-reward-percent')?.value) || 10)),
+      },
+      reservation: {
+        ouverture:         document.getElementById('rsv-ouverture')?.value || '11:00',
+        fermeture:         document.getElementById('rsv-fermeture')?.value || '22:00',
+        dureeCreneauMin:   parseInt(document.getElementById('rsv-duree')?.value) || 30,
+        capacitePersonnes: Math.max(1, parseInt(document.getElementById('rsv-capacite')?.value) || 20),
       },
       updatedAt: serverTimestamp(),
     }, { merge: true });

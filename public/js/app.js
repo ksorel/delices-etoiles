@@ -11,7 +11,8 @@ import { fetchMenu, fetchZones, fetchUpsellRules, getOrCreateTable, fetchPlatDuJ
          submitReservation, createOrder, listenReservation, findReservation, findOrder,
          fetchAvisForItem, hasVerifiedPurchase, getExistingAvis, submitAvis, setAvisRating,
          updateOrderStatus, fetchAnnonces, submitCandidature,
-         touchClientVisit, fetchLoyaltyConfig, fetchClientLoyalty, computeLoyaltyStatus, redeemLoyaltyReward } from './db.js';
+         touchClientVisit, fetchLoyaltyConfig, fetchClientLoyalty, computeLoyaltyStatus, redeemLoyaltyReward,
+         fetchReservationConfig, fetchReservationsForDate } from './db.js';
 import { getDoc, doc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { requestNotificationPermission, listenForegroundMessages } from './fcm.js';
 // Lien partagé vers un article précis (?item=<id>) : ouvert automatiquement
@@ -3286,7 +3287,12 @@ function renderReservation() {
                    onclick="window.App.openRvDatePicker(this)">
             <input type="hidden" id="rv-date" value="${d.date||''}">
           </div>
-          <div><label style="${L}">${t('rv_heure')} *</label><input id="rv-heure" type="time" style="${_SVC_INPUT}" value="${d.heure||''}"></div>
+          <div><label style="${L}">${t('rv_heure')} *</label>
+            <input type="hidden" id="rv-heure" value="${d.heure||''}">
+            <div id="rv-heure-slots" style="display:flex;flex-wrap:wrap;gap:6px;min-height:38px;align-items:center;padding-top:4px">
+              <span style="font-size:12px;color:#9a8a75">${t('rv_choose_date_first')}</span>
+            </div>
+          </div>
         </div>
         <div><label style="${L}">${t('rv_pers')}</label><input id="rv-pers" type="number" min="1" value="${d.pers||2}" style="${_SVC_INPUT}"></div>
         <div><label style="${L}">${t('rv_note')}</label><textarea id="rv-note" rows="2" style="${_SVC_INPUT};resize:vertical" placeholder="${t('rv_note_ph')}">${d.note||''}</textarea></div>
@@ -3295,7 +3301,57 @@ function renderReservation() {
         <button id="rv-submit" onclick="window.App.submitReservation()" style="width:100%;padding:14px;background:var(--orange);color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer">${t('rv_submit')}</button>
       </div>
     </div>`;
+  if (d.date) _loadRvSlots(d.date, d.heure || '');
 }
+// Génère les créneaux entre ouverture et fermeture par pas de dureeCreneauMin,
+// et marque comme complet tout créneau dont les réservations existantes
+// atteignent déjà la capacité de l'établissement.
+function _generateRvSlots(ouverture, fermeture, dureeMin) {
+  const slots = [];
+  const oParts = (ouverture || '11:00').split(':').map(Number);
+  const fParts = (fermeture || '22:00').split(':').map(Number);
+  const step = dureeMin > 0 ? dureeMin : 30;
+  let cur = oParts[0] * 60 + oParts[1];
+  const end = fParts[0] * 60 + fParts[1];
+  while (cur < end) {
+    const h = Math.floor(cur / 60), m = cur % 60;
+    slots.push(String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0'));
+    cur += step;
+  }
+  return slots;
+}
+async function _loadRvSlots(dateIso, selectedHeure) {
+  const wrap = document.getElementById('rv-heure-slots');
+  if (!wrap || !State.resto?.id) return;
+  wrap.innerHTML = '<span style="font-size:12px;color:#9a8a75">' + t('rv_slots_loading') + '</span>';
+  try {
+    const cfg = await fetchReservationConfig(State.resto.id);
+    const existing = await fetchReservationsForDate(State.resto.id, dateIso);
+    const usedByHeure = {};
+    existing.forEach(function(r) { usedByHeure[r.heure] = (usedByHeure[r.heure] || 0) + (r.personnes || 0); });
+    const slots = _generateRvSlots(cfg.ouverture, cfg.fermeture, cfg.dureeCreneauMin);
+    if (!slots.length) { wrap.innerHTML = '<span style="font-size:12px;color:#9a8a75">' + t('rv_slots_none') + '</span>'; return; }
+    wrap.innerHTML = slots.map(function(hh) {
+      const used = usedByHeure[hh] || 0;
+      const full = used >= cfg.capacitePersonnes;
+      const sel = hh === selectedHeure;
+      const bg = full ? '#F0E8E0' : (sel ? 'var(--orange)' : '#fff');
+      const col = full ? '#b0a290' : (sel ? '#fff' : '#2B1D16');
+      const border = full ? '#E0D4C8' : (sel ? 'var(--orange)' : '#E0D4C8');
+      return '<button type="button" ' + (full ? 'disabled' : ('onclick="window.App.selectRvHeure(\x27' + hh + '\x27)"'))
+        + ' style="padding:7px 12px;border-radius:20px;border:1.5px solid ' + border + ';background:' + bg + ';color:' + col
+        + ';font-size:13px;font-weight:700;cursor:' + (full ? 'not-allowed' : 'pointer') + '">' + hh + (full ? ' ✕' : '') + '</button>';
+    }).join('');
+  } catch (e) {
+    wrap.innerHTML = '<span style="font-size:12px;color:#991B1B">' + t('rv_slots_error') + '</span>';
+  }
+}
+window.App.selectRvHeure = function(hh) {
+  const input = document.getElementById('rv-heure');
+  if (input) input.value = hh;
+  const date = document.getElementById('rv-date')?.value || '';
+  _loadRvSlots(date, hh);
+};
 window.App.editReservationMenu = function() {
   _rvDraft = {
     tel:         document.getElementById('rv-tel')?.value || '',
@@ -3313,8 +3369,12 @@ window.App.openRvDatePicker = function(displayEl) {
     minToday: true,
     initialIso: document.getElementById('rv-date')?.value || null,
     onSelect: (y, m, dNum) => {
-      document.getElementById('rv-date').value = _dpIso(y, m, dNum);
+      const iso = _dpIso(y, m, dNum);
+      document.getElementById('rv-date').value = iso;
       displayEl.value = _dpFormatDisplay(y, m, dNum, getLang());
+      const heureInput = document.getElementById('rv-heure');
+      if (heureInput) heureInput.value = '';
+      _loadRvSlots(iso, '');
     },
   });
 };
@@ -3336,9 +3396,22 @@ window.App.submitReservation = async function() {
   const btn = document.getElementById('rv-submit');
   if (btn) { btn.disabled = true; btn.textContent = t('rv_sending'); }
   try {
+    const persNum = parseInt(pers) || 1;
+    try {
+      const cfg = await fetchReservationConfig(State.resto?.id);
+      const existing = await fetchReservationsForDate(State.resto?.id, date);
+      const used = existing.filter(r => r.heure === heure).reduce((s, r) => s + (r.personnes || 0), 0);
+      if (used + persNum > cfg.capacitePersonnes) {
+        errEl.textContent = t('rv_slot_full');
+        errEl.style.display = 'block';
+        if (btn) { btn.disabled = false; btn.textContent = t('rv_submit'); }
+        _loadRvSlots(date, '');
+        return;
+      }
+    } catch (_) { /* vérification best-effort : en cas d'échec réseau on laisse passer plutôt que de bloquer la réservation */ }
     const cartItems = getItems();
     const items = serializeItems(cartItems, getLang()).map(i => ({ name: i.name, qty: i.qty, subtotal: i.subtotal }));
-    const reservationId = await submitReservation({ telephone: normalizePhone(tel), date, heure, personnes: parseInt(pers) || null, note, items, clientUid: State.uid || null }, State.resto?.id);
+    const reservationId = await submitReservation({ telephone: normalizePhone(tel), date, heure, personnes: persNum, note, items, clientUid: State.uid || null }, State.resto?.id);
     clearCart(); updateCartBadge(); _rvDraft = null;
     renderReservationDone(date, heure, reservationId);
   } catch(e) {

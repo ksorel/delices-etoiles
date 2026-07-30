@@ -111,13 +111,19 @@ service cloud.firestore {
     // ─── Fidélité — un doc par numéro de téléphone (identifiant stable,
     // les clients étant authentifiés en anonyme) ───────────────────
     // Un client peut créer son propre doc (première visite) et mettre à jour
-    // sa date de visite/son nom, mais jamais sa propre carte "recompenses" —
-    // seul le staff peut la modifier (marquer une récompense comme utilisée).
+    // sa date de visite/son nom. Le staff peut modifier "recompenses" librement
+    // (marquer une récompense comme utilisée manuellement). Un client authentifié
+    // peut aussi mettre à jour SA carte "recompenses" — c'est le flux de
+    // consommation automatique de la réduction fidélité (redeemLoyaltyReward,
+    // déclenché juste après la création de sa propre commande) ; il ne touche
+    // aucun autre champ du doc, donc le pire abus possible est de réinitialiser
+    // le compteur de fidélité d'un tiers (gêne mineure, sans gain pour l'auteur).
     match /clients/{telephone} {
       allow read: if isAuth();
       allow create: if isAuth() && !('recompenses' in request.resource.data);
       allow update: if isStaff()
-                    || (isAuth() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['derniereVisite', 'nom']));
+                    || (isAuth() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['derniereVisite', 'nom']))
+                    || (isAuth() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['recompenses']));
       allow delete: if isAdmin();
     }
 
