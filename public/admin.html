@@ -1213,7 +1213,7 @@ function renderUpselling(c, a) {
           <td>${r.type}</td>
           ${activeResto==='ALL'?'<td>'+lieuChip(r.restoId)+'</td>':''}
           <td style="font-size:12px;color:var(--muted)">${(r.itemIds||[]).map(id=>menuItems.find(m=>m.id===id)?.name_fr||id).join(', ')}</td>
-          <td><button class="btn btn-sm btn-danger" onclick="window.Admin.deleteRule('${r.id}')">🗑️</button></td>
+          <td><button class="btn btn-sm btn-secondary" style="margin-right:4px" onclick="window.Admin.editRule('${r.id}')">✏️ Modifier</button><button class="btn btn-sm btn-danger" onclick="window.Admin.deleteRule('${r.id}')">🗑️</button></td>
         </tr>`).join('') : `<tr><td colspan="${activeResto==='ALL'?5:4}" style="text-align:center;padding:24px;color:var(--muted)">Aucune règle d'upselling enregistrée</td></tr>`}
       </table>
     </div>`;
@@ -3199,6 +3199,11 @@ window.Admin = {
     if (!await adminConfirm('Supprimer cette règle ?', { confirmLabel: 'Supprimer', danger: true })) return;
     await deleteDoc(doc(db,'upselling-rules',id));
     await loadData(); renderPage(currentPage); toast('Règle supprimée');
+  },
+  editRule(id) {
+    const r = upsellRules.find(r => r.id === id);
+    if (!r) return;
+    showRuleModal(r);
   },
   filterZones() {
     const search = (document.getElementById('zone-search')?.value||'').toLowerCase();
@@ -5884,31 +5889,33 @@ function showZoneModal() {
   };
 }
 
-function showRuleModal() {
-  const cats = [...new Set(menuItems.map(m=>m.category))];
+function showRuleModal(rule) {
+  const isEdit = !!rule;
+  const cats = [...new Set(menuItems.map(m=>m.category).concat(isEdit ? [rule.triggerCategory] : []))];
+  const selItemIds = isEdit ? (rule.itemIds||[]) : [];
   const overlay = document.createElement('div');
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(43,29,22,.7);z-index:500;display:flex;align-items:center;justify-content:center;padding:20px';
   overlay.innerHTML = `
-    <div style="background:#fff;border-radius:20px;overflow:hidden;width:100%;max-width:480px;box-shadow:0 20px 60px rgba(43,29,22,.3)"><div style="background:linear-gradient(135deg,#2B1D16,#4A3020);padding:20px 24px;position:relative"><div style="font-size:24px;margin-bottom:4px">🎯</div><div style="font-size:16px;font-weight:800;color:#fff">Règle d'upselling</div><button onclick="this.closest('[style*=fixed]').remove()" style="position:absolute;top:14px;right:14px;background:rgba(255,255,255,.15);border:none;border-radius:50%;width:28px;height:28px;color:#fff;font-size:16px;cursor:pointer">×</button></div><div style="padding:20px 24px">
+    <div style="background:#fff;border-radius:20px;overflow:hidden;width:100%;max-width:480px;box-shadow:0 20px 60px rgba(43,29,22,.3)"><div style="background:linear-gradient(135deg,#2B1D16,#4A3020);padding:20px 24px;position:relative"><div style="font-size:24px;margin-bottom:4px">🎯</div><div style="font-size:16px;font-weight:800;color:#fff">${isEdit ? 'Modifier la règle' : "Règle d'upselling"}</div><button onclick="this.closest('[style*=fixed]').remove()" style="position:absolute;top:14px;right:14px;background:rgba(255,255,255,.15);border:none;border-radius:50%;width:28px;height:28px;color:#fff;font-size:16px;cursor:pointer">×</button></div><div style="padding:20px 24px">
       <div class="form-group" style="margin-bottom:10px">
         <label class="form-label">Catégorie déclencheur *</label>
-        <select class="form-select" id="r-cat">${cats.map(c=>`<option>${c}</option>`).join('')}</select>
+        <select class="form-select" id="r-cat">${cats.map(c=>`<option${isEdit && c===rule.triggerCategory?' selected':''}>${c}</option>`).join('')}</select>
       </div>
       <div class="form-group" style="margin-bottom:10px">
         <label class="form-label">Type de suggestion *</label>
-        <select class="form-select" id="r-type"><option>accompagnement</option><option>boisson</option></select>
+        <select class="form-select" id="r-type"><option${isEdit && rule.type==='accompagnement'?' selected':''}>accompagnement</option><option${isEdit && rule.type==='boisson'?' selected':''}>boisson</option></select>
       </div>
       <div class="form-group" style="margin-bottom:16px">
         <label class="form-label">Articles à suggérer *</label>
         <div style="max-height:180px;overflow-y:auto;border:1.5px solid var(--border);border-radius:8px;padding:8px">
           ${menuItems.map(m=>`
             <label style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px;cursor:pointer">
-              <input type="checkbox" value="${m.id}"> ${m.name_fr} <span style="font-size:11px;color:var(--muted)">(${m.category})</span>
+              <input type="checkbox" value="${m.id}"${selItemIds.includes(m.id)?' checked':''}> ${m.name_fr} <span style="font-size:11px;color:var(--muted)">(${m.category})</span>
             </label>`).join('')}
         </div>
       </div>
       <div style="display:flex;gap:8px">
-        <button class="btn btn-primary" onclick="window.Admin._saveRule(this)">Enregistrer</button>
+        <button class="btn btn-primary" onclick="window.Admin._saveRule(this)">${isEdit ? 'Enregistrer les modifications' : 'Enregistrer'}</button>
         <button class="btn btn-secondary" onclick="this.closest('[style*=fixed]').remove()">Annuler</button>
       </div>
     </div>`;
@@ -5918,18 +5925,23 @@ function showRuleModal() {
   window.Admin._saveRule = async (btn) => {
     const checked = [...overlay.querySelectorAll('input[type=checkbox]:checked')].map(i=>i.value);
     if (!checked.length) { toast('Sélectionnez au moins un article'); return; }
-    const rid = activeRestoForWrite();
-    if (!rid) { toast('⚠️ Choisissez un établissement pour créer une règle'); return; }
+    const data = {
+      triggerCategory: document.getElementById('r-cat').value,
+      type:            document.getElementById('r-type').value,
+      itemIds:         checked,
+    };
     setBtnBusy(btn, 'Enregistrement…');
     try {
-      await addDoc(collection(db,'upselling-rules'), {
-        triggerCategory: document.getElementById('r-cat').value,
-        type:            document.getElementById('r-type').value,
-        itemIds:         checked,
-        restoId:         rid,
-      });
+      if (isEdit) {
+        await updateDoc(doc(db,'upselling-rules',rule.id), data);
+      } else {
+        const rid = activeRestoForWrite();
+        if (!rid) { clearBtnBusy(btn); toast('⚠️ Choisissez un établissement pour créer une règle'); return; }
+        data.restoId = rid;
+        await addDoc(collection(db,'upselling-rules'), data);
+      }
       overlay.remove();
-      await loadData(); renderPage(currentPage); toast('Règle ajoutée ✓');
+      await loadData(); renderPage(currentPage); toast(isEdit ? 'Règle mise à jour ✓' : 'Règle ajoutée ✓');
     } catch(e) { clearBtnBusy(btn); toast('Erreur : ' + e.message); }
   };
 }
