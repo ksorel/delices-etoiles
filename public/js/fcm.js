@@ -5,8 +5,8 @@
 
 import { getMessaging, getToken, onMessage } from
   'https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging.js';
-import app from './config.js';
-import { db } from './config.js';
+import app from './config.js?v=2';
+import { db } from './config.js?v=2';
 import { doc, updateDoc } from
   'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 

@@ -2,8 +2,8 @@
 //  order.js — Soumission des commandes vers Firestore
 // ════════════════════════════════════════════════════════════
 
-import { createOrder, touchClientVisit } from './db.js';
-import { getLang }     from './i18n.js';
+import { createOrder, touchClientVisit } from './db.js?v=2';
+import { getLang }     from './i18n.js?v=2';
 
 // ─── Total du panier (article + ses upsells payants, ×qty) ─
 // Les upsells (accompagnement/boisson) ont leur propre prix mais sont

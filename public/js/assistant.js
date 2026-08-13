@@ -5,7 +5,7 @@
 //  Anthropic reste côté serveur (Secret Manager).
 // ════════════════════════════════════════════════════════════
 
-import app from './config.js';
+import app from './config.js?v=2';
 import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-functions.js';
 
 const functions       = getFunctions(app, 'europe-west1');

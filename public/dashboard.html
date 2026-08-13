@@ -430,13 +430,13 @@
 </div>
 
 <script type="module">
-import { auth, db }              from '/js/config.js';
-import { startOnboarding, forceOnboarding } from '/js/onboarding.js';
-import { initAssistant } from '/js/assistant.js';
+import { auth, db }              from '/js/config.js?v=2';
+import { startOnboarding, forceOnboarding } from '/js/onboarding.js?v=2';
+import { initAssistant } from '/js/assistant.js?v=2';
 import { setRestoId, fetchMenu, createSession, getOpenSessions,
-         fetchLoyaltyConfig, fetchClientLoyalty, computeLoyaltyStatus, redeemLoyaltyReward } from '/js/db.js';
-import { submitSalleOrder } from '/js/order.js';
-import { hasFormats, hasVariantes, getFormatLabels, getPrixForFormat, isBoisson } from '/js/upselling.js';
+         fetchLoyaltyConfig, fetchClientLoyalty, computeLoyaltyStatus, redeemLoyaltyReward } from '/js/db.js?v=2';
+import { submitSalleOrder } from '/js/order.js?v=2';
+import { hasFormats, hasVariantes, getFormatLabels, getPrixForFormat, isBoisson } from '/js/upselling.js?v=2';
 // Init assistant IA dashboard
 initAssistant('dashboard');
 

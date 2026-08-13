@@ -12,7 +12,7 @@
 //    sont séparées (fetchZonesTraiteur → /zones-traiteur, "Zone A").
 // ════════════════════════════════════════════════════════════
 
-import { db, INITIAL_RESTO_ID } from './config.js';
+import { db, INITIAL_RESTO_ID } from './config.js?v=2';
 import {
   collection, doc, getDoc, getDocs, addDoc, updateDoc, setDoc, deleteDoc,
   query, where, orderBy, limit, onSnapshot,

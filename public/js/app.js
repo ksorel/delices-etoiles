@@ -2,9 +2,9 @@
 //  app.js — Contrôleur principal de la PWA Délices Étoiles
 //  SPA vanilla JS avec routage par hash (#menu #cart #checkout)
 // ════════════════════════════════════════════════════════════
-import { auth, db, RESTO_FROM_URL } from './config.js';
+import { auth, db, RESTO_FROM_URL } from './config.js?v=2';
 import { signInAnonymously }       from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { t, initLang, getLang, setLang, itemName, itemDesc } from './i18n.js';
+import { t, initLang, getLang, setLang, itemName, itemDesc } from './i18n.js?v=2';
 import { fetchMenu, fetchZones, fetchUpsellRules, getOrCreateTable, fetchPlatDuJour, listenOrder,
          createSession, getOpenSessions, updateSessionStatus, getSessionOrders,
          getRestoId, setRestoId, fetchLieux, fetchLieu, fetchAccueilCarousel,
@@ -12,9 +12,9 @@ import { fetchMenu, fetchZones, fetchUpsellRules, getOrCreateTable, fetchPlatDuJ
          fetchAvisForItem, hasVerifiedPurchase, getExistingAvis, submitAvis, setAvisRating,
          updateOrderStatus, fetchAnnonces, submitCandidature,
          touchClientVisit, fetchLoyaltyConfig, fetchClientLoyalty, computeLoyaltyStatus, redeemLoyaltyReward,
-         fetchReservationConfig, fetchReservationsForDate } from './db.js';
+         fetchReservationConfig, fetchReservationsForDate } from './db.js?v=2';
 import { getDoc, doc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
-import { requestNotificationPermission, listenForegroundMessages } from './fcm.js';
+import { requestNotificationPermission, listenForegroundMessages } from './fcm.js?v=2';
 // Lien partagé vers un article précis (?item=<id>) : ouvert automatiquement
 // une fois le menu chargé (voir renderMenu). Lu une seule fois au démarrage.
 let _itemFromUrl = null;
@@ -67,7 +67,7 @@ function removeItem(uid) {
   _cartPersist();
 }
 function clearCart() { _cartItems = []; _cartPersist(); }
-import { initUpselling, getUpsells, isBoisson, hasFormats, getPrixForFormat, getFormatLabels, hasVariantes, getVariantesRange } from './upselling.js';
+import { initUpselling, getUpsells, isBoisson, hasFormats, getPrixForFormat, getFormatLabels, hasVariantes, getVariantesRange } from './upselling.js?v=2';
 // Revalide le panier contre le menu tout juste rechargé (State.menu) avant
 // paiement : un article ajouté lors d'une visite précédente (panier persisté
 // en localStorage) peut avoir changé de prix ou être devenu indisponible
@@ -97,8 +97,8 @@ function _revalidateCart() {
   if (changes.length) _cartPersist();
   return changes;
 }
-import { submitSalleOrder, submitLivraisonOrder, formatFCFA, computeTotal, serializeItems, applyLoyaltyDiscount } from './order.js';
-import { initAssistant } from './assistant.js';
+import { submitSalleOrder, submitLivraisonOrder, formatFCFA, computeTotal, serializeItems, applyLoyaltyDiscount } from './order.js?v=2';
+import { initAssistant } from './assistant.js?v=2';
 // ─── Icônes réseaux sociaux (établissement) ──────────────
 const FB_SVG = '<svg viewBox="0 0 24 24" width="26" height="26" style="display:block"><path fill="#1877F2" d="M24 12.07C24 5.4 18.63 0 12 0S0 5.4 0 12.07C0 18.1 4.39 23.1 10.13 24v-8.44H7.08v-3.49h3.05V9.41c0-3.02 1.79-4.69 4.53-4.69 1.31 0 2.68.24 2.68.24v2.97h-1.51c-1.49 0-1.96.93-1.96 1.89v2.25h3.33l-.53 3.49h-2.8V24C19.61 23.1 24 18.1 24 12.07z"/></svg>';
 const WA_SVG = '<svg viewBox="0 0 24 24" width="26" height="26" style="display:block"><path fill="#25D366" d="M.06 24l1.68-6.15a11.87 11.87 0 01-1.59-5.95C.15 5.34 5.5 0 12.07 0a11.82 11.82 0 018.41 3.49 11.82 11.82 0 013.49 8.41c0 6.57-5.35 11.91-11.92 11.91a11.9 11.9 0 01-5.7-1.45L.06 24z"/><path fill="#FFF" d="M8.53 7.33c-.16-.36-.33-.37-.48-.38l-.42-.01c-.14 0-.38.05-.58.27-.2.22-.76.75-.76 1.82 0 1.07.78 2.11.89 2.26.11.14 1.51 2.42 3.72 3.3 1.84.72 2.21.58 2.61.54.4-.04 1.29-.53 1.47-1.03.18-.51.18-.94.13-1.03-.05-.09-.2-.14-.42-.25-.22-.11-1.29-.64-1.49-.71-.2-.07-.35-.11-.5.11-.14.22-.57.71-.7.86-.13.14-.26.16-.48.05-.22-.11-.93-.34-1.77-1.09-.65-.58-1.09-1.3-1.22-1.52-.13-.22-.01-.34.1-.45.1-.1.22-.26.33-.38.11-.13.14-.22.22-.37.07-.14.04-.27-.02-.38-.05-.11-.48-1.2-.68-1.63z"/></svg>';
@@ -3480,7 +3480,7 @@ window.App.confirmSurplace = async function() {
 
 window.App.loadTraiteurZones = async function() {
   try {
-    const { fetchZones } = await import('./db.js');
+    const { fetchZones } = await import('./db.js?v=2');
     const zones = await fetchZones();
     window._trZones = zones;
     const sel = document.getElementById('tr-lieu-zone');
