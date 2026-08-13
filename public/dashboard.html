@@ -261,48 +261,6 @@
 </style>
 </head>
 <body>
-<script>
-(function(){
-  var box;
-  function ensureBox(){
-    if (box) return box;
-    box = document.createElement('div');
-    box.id = '_diag';
-    box.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:999999;background:#111;color:#9f9;font:11px/1.4 monospace;padding:10px;max-height:55vh;overflow:auto;white-space:pre-wrap;border-top:3px solid #f22';
-    document.body.appendChild(box);
-    return box;
-  }
-  function log(msg, isErr){
-    var b = ensureBox();
-    var line = document.createElement('div');
-    line.style.color = isErr ? '#f66' : '#9f9';
-    line.textContent = msg;
-    b.appendChild(line);
-  }
-  window.addEventListener('error', function(e){
-    log('JS ERROR: ' + (e.message || '?') + ' @ ' + (e.filename || '?') + ':' + (e.lineno || '?'), true);
-  });
-  window.addEventListener('unhandledrejection', function(e){
-    var r = e.reason;
-    log('PROMESSE REJETEE: ' + (r && (r.stack || r.message || r.code || String(r))), true);
-  });
-  log('Diagnostic demarre... ' + navigator.userAgent);
-  function withTimeout(p, ms){
-    return Promise.race([p, new Promise(function(_, rej){
-      setTimeout(function(){ rej(new Error('timeout ' + ms + 'ms')); }, ms);
-    })]);
-  }
-  function ping(name, url){
-    var t0 = Date.now();
-    withTimeout(fetch(url, { mode: 'no-cors', cache: 'no-store' }), 8000)
-      .then(function(){ log('OK   ' + name + ' (' + (Date.now() - t0) + 'ms)'); })
-      .catch(function(e){ log('FAIL ' + name + ' : ' + e.message + ' (' + (Date.now() - t0) + 'ms)', true); });
-  }
-  ping('gstatic (librairie Firebase)', 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
-  ping('auth (identitytoolkit)',       'https://identitytoolkit.googleapis.com/');
-  ping('firestore',                    'https://firestore.googleapis.com/');
-})();
-</script>
 
 <!-- ── LOGIN ─────────────────────────────────────────────── -->
 <div class="login-screen" id="login-screen">
