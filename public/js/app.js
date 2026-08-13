@@ -168,11 +168,13 @@ function showUpdateBanner(newSW) {
 async function initSalleSession() {
   let openSessions = [];
   try {
-    openSessions = await getOpenSessions(State.tableId);
+    openSessions = await withTimeout(getOpenSessions(State.tableId), 10000);
   } catch(e) { console.warn('Sessions:', e); }
   if (openSessions.length === 0) {
     // Aucune session → créer directement
-    State.sessionId = await createSession(State.tableId, State.uid);
+    try {
+      State.sessionId = await withTimeout(createSession(State.tableId, State.uid), 10000);
+    } catch (e) { console.warn('createSession:', e); }
     navigate('menu');
   } else {
     // Sessions existantes → afficher le choix
@@ -247,7 +249,7 @@ async function init() {
   // 1. Service Worker — enregistré uniquement dans de vrais navigateurs
   try {
     if ('serviceWorker' in navigator) {
-      const reg = await navigator.serviceWorker.register('/sw.js');
+      const reg = await withTimeout(navigator.serviceWorker.register('/sw.js'), 8000);
       reg.addEventListener('updatefound', () => {
         const newSW = reg.installing;
         newSW.addEventListener('statechange', () => {
@@ -277,7 +279,7 @@ async function init() {
   if (tableId) {
     State.mode    = 'salle';
     State.tableId = tableId;
-    try { await getOrCreateTable(tableId); } catch (e) { console.warn(e); }
+    try { await withTimeout(getOrCreateTable(tableId), 10000); } catch (e) { console.warn(e); }
     // La session sera choisie/créée après l'auth et le chargement du menu
   }
 
@@ -306,9 +308,11 @@ async function bootApp() {
       withTimeout(fetchZones(),       15000),
       withTimeout(fetchUpsellRules(), 15000),
       withTimeout(fetchPlatDuJour(),  10000).catch(() => null),
-      getDoc(doc(db, 'config', getRestoId()))
-        .then(s => (s && s.exists && s.exists()) ? s : getDoc(doc(db, 'config', 'restaurant')))
-        .catch(() => null),
+      withTimeout(
+        getDoc(doc(db, 'config', getRestoId()))
+          .then(s => (s && s.exists && s.exists()) ? s : getDoc(doc(db, 'config', 'restaurant'))),
+        10000
+      ).catch(() => null),
       withTimeout(fetchLieu(getRestoId()), 8000).catch(() => null),
     ]);
     State.menu       = menu       || [];
@@ -434,7 +438,7 @@ function isWebView() {
 async function authWithRetry(attempts = 3) {
   for (let i = 0; i < attempts; i++) {
     try {
-      const cred = await signInAnonymously(auth);
+      const cred = await withTimeout(signInAnonymously(auth), 10000);
       window._currentUser = cred.user; // Stocker pour l'upload Storage
       return cred.user.uid;
     } catch (e) {
@@ -2699,9 +2703,9 @@ async function renderRestoPicker() {
 
   let lieux = [];
   try {
-    lieux = await fetchLieux();
+    lieux = await withTimeout(fetchLieux(), 12000);
   } catch (e) {
-    // Échec de lecture (index en construction, réseau…) → ne pas bloquer le client.
+    // Échec de lecture (index en construction, réseau lent/mobile…) → ne pas bloquer le client.
     console.warn('fetchLieux:', e.code || e.message);
     _restoChosen = true;
     return bootApp();
@@ -2746,7 +2750,7 @@ async function renderRestoPicker() {
   // - actif=false → pas de bandeau
   // - actif + images → images chargées
   if (_accueilCfg === undefined) {
-    try { _accueilCfg = await fetchAccueilCarousel(); } catch (_) { _accueilCfg = null; }
+    try { _accueilCfg = await withTimeout(fetchAccueilCarousel(), 8000); } catch (_) { _accueilCfg = null; }
   }
   const DEMO_IMGS = ['/img/accueil-1.jpg', '/img/accueil-2.jpg', '/img/accueil-3.jpg'];
   let heroImgs;
@@ -3073,12 +3077,12 @@ async function renderInfos(main) {
   let lieuxById = {};
   try {
     const todayIso = new Date().toISOString().slice(0, 10);
-    items = (await fetchAnnonces()).filter(a => !a.dateFin || a.dateFin >= todayIso);
+    items = (await withTimeout(fetchAnnonces(), 12000)).filter(a => !a.dateFin || a.dateFin >= todayIso);
   } catch (e) {
     console.warn('fetchAnnonces:', e.code || e.message);
   }
   try {
-    const lieux = await fetchLieux();
+    const lieux = await withTimeout(fetchLieux(), 12000);
     lieuxById = Object.fromEntries(lieux.map(l => [l.id, l]));
   } catch (e) {
     console.warn('fetchLieux (infos):', e.code || e.message);

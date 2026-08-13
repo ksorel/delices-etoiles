@@ -398,6 +398,19 @@ import { hasFormats, hasVariantes, getFormatLabels, getPrixForFormat, isBoisson 
 // Init assistant IA dashboard
 initAssistant('dashboard');
 
+// ── Timeout helper ─────────────────────────────────────────
+// Sur réseau mobile instable, une requête Firebase peut ne jamais se
+// résoudre ni rejeter (pas d'erreur, pas de succès) : sans ceci, l'écran
+// de connexion reste bloqué indéfiniment sans aucun message.
+function withTimeout(promise, ms) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Timeout ' + ms + 'ms')), ms)
+    ),
+  ]);
+}
+
 window.forceOnboarding = forceOnboarding;
 
 // Service Worker — nécessaire pour l'installation en icône (PWA) sur tablette,
@@ -465,10 +478,12 @@ window.doLogin = async function() {
   // Identifiant simple → email interne fictif ; un email complet reste accepté tel quel.
   const email = raw.includes('@') ? raw : raw + '@delices-etoiles.staff';
   try {
-    try { await enableNetwork(db); } catch (_) {}   // au cas où une déconnexion précédente l'a coupé
-    await signInWithEmailAndPassword(auth, email, pass);
+    try { await withTimeout(enableNetwork(db), 8000); } catch (_) {}   // au cas où une déconnexion précédente l'a coupé
+    await withTimeout(signInWithEmailAndPassword(auth, email, pass), 15000);
   } catch (e) {
-    err.textContent = 'Identifiant ou mot de passe incorrect.';
+    err.textContent = (e && e.message && e.message.startsWith('Timeout'))
+      ? 'Connexion trop lente. Vérifiez votre réseau et réessayez.'
+      : 'Identifiant ou mot de passe incorrect.';
   }
 };
 
@@ -548,23 +563,37 @@ window.onLoginRestoChange = function() {
 onAuthStateChanged(auth, async user => {
   if (user) {
     currentUser = user;
-    try { await enableNetwork(db); } catch (_) {}
+    try { await withTimeout(enableNetwork(db), 8000); } catch (_) {}
 
-    // Lire le rôle — avec retry si custom claim pas encore propagé
-    let token = await user.getIdTokenResult();
-    currentRole = token.claims.role || '';
-
-    // Si pas de rôle : forcer refresh du token (cas nouvel utilisateur)
-    if (!currentRole) {
-      token = await user.getIdToken(true).then(() => user.getIdTokenResult());
+    // Lire le rôle — avec retry si custom claim pas encore propagé.
+    // Chaque étape est bornée dans le temps : sur réseau mobile instable,
+    // une requête de token qui ne se résout ni ne rejette laisserait
+    // l'écran de connexion bloqué indéfiniment sans aucun message.
+    let token;
+    try {
+      token = await withTimeout(user.getIdTokenResult(), 10000);
       currentRole = token.claims.role || '';
-    }
 
-    // Si toujours pas de rôle après refresh : attendre 2s et réessayer
-    if (!currentRole) {
-      await new Promise(r => setTimeout(r, 2000));
-      token = await user.getIdToken(true).then(() => user.getIdTokenResult());
-      currentRole = token.claims.role || 'serveur'; // défaut serveur si toujours vide
+      // Si pas de rôle : forcer refresh du token (cas nouvel utilisateur)
+      if (!currentRole) {
+        token = await withTimeout(user.getIdToken(true).then(() => user.getIdTokenResult()), 10000);
+        currentRole = token.claims.role || '';
+      }
+
+      // Si toujours pas de rôle après refresh : attendre 2s et réessayer
+      if (!currentRole) {
+        await new Promise(r => setTimeout(r, 2000));
+        token = await withTimeout(user.getIdToken(true).then(() => user.getIdTokenResult()), 10000);
+        currentRole = token.claims.role || 'serveur'; // défaut serveur si toujours vide
+      }
+    } catch (e) {
+      // Échec/délai dépassé : ne pas laisser l'écran de connexion figé sans
+      // explication — afficher une erreur et permettre de réessayer.
+      console.warn('Lecture du rôle échouée :', e);
+      const err = document.getElementById('login-err');
+      if (err) err.textContent = 'Connexion trop lente ou instable. Réessayez.';
+      try { await signOut(auth); } catch (_) {}
+      return;
     }
 
     // Établissement de rattachement (les rôles ≠ admin sont liés à un lieu)
@@ -582,7 +611,7 @@ onAuthStateChanged(auth, async user => {
     window._customPermissions = null;
     if (currentRoles.includes('custom')) {
       try {
-        const snap = await getDoc(doc(db, 'employees', user.uid));
+        const snap = await withTimeout(getDoc(doc(db, 'employees', user.uid)), 8000);
         if (snap.exists()) window._customPermissions = snap.data().customPermissions || null;
       } catch(e) { console.warn('customPermissions:', e); }
     }
