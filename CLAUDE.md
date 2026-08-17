@@ -129,6 +129,11 @@ custom claims d'abord → écritures de données → backfill → règles strict
 - **Réservation + pré-commande sur place (MVP)** :
   - Réservation → collection **`reservations`** `{ restoId, tenantId, nom, telephone, date, heure, personnes, note,
     status:'pending', createdAt }` ; dashboard onglet **📅 Réservations** (Confirmer/Refuser, statuts pending/confirmed/refused).
+  - **Créneaux horaires** : réglage par établissement `config/{restoId}.reservation` `{ ouverture, fermeture,
+    dureeCreneauMin, capacitePersonnes }` (admin, valeurs par défaut 11h-22h/30min/20 pers. si non configuré) ;
+    sélecteur de créneaux côté client (`_generateRvSlots`) qui marque « complet » tout créneau dont les réservations
+    existantes atteignent la capacité (`fetchReservationsForDate`) ; re-vérification de la capacité côté client au
+    moment de l'envoi (best-effort, ne bloque pas si la vérification échoue en réseau).
   - Commande **sur place** → type `surplace` dans `commandes` `{ nom, telephone, personnes, note, surplace:{date,heure,personnes},
     items, total, operateur:'especes' }` ; paiement à l'arrivée ; badge « 🍽️ Sur place · heure » sur la carte staff.
   - Règle Firestore `reservations` ajoutée (create par le client, read/update par le staff, delete par l'admin).
@@ -186,7 +191,6 @@ node .\scripts\backfill-restoid.js --apply  # applique
 ## 10. Pistes suivantes possibles
 
 - **Notifications automatiques** de confirmation (FCM/WhatsApp) pour les réservations.
-- **Créneaux horaires / disponibilité** de tables (au-delà de l'heure libre + confirmation manuelle).
 - Statut **« paiement à confirmer »** côté staff pour les commandes mobiles non réglées (badge + bouton « paiement reçu »).
 - **Contact de l'écran de connexion** du dashboard rendu configurable (numéro propriétaire global).
 - Harmoniser éventuellement le **nom court** côté client (cartes de l'accueil).
