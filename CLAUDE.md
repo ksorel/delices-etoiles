@@ -121,6 +121,11 @@ custom claims d'abord → écritures de données → backfill → règles strict
   préfixés par établissement.
 - **Multi-rôles** : functions (`createEmployee`, `updateEmployeeRole` acceptent `roles[]`), admin en multi-sélection
   (puces, Propriétaire exclusif), dashboard union des vues. Rétrocompatible avec l'ancien rôle unique.
+- **Rôle « personnalisé » paramétrable** (Phase 2 multi-rôles) : rôle `custom` sélectionnable comme les autres
+  (puce 🎛️ PERSONNALISÉ dans admin.html) ; fait apparaître un panneau où le propriétaire/gérant coche les modules
+  autorisés (actions : commandes/encaissement/statut/plan de salle ; onglets visibles ; cases de synthèse visibles),
+  stocké dans `employees/{uid}.customPermissions` (sanitizé côté functions par `sanitizeCustomPermissions`) ; lu et
+  appliqué au login dashboard (`ROLES_CONFIG.custom`, fusionné avec les autres rôles de l'employé le cas échéant).
 - **Réservation + pré-commande sur place (MVP)** :
   - Réservation → collection **`reservations`** `{ restoId, tenantId, nom, telephone, date, heure, personnes, note,
     status:'pending', createdAt }` ; dashboard onglet **📅 Réservations** (Confirmer/Refuser, statuts pending/confirmed/refused).
@@ -180,7 +185,6 @@ node .\scripts\backfill-restoid.js --apply  # applique
 
 ## 10. Pistes suivantes possibles
 
-- Rôle **« personnalisé » paramétrable** (Phase 2 du multi-rôles : le propriétaire coche les modules autorisés).
 - **Notifications automatiques** de confirmation (FCM/WhatsApp) pour les réservations.
 - **Créneaux horaires / disponibilité** de tables (au-delà de l'heure libre + confirmation manuelle).
 - Statut **« paiement à confirmer »** côté staff pour les commandes mobiles non réglées (badge + bouton « paiement reçu »).
