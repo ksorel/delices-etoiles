@@ -1831,29 +1831,6 @@ async function renderLegalPage(c) {
     +   '<span id="legal-msg" style="font-size:13px;font-weight:700;display:none"></span>'
     + '</div>';
 }
-window.Admin.saveLegal = async function(btn) {
-  const msg = document.getElementById('legal-msg');
-  setBtnBusy(btn, 'Enregistrement…');
-  try {
-    const data = { updatedAt: serverTimestamp() };
-    LEGAL_SECTIONS.forEach(s => {
-      data[s.id] = {
-        fr: (document.getElementById('legal-' + s.id + '-fr')?.value || '').trim(),
-        en: (document.getElementById('legal-' + s.id + '-en')?.value || '').trim(),
-      };
-    });
-    await setDoc(doc(db, 'config', 'legal'), data, { merge: true });
-    msg.style.cssText = 'display:inline;color:#10B981';
-    msg.textContent   = '✅ Enregistré';
-    const upd = document.getElementById('legal-updated');
-    if (upd) upd.textContent = _legalUpdatedLabel({ updatedAt: { toDate: () => new Date() } });
-    setTimeout(() => msg.style.display = 'none', 3000);
-  } catch(e) {
-    msg.style.cssText = 'display:inline;color:#EF4444';
-    msg.textContent   = 'Erreur : ' + (e.message || e.code || '');
-  }
-  clearBtnBusy(btn);
-};
 
 // ── Plan de salle ─────────────────────────────────────────
 const FP_COLS = 10;
@@ -4943,6 +4920,29 @@ window.Admin.saveFideliteReseau = async function(btn) {
   clearBtnBusy(btn);
 };
 
+window.Admin.saveLegal = async function(btn) {
+  const msg = document.getElementById('legal-msg');
+  setBtnBusy(btn, 'Enregistrement…');
+  try {
+    const data = { updatedAt: serverTimestamp() };
+    LEGAL_SECTIONS.forEach(s => {
+      data[s.id] = {
+        fr: (document.getElementById('legal-' + s.id + '-fr')?.value || '').trim(),
+        en: (document.getElementById('legal-' + s.id + '-en')?.value || '').trim(),
+      };
+    });
+    await setDoc(doc(db, 'config', 'legal'), data, { merge: true });
+    msg.style.cssText = 'display:inline;color:#10B981';
+    msg.textContent   = '✅ Enregistré';
+    const upd = document.getElementById('legal-updated');
+    if (upd) upd.textContent = _legalUpdatedLabel({ updatedAt: { toDate: () => new Date() } });
+    setTimeout(() => msg.style.display = 'none', 3000);
+  } catch(e) {
+    msg.style.cssText = 'display:inline;color:#EF4444';
+    msg.textContent   = 'Erreur : ' + (e.message || e.code || '');
+  }
+  clearBtnBusy(btn);
+};
 
 window.Admin.closeStockModal = function() {
   const m = document.getElementById('stock-modal');
