@@ -113,7 +113,10 @@ custom claims d'abord → écritures de données → backfill → règles strict
   Choix de service après l'établissement : **Livraison / Sur place / Réserver**. Service **Traiteur** en carte séparée.
 - **Paiement** : espèces **en salle uniquement** ; en **livraison**, uniquement paiement mobile (Wave/OM/MTN) avec
   mention « paiement à l'avance » ; montant modale = sous-total + livraison (bug corrigé) ; reprise du paiement après
-  actualisation (écran de confirmation + bouton « Revoir le paiement »).
+  actualisation (écran de confirmation + bouton « Revoir le paiement »). Côté staff : statut `paymentStatus:
+  'awaiting_payment'` posé automatiquement par le client pour toute commande mobile money (salle ou livraison,
+  `order.js`) ; dashboard avec onglet dédié **💳 Paiement à confirmer** (compteur), badge sur la carte commande
+  (🔴 à confirmer / ❌ échec), bouton **✓ Paiement reçu** (`confirmPayment`) qui bascule sur `paid`.
 - **Articles « sur place uniquement »** (emballage consigné) : masqués en livraison (et non suggérés en upselling).
 - **Dashboard par rôle** : onglets, cases de synthèse, permissions et badges filtrés par rôle ; **expiration des
   commandes** non traitées (statut « expirée » calculé côté client, filtre dédié, délai paramétrable `orderExpiryHours`,
@@ -198,7 +201,6 @@ node .\scripts\backfill-restoid.js --apply  # applique
 ## 10. Pistes suivantes possibles
 
 - **Notifications automatiques** de confirmation (FCM/WhatsApp) pour les réservations.
-- Statut **« paiement à confirmer »** côté staff pour les commandes mobiles non réglées (badge + bouton « paiement reçu »).
 - **Contact de l'écran de connexion** du dashboard rendu configurable (numéro propriétaire global).
 - Harmoniser éventuellement le **nom court** côté client (cartes de l'accueil).
 
