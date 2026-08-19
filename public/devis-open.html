@@ -99,7 +99,7 @@
     const params  = new URLSearchParams(window.location.search);
     const id      = params.get('id');
     const token   = params.get('token');
-    const devisUrl = 'https://delices-etoiles.web.app/devis?id=' + id + '&token=' + token;
+    const devisUrl = 'https://delices-etoiles.ci/devis?id=' + id + '&token=' + token;
 
     document.getElementById('url-display').textContent = devisUrl;
     document.getElementById('btn-open').href = devisUrl;

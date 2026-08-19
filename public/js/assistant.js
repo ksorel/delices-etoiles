@@ -17,7 +17,7 @@ const SYSTEM_PROMPTS = {
 Tu aides uniquement le gérant et le propriétaire à utiliser l'application d'administration.
 
 CONTEXTE DE L'APPLICATION :
-- URL : https://delices-etoiles.web.app
+- URL : https://delices-etoiles.ci
 - Admin : /admin — back-office complet (gérant scopé à son établissement, propriétaire voit tout)
 - Dashboard staff : /dashboard — gestion des commandes en temps réel
 - PWA client : / — menu client, commandes salle/livraison, suivi, Infos & Actualités

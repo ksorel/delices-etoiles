@@ -14,6 +14,20 @@ const db = admin.firestore();
 const region = functions.region('europe-west1');
 const fcfa   = n => new Intl.NumberFormat('fr-FR').format(n) + ' FCFA';
 
+// Origines autorisées pour les endpoints HTTP (onRequest) exposés au portail
+// client : Access-Control-Allow-Origin n'accepte qu'une seule valeur, donc on
+// reflète l'origine de la requête si elle est dans cette liste.
+const ALLOWED_ORIGINS = [
+  'https://delices-etoiles.ci',
+  'https://www.delices-etoiles.ci',
+  'https://delices-etoiles.web.app',
+  'https://delices-etoiles.firebaseapp.com',
+];
+function setCorsOrigin(req, res) {
+  const origin = req.headers.origin;
+  if (ALLOWED_ORIGINS.includes(origin)) res.set('Access-Control-Allow-Origin', origin);
+}
+
 // ─────────────────────────────────────────────────────────
 //  HELPER : vérifier que l'appelant est admin (global) OU gérant
 //  (limité à son propre établissement — gestion du staff de son resto).
@@ -727,7 +741,7 @@ const DEVIS_ALLOWED_MIME = [
 ];
 
 exports.uploadDevisFile = region.https.onRequest(async (req, res) => {
-  res.set('Access-Control-Allow-Origin', 'https://delices-etoiles.web.app');
+  setCorsOrigin(req, res);
   res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') { res.status(204).send(''); return; }
@@ -779,7 +793,7 @@ exports.uploadDevisFile = region.https.onRequest(async (req, res) => {
 // Upload de CV (formulaire "Postuler" d'une annonce recrutement) — mêmes
 // limites/validation server-side que uploadDevisFile, chemin candidatures/.
 exports.uploadCandidatureFile = region.https.onRequest(async (req, res) => {
-  res.set('Access-Control-Allow-Origin', 'https://delices-etoiles.web.app');
+  setCorsOrigin(req, res);
   res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') { res.status(204).send(''); return; }

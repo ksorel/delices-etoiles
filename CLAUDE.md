@@ -12,7 +12,7 @@ Développeur : **Sorel**. Communication en **français**.
 
 - Projet Firebase : `delices-etoiles`
 - GitHub : `ksorel/delices-etoiles`
-- Production : `https://delices-etoiles.web.app`
+- Production : `https://delices-etoiles.ci` (domaine personnalisé ; `https://delices-etoiles.web.app` reste actif en parallèle)
 - Multi-établissements : Grand-Bassam, Abobo, Ebimpé + un **Traiteur central** (transverse).
 
 ## 2. Stack & environnement

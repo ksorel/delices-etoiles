@@ -3762,7 +3762,7 @@ window.Admin.sendDevisWhatsApp = async function() {
     ? new Date(d.date + 'T12:00:00').toLocaleDateString('fr-FR', { day:'numeric', month:'long', year:'numeric' })
     : '?';
   const nom      = d.client?.nom || '';
-  const devisUrl = 'https://delices-etoiles.web.app/devis?id=' + window.Admin._currentDevisId + '&token=' + d.token;
+  const devisUrl = 'https://delices-etoiles.ci/devis?id=' + window.Admin._currentDevisId + '&token=' + d.token;
 
   const msg = "Bonjour " + nom + ","
     + "\n\nVotre devis *Délices Étoiles* pour votre " + typeEv + " du " + dateEv + " est prêt !"
@@ -3823,7 +3823,7 @@ window.Admin.sendDevisEmail = async function() {
     ? new Date(d.date + 'T12:00:00').toLocaleDateString('fr-FR', { day:'numeric', month:'long', year:'numeric' })
     : '?';
   const nom      = d.client?.nom || '';
-  const devisUrl = 'https://delices-etoiles.web.app/devis?id=' + window.Admin._currentDevisId + '&token=' + d.token;
+  const devisUrl = 'https://delices-etoiles.ci/devis?id=' + window.Admin._currentDevisId + '&token=' + d.token;
 
   const subject = encodeURIComponent('Votre devis Délices Étoiles — ' + typeEv + ' du ' + dateEv);
   const nl = '%0A';
@@ -4468,7 +4468,7 @@ window.Admin.copyPromoWhatsApp = async function(id) {
     : '';
   const msg = '💥 *' + promo.titre + '*' + (lieu ? ' — ' + lieu : '') + '\n\n'
     + promo.texte + dateFin
-    + '\n\n🍽️ Délices Étoiles — https://delices-etoiles.web.app';
+    + '\n\n🍽️ Délices Étoiles — https://delices-etoiles.ci';
   try {
     await navigator.clipboard.writeText(msg);
     toast('📋 Message copié — colle-le dans WhatsApp (diffusion ou statut)');

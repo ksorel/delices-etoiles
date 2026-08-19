@@ -3848,7 +3848,7 @@ window.App.downloadDevisPDF = async function(devisId) {
   pdf.setFillColor(43, 29, 22);
   pdf.rect(0, 285, W, 12, 'F');
   pdf.setTextColor(255, 255, 255); pdf.setFontSize(9);
-  pdf.text('Délices Étoiles · Grand-Bassam, Côte d\'Ivoire · delices-etoiles.web.app', W / 2, 292, { align: 'center' });
+  pdf.text('Délices Étoiles · Grand-Bassam, Côte d\'Ivoire · delices-etoiles.ci', W / 2, 292, { align: 'center' });
 
   pdf.save('Devis_Delices_Etoiles.pdf');
 };
