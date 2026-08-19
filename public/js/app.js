@@ -747,6 +747,7 @@ function buildFooterContactHtml() {
     if (c.tel2 && c.tel2_show !== false) rows.push({ href: 'tel:' + c.tel2.replace(/\s/g,''), icon: SF_ICON_PHONE, label: c.tel2 });
     if (c.email && c.email_show !== false) rows.push({ href: 'mailto:' + c.email, icon: SF_ICON_MAIL, label: c.email });
   }
+  rows.push({ href: lieuMapUrl(State.resto), icon: PIN_SVG.replace('width="15" height="15"', 'width="14" height="14"'), label: t('contact_maps'), external: true });
   if (State.resto.facebookUrl) {
     rows.push({ href: State.resto.facebookUrl, icon: FB_SVG.replace('width="26" height="26"', 'width="14" height="14"'), label: t('contact_facebook'), external: true });
   }

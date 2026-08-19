@@ -130,6 +130,7 @@ const translations = {
     contact_email:     'Email',
     contact_facebook:  'Facebook',
     contact_whatsapp:  'WhatsApp',
+    contact_maps:      'Itinéraire',
     contact_view_page: 'Voir la page',
 
     // Partage d'article
@@ -505,6 +506,7 @@ const translations = {
     contact_email:     'Email',
     contact_facebook:  'Facebook',
     contact_whatsapp:  'WhatsApp',
+    contact_maps:      'Directions',
     contact_view_page: 'View page',
 
     // Share an item
