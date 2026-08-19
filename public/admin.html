@@ -494,6 +494,7 @@ function closeSidebar() {
     <div class="nav-item" onclick="showPage('etablissements',this)"><span class="nav-icon">🏢</span>Établissements</div>
     <div class="nav-item admin-only" onclick="showPage('carrousel',this)"><span class="nav-icon">🖼️</span>Carrousel accueil</div>
     <div class="nav-item admin-only" onclick="showPage('fidelite-reseau',this)"><span class="nav-icon">🎁</span>Fidélité réseau</div>
+    <div class="nav-item admin-only" onclick="showPage('legal',this)"><span class="nav-icon">📄</span>Pages légales</div>
     <div class="nav-item" onclick="showPage('menu',this)"><span class="nav-icon">🍽️</span>Articles</div>
     <div class="nav-item" onclick="showPage('zones',this)"><span class="nav-icon">🗺️</span>Zones livraison</div>
     <div class="nav-item" onclick="showPage('upselling',this)"><span class="nav-icon">⬆️</span>Upselling</div>
@@ -852,7 +853,7 @@ window.showPage = (page, el) => {
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
   el.classList.add('active');
   const titles = {
-    dashboard:'Tableau de bord', etablissements:'Établissements', carrousel:'Carrousel d\'accueil', 'fidelite-reseau':'Fidélité réseau', menu:'Gestion des articles',
+    dashboard:'Tableau de bord', etablissements:'Établissements', carrousel:'Carrousel d\'accueil', 'fidelite-reseau':'Fidélité réseau', legal:'Pages légales', menu:'Gestion des articles',
     zones:'Zones de livraison', upselling:'Règles d\'upselling', platdujour:'Plat du jour', avis:'Avis clients', cache:'Gestion du cache',
     annonces:'Infos & Actualités', candidatures:'Candidatures',
     qrcodes:'QR Codes tables', floorplan:'Plan de salle', commandes:'Historique commandes',
@@ -881,6 +882,7 @@ async function renderPage(page) {
     case 'etablissements': await renderEtablissements(c); break;
     case 'carrousel':  await renderCarrousel(c); break;
     case 'fidelite-reseau': await renderFideliteReseau(c); break;
+    case 'legal':      await renderLegalPage(c); break;
     case 'menu':       renderMenu(c,a); break;
     case 'zones':      renderZones(c,a); break;
     case 'upselling':  renderUpselling(c,a); break;
@@ -1748,6 +1750,66 @@ async function renderFideliteReseau(c) {
     +   '<div id="fr-msg" style="font-size:13px;display:none"></div>'
     + '</div></div>';
 }
+
+// ── Pages légales (CGV / confidentialité / mentions légales) ─────
+// Contenu global (config/legal), commun à tout le réseau — propriétaire uniquement.
+const LEGAL_SECTIONS = [
+  { id: 'cgv',             label: 'Conditions Générales de Vente' },
+  { id: 'confidentialite', label: 'Politique de confidentialité' },
+  { id: 'mentions',        label: 'Mentions légales' },
+];
+async function renderLegalPage(c) {
+  c.innerHTML = '<div class="loading"><div class="spinner"></div><p>Chargement…</p></div>';
+  let cfg = {};
+  try {
+    const snap = await getDoc(doc(db, 'config', 'legal'));
+    if (snap.exists()) cfg = snap.data() || {};
+  } catch(e) {}
+
+  const sectionHtml = (s) => {
+    const entry = cfg[s.id] || {};
+    return '<div class="card" style="margin-bottom:16px">'
+      + '<div class="card-title">' + s.label + '</div>'
+      + '<div style="display:flex;flex-direction:column;gap:10px;max-width:640px">'
+      +   '<div>'
+      +     '<label class="form-label">Texte en français</label>'
+      +     '<textarea class="form-input" id="legal-' + s.id + '-fr" rows="6" placeholder="Texte affiché aux clients francophones…" style="resize:vertical;font-family:inherit">' + escapeAdminHtml(entry.fr || '') + '</textarea>'
+      +   '</div>'
+      +   '<div>'
+      +     '<label class="form-label">Texte en anglais</label>'
+      +     '<textarea class="form-input" id="legal-' + s.id + '-en" rows="6" placeholder="Text shown to English-speaking clients…" style="resize:vertical;font-family:inherit">' + escapeAdminHtml(entry.en || '') + '</textarea>'
+      +   '</div>'
+      + '</div></div>';
+  };
+
+  c.innerHTML = '<p style="font-size:12px;color:var(--muted);margin-bottom:16px;line-height:1.5;max-width:640px">'
+    + 'Ces textes sont communs à tout le réseau (accessibles via le pied de page du portail client, avant même le choix d\x27un établissement). '
+    + 'Un paragraphe par ligne vide ; pas de mise en forme (gras, listes…) — le texte est affiché tel quel.</p>'
+    + LEGAL_SECTIONS.map(sectionHtml).join('')
+    + '<button onclick="window.Admin.saveLegal(this)" class="btn btn-primary">💾 Enregistrer</button>'
+    + '<div id="legal-msg" style="font-size:13px;margin-top:10px;display:none"></div>';
+}
+window.Admin.saveLegal = async function(btn) {
+  const msg = document.getElementById('legal-msg');
+  setBtnBusy(btn, 'Enregistrement…');
+  try {
+    const data = { updatedAt: serverTimestamp() };
+    LEGAL_SECTIONS.forEach(s => {
+      data[s.id] = {
+        fr: (document.getElementById('legal-' + s.id + '-fr')?.value || '').trim(),
+        en: (document.getElementById('legal-' + s.id + '-en')?.value || '').trim(),
+      };
+    });
+    await setDoc(doc(db, 'config', 'legal'), data, { merge: true });
+    msg.style.cssText = 'display:block;color:#10B981;font-weight:700';
+    msg.textContent   = '✅ Pages légales enregistrées';
+    setTimeout(() => msg.style.display = 'none', 3000);
+  } catch(e) {
+    msg.style.cssText = 'display:block;color:#EF4444;font-size:14px;padding:10px;background:#FEE2E2;border-radius:8px';
+    msg.textContent   = 'Erreur : ' + (e.message || e.code || '');
+  }
+  clearBtnBusy(btn);
+};
 
 // ── Plan de salle ─────────────────────────────────────────
 const FP_COLS = 10;

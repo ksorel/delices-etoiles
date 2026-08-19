@@ -12,7 +12,7 @@ import { fetchMenu, fetchZones, fetchUpsellRules, getOrCreateTable, fetchPlatDuJ
          fetchAvisForItem, hasVerifiedPurchase, getExistingAvis, submitAvis, setAvisRating,
          updateOrderStatus, fetchAnnonces, submitCandidature,
          touchClientVisit, fetchLoyaltyConfig, fetchClientLoyalty, computeLoyaltyStatus, redeemLoyaltyReward,
-         fetchReservationConfig, fetchReservationsForDate } from './db.js?v=2';
+         fetchReservationConfig, fetchReservationsForDate, fetchLegalConfig } from './db.js?v=2';
 import { getDoc, doc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { requestNotificationPermission, listenForegroundMessages } from './fcm.js?v=2';
 // Lien partagé vers un article précis (?item=<id>) : ouvert automatiquement
@@ -273,6 +273,7 @@ async function init() {
   // 3. Langue (anciennement 2)
   initLang();
   State.lang = getLang();
+  updateFooter();
   // 3. Détecter mode (table = salle)
   const params  = new URLSearchParams(window.location.search);
   const tableId = params.get('table');
@@ -546,6 +547,9 @@ function renderView(view, data = {}) {
     case 'traiteur': renderTraiteur(main); break;
     case 'devis-client': renderDevisClient(main); break;
     case 'infos':    renderInfos(main); break;
+    case 'legal-cgv':            renderLegal(main, 'cgv'); break;
+    case 'legal-confidentialite': renderLegal(main, 'confidentialite'); break;
+    case 'legal-mentions':       renderLegal(main, 'mentions'); break;
     default:         renderMenu(main);
   }
   window.scrollTo(0, 0);
@@ -563,7 +567,8 @@ function updateHeader() {
     let mk = document.getElementById('resto-marker');
     const onTraiteur = location.hash === '#traiteur';
     const onInfos    = location.hash === '#infos';
-    const show = State.mode === 'salle' ? !!State.tableId : (!!State.resto || onTraiteur || onInfos);
+    const onLegal    = location.hash.startsWith('#legal-');
+    const show = State.mode === 'salle' ? !!State.tableId : (!!State.resto || onTraiteur || onInfos || onLegal);
     if (show && parent) {
       if (!mk) {
         mk = document.createElement('div');
@@ -575,9 +580,9 @@ function updateHeader() {
       try { mk.style.color = getComputedStyle(badge).color; } catch (_) {}
       if (State.mode === 'salle') {
         mk.innerHTML = `<strong>${t('mode_salle')} ${State.tableId}</strong>`;
-      } else if (!State.resto && (onTraiteur || onInfos)) {
-        // Formulaire traiteur ou page Infos : accessibles sans établissement
-        // choisi, pas de lieu à afficher — juste le repère de retour.
+      } else if (!State.resto && (onTraiteur || onInfos || onLegal)) {
+        // Formulaire traiteur, page Infos ou page légale : accessibles sans
+        // établissement choisi, pas de lieu à afficher — juste le repère de retour.
         mk.innerHTML = `<span style="color:#F26522;font-weight:700;white-space:nowrap">← ${t('back')}</span>`;
       } else {
         // Nom court (champ dédié nomCourt, sinon commune, sinon nom) + ellipse ;
@@ -595,9 +600,9 @@ function updateHeader() {
     // masquée dès qu'un contexte resto/traiteur est actif, comme ici.
     const infosBtn = document.getElementById('infos-btn');
     if (infosBtn) infosBtn.style.display = 'none';
-    // Panier sans objet sur la page Infos & Actualités (pas de commande en cours).
+    // Panier sans objet sur la page Infos & Actualités / pages légales (pas de commande en cours).
     const cartBtn = document.getElementById('cart-btn');
-    if (cartBtn) cartBtn.style.display = onInfos ? 'none' : '';
+    if (cartBtn) cartBtn.style.display = (onInfos || onLegal) ? 'none' : '';
   }
 
   // Bouton langue (drapeau de la langue active)
@@ -605,6 +610,21 @@ function updateHeader() {
   if (langBtn) langBtn.innerHTML = State.lang === 'en' ? GB_FLAG_SVG : FR_FLAG_SVG;
   // Badge panier
   updateCartBadge();
+}
+// ─── Footer (liens pages légales) ────────────────────────
+// Contenu statique (pas de dépendance réseau) : initialisé une fois au
+// démarrage (init(), avant tout rendu de vue) et rafraîchi au changement
+// de langue (toggleLang()) — pas besoin de le refaire à chaque navigation.
+function updateFooter() {
+  const footer = document.getElementById('site-footer');
+  if (!footer) return;
+  footer.innerHTML = `
+    <a href="#legal-cgv" onclick="window.App.navigate('legal-cgv');return false">${t('footer_cgv')}</a>
+    <span class="sf-sep">·</span>
+    <a href="#legal-confidentialite" onclick="window.App.navigate('legal-confidentialite');return false">${t('footer_confidentialite')}</a>
+    <span class="sf-sep">·</span>
+    <a href="#legal-mentions" onclick="window.App.navigate('legal-mentions');return false">${t('footer_mentions')}</a>
+  `;
 }
 function updateCartBadge() {
   const el = document.getElementById('cart-count');
@@ -2088,6 +2108,7 @@ function toggleLang() {
   setLang(getLang() === 'fr' ? 'en' : 'fr');
   State.lang = getLang();
   updateHeader();
+  updateFooter();
   // Sur le formulaire traiteur (accessible sans passer par le choix d'établissement),
   // y rester plutôt que de retomber sur le sélecteur d'établissement.
   if (location.hash === '#traiteur') {
@@ -3134,6 +3155,34 @@ async function renderInfos(main) {
     <div style="max-width:560px;margin:0 auto;padding:22px 16px 40px">
       <h2 style="font-size:20px;font-weight:800;color:var(--brown);margin-bottom:16px">${t('infos_title')}</h2>
       ${cardsHtml}
+    </div>`;
+}
+
+// ─── Pages légales (CGV / confidentialité / mentions légales) ────
+// Contenu global (config/legal), accessible sans établissement choisi —
+// comme "Infos & Actualités" (voir renderRestoPicker, updateHeader onLegal).
+let _legalCache; // undefined = pas encore chargé ; sinon objet {cgv,confidentialite,mentions} ou null
+async function renderLegal(main, type) {
+  updateHeader();
+  main.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+  if (_legalCache === undefined) {
+    try { _legalCache = await withTimeout(fetchLegalConfig(), 10000); }
+    catch (e) { console.warn('fetchLegalConfig:', e); _legalCache = null; }
+  }
+  const TITLES = {
+    cgv:             t('legal_cgv_title'),
+    confidentialite: t('legal_confidentialite_title'),
+    mentions:        t('legal_mentions_title'),
+  };
+  const entry = _legalCache ? _legalCache[type] : null;
+  const lang  = getLang();
+  const text  = entry ? (entry[lang] || entry.fr || entry.en || '') : '';
+  main.innerHTML = `
+    <div style="max-width:640px;margin:0 auto;padding:22px 16px 40px">
+      <h2 style="font-size:20px;font-weight:800;color:var(--brown);margin-bottom:16px">${TITLES[type] || ''}</h2>
+      ${text
+        ? `<div style="font-size:14px;color:#5a4c40;line-height:1.7;white-space:pre-line">${escapeHtml(text)}</div>`
+        : `<div class="cart-empty"><div class="cart-empty-icon">📄</div><h3>${t('legal_empty')}</h3></div>`}
     </div>`;
 }
 

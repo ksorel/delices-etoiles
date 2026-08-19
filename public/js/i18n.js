@@ -370,6 +370,15 @@ const translations = {
     tr_missing_tel:     'Indiquez votre téléphone',
     tr_missing_tel_invalid: 'Numéro de téléphone invalide, format attendu : 07 01 02 03 04',
     tr_sending:         'Envoi en cours…',
+
+    // Footer — pages légales
+    footer_cgv:               'CGV',
+    footer_confidentialite:   'Confidentialité',
+    footer_mentions:          'Mentions légales',
+    legal_cgv_title:          'Conditions Générales de Vente',
+    legal_confidentialite_title: 'Politique de confidentialité',
+    legal_mentions_title:     'Mentions légales',
+    legal_empty:              "Ce contenu n'a pas encore été renseigné.",
   },
 
   en: {
@@ -730,6 +739,15 @@ const translations = {
     tr_missing_tel:     'Indicate your phone number',
     tr_missing_tel_invalid: 'Invalid phone number, expected format: 07 01 02 03 04',
     tr_sending:         'Sending…',
+
+    // Footer — legal pages
+    footer_cgv:               'Terms of Sale',
+    footer_confidentialite:   'Privacy',
+    footer_mentions:          'Legal Notice',
+    legal_cgv_title:          'Terms and Conditions of Sale',
+    legal_confidentialite_title: 'Privacy Policy',
+    legal_mentions_title:     'Legal Notice',
+    legal_empty:              'This content has not been filled in yet.',
   },
 };
 

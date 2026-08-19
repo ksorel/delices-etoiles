@@ -683,6 +683,20 @@ input, select, textarea { font-family: inherit; }
 .order-id      { font-size: 13px; color: var(--brown-md); background: var(--brown-xlight);
                   padding: 8px 16px; border-radius: 20px; font-weight: 700; }
 
+/* ─── Footer (liens pages légales) ────────────────────── */
+.site-footer {
+  flex-shrink: 0;
+  text-align: center;
+  padding: 16px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+  font-size: 12px;
+  color: var(--text-muted);
+  background: var(--brown-xlight);
+  border-top: 1px solid var(--border);
+}
+.site-footer a { color: var(--text-muted); text-decoration: none; font-weight: 600; }
+.site-footer a:hover, .site-footer a:active { color: var(--orange); text-decoration: underline; }
+.site-footer .sf-sep { margin: 0 8px; color: var(--brown-light); }
+
 /* ─── Toast notification ─────────────────────────────── */
 #toast {
   position: fixed;

@@ -465,6 +465,17 @@ export async function fetchReservationConfig(restoId) {
   }
 }
 
+// ─── Pages légales (CGV / confidentialité / mentions légales) ────
+// Contenu global (config/legal), commun à tout le réseau — voir firestore.rules.
+export async function fetchLegalConfig() {
+  try {
+    const snap = await getDoc(doc(db, 'config', 'legal'));
+    return snap.exists() ? snap.data() : null;
+  } catch (_) {
+    return null;
+  }
+}
+
 // Réservations existantes d'un établissement à une date donnée (hors
 // refusées) — sert à calculer la capacité restante par créneau.
 export async function fetchReservationsForDate(restoId, date) {

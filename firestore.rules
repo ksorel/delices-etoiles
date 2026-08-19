@@ -207,13 +207,15 @@ service cloud.firestore {
 
     // ─── Configuration restaurant ────────────────────────────
     match /config/{docId} {
-      // Le carrousel d'accueil (doc 'accueil') est lu AVANT l'auth anonyme,
-      // comme le sélecteur d'établissement → lecture publique. Contenu non
-      // sensible (URLs d'images + booléen actif). Les autres docs config
+      // Le carrousel d'accueil (doc 'accueil') et les pages légales (doc 'legal')
+      // sont lus AVANT l'auth anonyme, comme le sélecteur d'établissement →
+      // lecture publique. Contenu non sensible (URLs d'images + booléen actif,
+      // ou textes CGV/confidentialité/mentions légales). Les autres docs config
       // (paiements, contacts du gérant) restent réservés aux utilisateurs authentifiés.
       // Un gérant peut modifier UNIQUEMENT le doc de son propre établissement
-      // (docId == restoId) ; 'accueil' (carrousel global) reste propriétaire uniquement.
-      allow read:  if docId == 'accueil' || isAuth();
+      // (docId == restoId) ; 'accueil' et 'legal' (contenu global) restent
+      // propriétaire uniquement (aucun restoId ne peut correspondre à ces docId).
+      allow read:  if docId == 'accueil' || docId == 'legal' || isAuth();
       allow write: if isAdmin() || (isManager() && docId == request.auth.token.restoId);
     }
 
