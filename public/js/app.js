@@ -109,6 +109,8 @@ const PIN_SVG = '<svg viewBox="0 0 24 24" width="15" height="15" style="display:
 const SF_ICON_CGV = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>';
 const SF_ICON_CONFIDENTIALITE = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>';
 const SF_ICON_MENTIONS = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>';
+const SF_ICON_PHONE = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg>';
+const SF_ICON_MAIL = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/></svg>';
 // Icônes du suivi de commande (remplacent les emoji comme icônes d'étape,
 // répétées à chaque commande — reprises à l'identique côté page de suivi et
 // fenêtre modale de suivi, pour un rendu cohérent entre les deux).
@@ -353,6 +355,7 @@ async function bootApp() {
   initAssistant('client');
   // 7. UI header
   updateHeader();
+  updateFooter(); // établissement désormais connu → ajoute son bloc contact au footer
   // 8. Vérifier si commande récente à suivre (< 2h)
   const lastOrder = (() => {
     try {
@@ -632,6 +635,7 @@ function updateFooter() {
         <a href="#legal-confidentialite" onclick="window.App.navigate('legal-confidentialite');return false">${SF_ICON_CONFIDENTIALITE}<span>${t('footer_confidentialite')}</span></a>
         <a href="#legal-mentions" onclick="window.App.navigate('legal-mentions');return false">${SF_ICON_MENTIONS}<span>${t('footer_mentions')}</span></a>
       </nav>
+      ${buildFooterContactHtml()}
       <div class="sf-copy">© ${new Date().getFullYear()} Délices Étoiles</div>
     </div>
   `;
@@ -731,49 +735,35 @@ function renderPDJCarousel(slides, lang) {
     </div>`;
 }
 
-// ─── Rendu Menu ───────────────────────────────────────────
-function buildContactBlock() {
+// ─── Footer : bloc contact (consolidé depuis l'ancienne carte "Nous
+// contacter" de renderServiceChoice — retirée, ce bloc la remplace partout
+// où l'établissement est connu) ─────────────────────────────
+function buildFooterContactHtml() {
+  if (!State.resto) return ''; // pas d'établissement choisi → rien de spécifique à afficher
   const c = State.contacts;
   const rows = [];
   if (c) {
-    if (c.tel1 && c.tel1_show !== false) {
-      rows.push({ href: 'tel:' + c.tel1.replace(/\s/g,''), icon: '📞', label: c.tel1_label || t('contact_tel'), value: c.tel1, bg: '#FFF0E8', fg: '#C2410C' });
-    }
-    if (c.tel2 && c.tel2_show !== false) {
-      rows.push({ href: 'tel:' + c.tel2.replace(/\s/g,''), icon: '📱', label: c.tel2_label || t('contact_mobile'), value: c.tel2, bg: '#FFF0E8', fg: '#C2410C' });
-    }
-    if (c.email && c.email_show !== false) {
-      rows.push({ href: 'mailto:' + c.email, icon: '✉️', label: t('contact_email'), value: c.email, bg: '#EEF1FE', fg: '#4C56A8' });
-    }
+    if (c.tel1 && c.tel1_show !== false) rows.push({ href: 'tel:' + c.tel1.replace(/\s/g,''), icon: SF_ICON_PHONE, label: c.tel1 });
+    if (c.tel2 && c.tel2_show !== false) rows.push({ href: 'tel:' + c.tel2.replace(/\s/g,''), icon: SF_ICON_PHONE, label: c.tel2 });
+    if (c.email && c.email_show !== false) rows.push({ href: 'mailto:' + c.email, icon: SF_ICON_MAIL, label: c.email });
   }
-  if (State.resto?.facebookUrl) {
-    rows.push({ href: State.resto.facebookUrl, icon: FB_SVG, label: t('contact_facebook'), value: t('contact_view_page'), external: true, bg: '#E7F0FE', fg: '#1877F2' });
+  if (State.resto.facebookUrl) {
+    rows.push({ href: State.resto.facebookUrl, icon: FB_SVG.replace('width="26" height="26"', 'width="14" height="14"'), label: t('contact_facebook'), external: true });
   }
-  const waNum = (State.resto?.whatsapp || '').replace(/[^0-9]/g, '');
+  const waNum = (State.resto.whatsapp || '').replace(/[^0-9]/g, '');
   if (waNum) {
-    rows.push({ href: 'https://wa.me/' + waNum, icon: WA_SVG, label: t('contact_whatsapp'), value: State.resto.whatsapp, external: true, bg: '#E7F8EE', fg: '#128C4A' });
+    rows.push({ href: 'https://wa.me/' + waNum, icon: WA_SVG.replace('width="26" height="26"', 'width="14" height="14"'), label: 'WhatsApp', external: true });
   }
   if (!rows.length) return '';
-  const items = rows.map((r, i) => `
-    <a href="${r.href}" ${r.external ? 'target="_blank" rel="noopener"' : ''}
-       style="display:flex;align-items:center;gap:14px;padding:13px 8px;margin:0 -8px;text-decoration:none;color:var(--brown);
-              border-radius:12px;transition:background .15s;${i < rows.length - 1 ? 'border-bottom:1px solid #F3ECE4;' : ''}"
-       onmouseover="this.style.background='#FBF6F1'" onmouseout="this.style.background='transparent'">
-      <div style="width:44px;height:44px;background:${r.bg};border-radius:50%;display:flex;align-items:center;justify-content:center;
-                  font-size:19px;flex-shrink:0;box-shadow:0 2px 6px rgba(43,29,22,.07)">${r.icon}</div>
-      <div style="min-width:0">
-        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:700">${r.label}</div>
-        <div style="font-weight:700;font-size:15px;color:${r.fg};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.value}</div>
-      </div>
-    </a>`).join('');
-  return `
-    <div style="margin:16px;background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 4px 20px rgba(43,29,22,.10);border:1px solid #F3ECE4">
-      <div style="background:linear-gradient(135deg,#2B1D16,#4A3020);padding:16px 20px;display:flex;align-items:center;gap:12px">
-        <div style="width:34px;height:34px;background:rgba(255,255,255,.15);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0">📬</div>
-        <div style="font-size:15px;font-weight:800;color:#fff;letter-spacing:.01em">${t('contact_title')}</div>
-      </div>
-      <div style="padding:6px 20px 6px">${items}</div>
-    </div>`;
+  const nom = State.resto.nomCourt || State.resto.commune || State.resto.nom || '';
+  const items = rows.map(r =>
+    '<a href="' + r.href + '"' + (r.external ? ' target="_blank" rel="noopener"' : '') + '>'
+    + r.icon + '<span>' + r.label + '</span></a>'
+  ).join('');
+  return '<div class="sf-contact">'
+    + '<div class="sf-contact-title">' + t('contact_title') + (nom ? ' — ' + nom : '') + '</div>'
+    + '<nav class="sf-links">' + items + '</nav>'
+    + '</div>';
 }
 function renderMenu(container) {
   if (!State.menu.length) {
@@ -2930,6 +2920,7 @@ window.App.changeResto = function () {
   _restoChosen = false; _serviceChosen = false;
   State.resto = null;
   updateHeader();   // efface le nom du lieu et le bouton "Changer" du header
+  updateFooter();   // retire le bloc contact devenu sans objet
   try {
     const u = new URL(window.location.href);
     u.searchParams.delete('resto');
@@ -3085,8 +3076,7 @@ function renderServiceChoice() {
         <span style="font-size:13px;font-weight:700;color:#D6480F;white-space:nowrap">${t('ord_lookup_link')}</span>
       </button>
       </div>
-    </div>
-    ${buildContactBlock()}`;
+    </div>`;
 }
 window.App.chooseService = function(s) {
   _serviceChosen = true;
