@@ -104,6 +104,11 @@ const FB_SVG = '<svg viewBox="0 0 24 24" width="26" height="26" style="display:b
 const WA_SVG = '<svg viewBox="0 0 24 24" width="26" height="26" style="display:block"><path fill="#25D366" d="M.06 24l1.68-6.15a11.87 11.87 0 01-1.59-5.95C.15 5.34 5.5 0 12.07 0a11.82 11.82 0 018.41 3.49 11.82 11.82 0 013.49 8.41c0 6.57-5.35 11.91-11.92 11.91a11.9 11.9 0 01-5.7-1.45L.06 24z"/><path fill="#FFF" d="M8.53 7.33c-.16-.36-.33-.37-.48-.38l-.42-.01c-.14 0-.38.05-.58.27-.2.22-.76.75-.76 1.82 0 1.07.78 2.11.89 2.26.11.14 1.51 2.42 3.72 3.3 1.84.72 2.21.58 2.61.54.4-.04 1.29-.53 1.47-1.03.18-.51.18-.94.13-1.03-.05-.09-.2-.14-.42-.25-.22-.11-1.29-.64-1.49-.71-.2-.07-.35-.11-.5.11-.14.22-.57.71-.7.86-.13.14-.26.16-.48.05-.22-.11-.93-.34-1.77-1.09-.65-.58-1.09-1.3-1.22-1.52-.13-.22-.01-.34.1-.45.1-.1.22-.26.33-.38.11-.13.14-.22.22-.37.07-.14.04-.27-.02-.38-.05-.11-.48-1.2-.68-1.63z"/></svg>';
 // Épingle de localisation (remplace l'émoji 📍 sur les cartes établissement)
 const PIN_SVG = '<svg viewBox="0 0 24 24" width="15" height="15" style="display:inline-block;vertical-align:-3px;flex-shrink:0"><path fill="#F26522" d="M12 2C7.86 2 4.5 5.36 4.5 9.5c0 5.5 6.25 11.5 7.02 12.22a.7.7 0 00.96 0C13.25 21 19.5 15 19.5 9.5 19.5 5.36 16.14 2 12 2zm0 10.25a2.75 2.75 0 110-5.5 2.75 2.75 0 010 5.5z"/></svg>';
+// Icônes du footer (pages légales) — style trait fin, cohérent avec l'icône
+// « Infos & Actualités » du header (feather-like, stroke=currentColor).
+const SF_ICON_CGV = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>';
+const SF_ICON_CONFIDENTIALITE = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>';
+const SF_ICON_MENTIONS = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>';
 // Icônes du suivi de commande (remplacent les emoji comme icônes d'étape,
 // répétées à chaque commande — reprises à l'identique côté page de suivi et
 // fenêtre modale de suivi, pour un rendu cohérent entre les deux).
@@ -619,11 +624,16 @@ function updateFooter() {
   const footer = document.getElementById('site-footer');
   if (!footer) return;
   footer.innerHTML = `
-    <a href="#legal-cgv" onclick="window.App.navigate('legal-cgv');return false">${t('footer_cgv')}</a>
-    <span class="sf-sep">·</span>
-    <a href="#legal-confidentialite" onclick="window.App.navigate('legal-confidentialite');return false">${t('footer_confidentialite')}</a>
-    <span class="sf-sep">·</span>
-    <a href="#legal-mentions" onclick="window.App.navigate('legal-mentions');return false">${t('footer_mentions')}</a>
+    <div class="sf-inner">
+      <div class="sf-brand">Délices Étoiles</div>
+      <div class="sf-tagline">${t('brand_tagline')}</div>
+      <nav class="sf-links">
+        <a href="#legal-cgv" onclick="window.App.navigate('legal-cgv');return false">${SF_ICON_CGV}<span>${t('footer_cgv')}</span></a>
+        <a href="#legal-confidentialite" onclick="window.App.navigate('legal-confidentialite');return false">${SF_ICON_CONFIDENTIALITE}<span>${t('footer_confidentialite')}</span></a>
+        <a href="#legal-mentions" onclick="window.App.navigate('legal-mentions');return false">${SF_ICON_MENTIONS}<span>${t('footer_mentions')}</span></a>
+      </nav>
+      <div class="sf-copy">© ${new Date().getFullYear()} Délices Étoiles</div>
+    </div>
   `;
 }
 function updateCartBadge() {

@@ -1754,10 +1754,52 @@ async function renderFideliteReseau(c) {
 // ── Pages légales (CGV / confidentialité / mentions légales) ─────
 // Contenu global (config/legal), commun à tout le réseau — propriétaire uniquement.
 const LEGAL_SECTIONS = [
-  { id: 'cgv',             label: 'Conditions Générales de Vente' },
-  { id: 'confidentialite', label: 'Politique de confidentialité' },
-  { id: 'mentions',        label: 'Mentions légales' },
+  { id: 'cgv',             icon: '📜', color: '#F26522', label: 'Conditions Générales de Vente',
+    hint: 'Modalités de commande, de paiement et de livraison présentées aux clients.' },
+  { id: 'confidentialite', icon: '🔒', color: '#0EA5E9', label: 'Politique de confidentialité',
+    hint: 'Comment les données des clients (nom, téléphone, adresse…) sont utilisées et protégées.' },
+  { id: 'mentions',        icon: '⚖️', color: '#8B5CF6', label: 'Mentions légales',
+    hint: "Identité de l'entreprise, éditeur du site, hébergeur, coordonnées légales." },
 ];
+function _legalUpdatedLabel(cfg) {
+  const d = cfg?.updatedAt?.toDate ? cfg.updatedAt.toDate() : null;
+  if (!d) return '';
+  return 'Dernière mise à jour : ' + d.toLocaleDateString('fr-FR', { day:'numeric', month:'long', year:'numeric' })
+    + ' à ' + d.toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' });
+}
+function _legalFieldHtml(sectionId, lang, langLabel, flag, value) {
+  const fieldId = 'legal-' + sectionId + '-' + lang;
+  return '<div style="flex:1 1 260px;min-width:0;display:flex;flex-direction:column;gap:6px">'
+    +   '<div style="display:flex;align-items:center;justify-content:space-between">'
+    +     '<label class="form-label" style="display:flex;align-items:center;gap:6px;color:var(--muted);font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.04em">'
+    +       '<span style="font-size:13px">' + flag + '</span>' + langLabel
+    +     '</label>'
+    +     '<span id="' + fieldId + '-count" style="font-size:11px;color:var(--muted);opacity:.7">' + (value.length) + ' caractères</span>'
+    +   '</div>'
+    +   '<textarea class="form-input" id="' + fieldId + '" rows="7"'
+    +     ' oninput="document.getElementById(\x27' + fieldId + '-count\x27).textContent = this.value.length + \x27 caractères\x27"'
+    +     ' placeholder="' + (lang === 'fr' ? 'Texte affiché aux clients francophones…' : 'Text shown to English-speaking clients…') + '"'
+    +     ' style="resize:vertical;font-family:inherit;line-height:1.6;min-height:150px">' + escapeAdminHtml(value) + '</textarea>'
+    + '</div>';
+}
+function _legalSectionHtml(s, cfg) {
+  const entry = cfg[s.id] || {};
+  return '<div class="card" style="margin-bottom:18px;overflow:hidden;padding:0;border:1px solid var(--border)">'
+    +   '<div style="display:flex;align-items:center;gap:14px;padding:18px 20px;'
+    +     'background:linear-gradient(135deg,' + s.color + '14,' + s.color + '05)">'
+    +     '<div style="flex:0 0 auto;width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;'
+    +       'font-size:20px;background:' + s.color + '20;box-shadow:inset 0 0 0 1.5px ' + s.color + '40">' + s.icon + '</div>'
+    +     '<div style="min-width:0">'
+    +       '<div style="font-size:15px;font-weight:800;color:var(--brown)">' + s.label + '</div>'
+    +       '<div style="font-size:12px;color:var(--muted);margin-top:2px;line-height:1.4">' + s.hint + '</div>'
+    +     '</div>'
+    +   '</div>'
+    +   '<div style="display:flex;flex-wrap:wrap;gap:16px;padding:18px 20px">'
+    +     _legalFieldHtml(s.id, 'fr', 'Français', '🇫🇷', entry.fr || '')
+    +     _legalFieldHtml(s.id, 'en', 'English',  '🇬🇧', entry.en || '')
+    +   '</div>'
+    + '</div>';
+}
 async function renderLegalPage(c) {
   c.innerHTML = '<div class="loading"><div class="spinner"></div><p>Chargement…</p></div>';
   let cfg = {};
@@ -1766,28 +1808,28 @@ async function renderLegalPage(c) {
     if (snap.exists()) cfg = snap.data() || {};
   } catch(e) {}
 
-  const sectionHtml = (s) => {
-    const entry = cfg[s.id] || {};
-    return '<div class="card" style="margin-bottom:16px">'
-      + '<div class="card-title">' + s.label + '</div>'
-      + '<div style="display:flex;flex-direction:column;gap:10px;max-width:640px">'
-      +   '<div>'
-      +     '<label class="form-label">Texte en français</label>'
-      +     '<textarea class="form-input" id="legal-' + s.id + '-fr" rows="6" placeholder="Texte affiché aux clients francophones…" style="resize:vertical;font-family:inherit">' + escapeAdminHtml(entry.fr || '') + '</textarea>'
-      +   '</div>'
-      +   '<div>'
-      +     '<label class="form-label">Texte en anglais</label>'
-      +     '<textarea class="form-input" id="legal-' + s.id + '-en" rows="6" placeholder="Text shown to English-speaking clients…" style="resize:vertical;font-family:inherit">' + escapeAdminHtml(entry.en || '') + '</textarea>'
-      +   '</div>'
-      + '</div></div>';
-  };
-
-  c.innerHTML = '<p style="font-size:12px;color:var(--muted);margin-bottom:16px;line-height:1.5;max-width:640px">'
-    + 'Ces textes sont communs à tout le réseau (accessibles via le pied de page du portail client, avant même le choix d\x27un établissement). '
-    + 'Un paragraphe par ligne vide ; pas de mise en forme (gras, listes…) — le texte est affiché tel quel.</p>'
-    + LEGAL_SECTIONS.map(sectionHtml).join('')
-    + '<button onclick="window.Admin.saveLegal(this)" class="btn btn-primary">💾 Enregistrer</button>'
-    + '<div id="legal-msg" style="font-size:13px;margin-top:10px;display:none"></div>';
+  c.innerHTML =
+      '<div style="border-radius:16px;padding:22px 24px;margin-bottom:22px;'
+    +   'background:linear-gradient(135deg,var(--brown) 0%,#4A3020 100%);box-shadow:var(--shadow)">'
+    +   '<div style="display:flex;align-items:center;gap:14px">'
+    +     '<div style="font-size:30px;line-height:1">📄</div>'
+    +     '<div>'
+    +       '<div style="font-size:17px;font-weight:800;color:#fff">Pages légales</div>'
+    +       '<div style="font-size:12.5px;color:rgba(255,255,255,.75);margin-top:3px;line-height:1.5;max-width:560px">'
+    +         "Ces textes sont communs à tout le réseau et accessibles depuis le pied de page du portail client, "
+    +         "même avant le choix d\x27un établissement. Un paragraphe par ligne vide, pas de mise en forme (gras, listes…)."
+    +       '</div>'
+    +     '</div>'
+    +   '</div>'
+    + '</div>'
+    + LEGAL_SECTIONS.map(s => _legalSectionHtml(s, cfg)).join('')
+    + '<div style="position:sticky;bottom:0;display:flex;align-items:center;gap:14px;flex-wrap:wrap;'
+    +   'background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:14px 18px;box-shadow:var(--shadow)">'
+    +   '<button onclick="window.Admin.saveLegal(this)" class="btn btn-primary" style="padding:11px 22px;font-size:13.5px">'
+    +     '💾 Enregistrer les pages légales</button>'
+    +   '<span id="legal-updated" style="font-size:12px;color:var(--muted)">' + _legalUpdatedLabel(cfg) + '</span>'
+    +   '<span id="legal-msg" style="font-size:13px;font-weight:700;display:none"></span>'
+    + '</div>';
 }
 window.Admin.saveLegal = async function(btn) {
   const msg = document.getElementById('legal-msg');
@@ -1801,11 +1843,13 @@ window.Admin.saveLegal = async function(btn) {
       };
     });
     await setDoc(doc(db, 'config', 'legal'), data, { merge: true });
-    msg.style.cssText = 'display:block;color:#10B981;font-weight:700';
-    msg.textContent   = '✅ Pages légales enregistrées';
+    msg.style.cssText = 'display:inline;color:#10B981';
+    msg.textContent   = '✅ Enregistré';
+    const upd = document.getElementById('legal-updated');
+    if (upd) upd.textContent = _legalUpdatedLabel({ updatedAt: { toDate: () => new Date() } });
     setTimeout(() => msg.style.display = 'none', 3000);
   } catch(e) {
-    msg.style.cssText = 'display:block;color:#EF4444;font-size:14px;padding:10px;background:#FEE2E2;border-radius:8px';
+    msg.style.cssText = 'display:inline;color:#EF4444';
     msg.textContent   = 'Erreur : ' + (e.message || e.code || '');
   }
   clearBtnBusy(btn);
