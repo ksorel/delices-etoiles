@@ -140,6 +140,11 @@ custom claims d'abord → écritures de données → backfill → règles strict
   - Commande **sur place** → type `surplace` dans `commandes` `{ nom, telephone, personnes, note, surplace:{date,heure,personnes},
     items, total, operateur:'especes' }` ; paiement à l'arrivée ; badge « 🍽️ Sur place · heure » sur la carte staff.
   - Règle Firestore `reservations` ajoutée (create par le client, read/update par le staff, delete par l'admin).
+  - **Notification de confirmation** : trigger `onReservationStatusChange` (functions/index.js) envoie une
+    notification FCM au client (✅ confirmée / ❌ refusée) si celui-ci a activé les notifications sur sa
+    réservation (`enableReservationNotifications`, jeton stocké sur le doc `reservations`).
+- **Contact de l'écran de connexion dashboard configurable** : `restos/{id}.loginContactPhone` par établissement,
+  avec repli sur un numéro global (`config/accueil.loginContactPhone`) si l'établissement n'en a pas renseigné.
 - **Pages légales** (CGV / confidentialité / mentions légales) : contenu global réseau, `config/legal`
   `{ cgv:{fr,en}, confidentialite:{fr,en}, mentions:{fr,en}, updatedAt }` (lecture publique, écriture
   propriétaire uniquement). Footer persistant sur le portail client (toutes les vues, signature cursive
@@ -200,8 +205,6 @@ node .\scripts\backfill-restoid.js --apply  # applique
 
 ## 10. Pistes suivantes possibles
 
-- **Notifications automatiques** de confirmation (FCM/WhatsApp) pour les réservations.
-- **Contact de l'écran de connexion** du dashboard rendu configurable (numéro propriétaire global).
 - Harmoniser éventuellement le **nom court** côté client (cartes de l'accueil).
 
 ## 11. Workflow attendu de Claude Code
