@@ -137,10 +137,17 @@ custom claims d'abord → écritures de données → backfill → règles strict
   - Commande **sur place** → type `surplace` dans `commandes` `{ nom, telephone, personnes, note, surplace:{date,heure,personnes},
     items, total, operateur:'especes' }` ; paiement à l'arrivée ; badge « 🍽️ Sur place · heure » sur la carte staff.
   - Règle Firestore `reservations` ajoutée (create par le client, read/update par le staff, delete par l'admin).
+- **Pages légales** (CGV / confidentialité / mentions légales) : contenu global réseau, `config/legal`
+  `{ cgv:{fr,en}, confidentialite:{fr,en}, mentions:{fr,en}, updatedAt }` (lecture publique, écriture
+  propriétaire uniquement). Footer persistant sur le portail client (toutes les vues, signature cursive
+  « Great Vibes ») avec 3 liens vers `#legal-cgv` / `#legal-confidentialite` / `#legal-mentions` (accessibles
+  sans établissement choisi, comme Infos & Actualités) ; texte affiché selon la langue active, repli sur le
+  FR si l'anglais n'est pas rempli. Admin → onglet **Pages légales** (propriétaire uniquement) : un champ FR
+  + un champ EN par page, texte simple (pas de mise en forme).
 
 ## 7. Collections Firestore (principales)
 
-`restos`, `config` (dont `config/accueil`, `config/{restoId}`), `menus`, `zones-livraison`, `upselling-rules`,
+`restos`, `config` (dont `config/accueil`, `config/legal`, `config/{restoId}`), `menus`, `zones-livraison`, `upselling-rules`,
 `commandes` (types `salle` | `livraison` | `surplace`), `reservations`, `paiements`, `depenses`, `stocks`,
 `plat-du-jour`, `employees`, `floor-plan` (docs `layout-{restoId}`), collections traiteur (devis, zones-traiteur…).
 
