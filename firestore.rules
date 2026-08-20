@@ -291,5 +291,24 @@ service cloud.firestore {
                     && request.resource.data.status == 'visible';
       allow delete: if isAdmin() || (isManager() && resource.data.restoId == request.auth.token.restoId);
     }
+
+    // ─── Statistiques de visites (compteur journalier par établissement) ──
+    // Doc id = {restoId}_{YYYY-MM-DD}. Écriture ouverte à tout visiteur
+    // anonyme (c'est lui qui déclenche le compteur), mais strictement
+    // limitée à un incrément de +1 sur "visites" — impossible d'écrire une
+    // valeur arbitraire ou de modifier un autre champ. Lecture réservée au
+    // staff (page Statistiques de l'admin).
+    match /stats-visites/{docId} {
+      allow read: if isStaff();
+      allow create: if isAuth()
+                    && request.resource.data.visites == 1
+                    && request.resource.data.restoId is string
+                    && request.resource.data.date is string
+                    && docId == (request.resource.data.restoId + '_' + request.resource.data.date);
+      allow update: if isAuth()
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['visites', 'updatedAt'])
+                    && request.resource.data.visites == resource.data.visites + 1;
+      allow delete: if isAdmin();
+    }
   }
 }

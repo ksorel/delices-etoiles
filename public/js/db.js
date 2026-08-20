@@ -16,7 +16,7 @@ import { db, INITIAL_RESTO_ID } from './config.js?v=2';
 import {
   collection, doc, getDoc, getDocs, addDoc, updateDoc, setDoc, deleteDoc,
   query, where, orderBy, limit, onSnapshot,
-  serverTimestamp, Timestamp,
+  serverTimestamp, Timestamp, increment,
 } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
 // ─── Établissement courant ───────────────────────────────
@@ -473,6 +473,33 @@ export async function fetchLegalConfig() {
     return snap.exists() ? snap.data() : null;
   } catch (_) {
     return null;
+  }
+}
+
+// ─── Statistiques de visites ─────────────────────────────
+// Compteur journalier par établissement (stats-visites/{restoId}_{date}),
+// visible en admin (page Statistiques). Une seule visite comptée par
+// établissement/jour/appareil (repère localStorage) pour ne pas gonfler
+// artificiellement le chiffre à chaque rechargement de page.
+// Abidjan est en UTC+0 (pas de décalage horaire ni d'heure d'été) : la
+// date ISO (UTC) correspond donc exactement à la date locale.
+export async function trackVisit(restoId) {
+  const r = rid(restoId);
+  const dateStr = new Date().toISOString().slice(0, 10);
+  const flagKey = 'de_visit_' + r + '_' + dateStr;
+  try { if (localStorage.getItem(flagKey)) return; } catch (_) {}
+
+  const docId = r + '_' + dateStr;
+  try {
+    // increment() + merge:true est atomique côté serveur (pas de lecture
+    // préalable) : deux premiers visiteurs simultanés du jour s'incrémentent
+    // correctement tous les deux au lieu de s'écraser l'un l'autre.
+    await setDoc(doc(db, 'stats-visites', docId),
+      { restoId: r, date: dateStr, visites: increment(1), updatedAt: serverTimestamp() },
+      { merge: true });
+    try { localStorage.setItem(flagKey, '1'); } catch (_) {}
+  } catch (e) {
+    console.warn('trackVisit:', e.code || e.message);
   }
 }
 

@@ -12,7 +12,7 @@ import { fetchMenu, fetchZones, fetchUpsellRules, getOrCreateTable, fetchPlatDuJ
          fetchAvisForItem, hasVerifiedPurchase, getExistingAvis, submitAvis, setAvisRating,
          updateOrderStatus, fetchAnnonces, submitCandidature,
          touchClientVisit, fetchLoyaltyConfig, fetchClientLoyalty, computeLoyaltyStatus, redeemLoyaltyReward,
-         fetchReservationConfig, fetchReservationsForDate, fetchLegalConfig } from './db.js?v=2';
+         fetchReservationConfig, fetchReservationsForDate, fetchLegalConfig, trackVisit } from './db.js?v=2';
 import { getDoc, doc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { requestNotificationPermission, listenForegroundMessages } from './fcm.js?v=2';
 // Lien partagé vers un article précis (?item=<id>) : ouvert automatiquement
@@ -356,6 +356,7 @@ async function bootApp() {
   // 7. UI header
   updateHeader();
   updateFooter(); // établissement désormais connu → ajoute son bloc contact au footer
+  trackVisit(getRestoId()); // fire-and-forget — comptabilisé côté admin (Statistiques)
   // 8. Vérifier si commande récente à suivre (< 2h)
   const lastOrder = (() => {
     try {

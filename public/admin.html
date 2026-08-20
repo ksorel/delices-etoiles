@@ -1381,6 +1381,7 @@ function renderStocksTable() {
 
 // ── Statistiques ─────────────────────────────────────────
 let _statsOrders = [];  // commandes chargées une fois, filtrées en mémoire par période
+let _statsVisites = []; // docs stats-visites (1 par établissement/jour), même logique
 let _statsPeriod = '7j';
 const STATS_PERIODS = { today: "Aujourd'hui", '7j': '7 jours', '30j': '30 jours', all: 'Depuis toujours' };
 
@@ -1391,6 +1392,10 @@ async function renderStats(c) {
     // vide en mode « Tous », donc le comportement propriétaire est inchangé.
     const snap = await getDocs(query(collection(db, 'commandes'), ...ridConstraints(), orderBy('createdAt', 'desc')));
     _statsOrders = snap.docs.map(function(d) { return { id: d.id, ...d.data() }; });
+    try {
+      const vSnap = await getDocs(query(collection(db, 'stats-visites'), ...ridConstraints()));
+      _statsVisites = vSnap.docs.map(function(d) { return d.data(); });
+    } catch(e) { _statsVisites = []; console.warn('stats-visites:', e); }
     renderStatsBody(c, _statsPeriod);
   } catch(e) {
     c.innerHTML = '<div class="card"><p style="color:red">Erreur : ' + e.message + '</p></div>';
@@ -1413,6 +1418,15 @@ function renderStatsBody(c, period) {
   const done  = inPeriod.filter(function(o) { return o.status === 'done'; });
   const total = done.reduce(function(s, o) { return s + (o.total || 0); }, 0);
   const avgBasket = done.length ? Math.round(total / done.length) : 0;
+
+  // Visiteurs (compteur journalier stats-visites) + taux de conversion.
+  // Abidjan = UTC+0 (sans heure d'été) : la date ISO du doc correspond
+  // directement à la date locale, comme "from" ci-dessus.
+  const visitesInPeriod = from
+    ? _statsVisites.filter(function(v) { return v.date && new Date(v.date + 'T00:00:00Z') >= from; })
+    : _statsVisites;
+  const totalVisites = visitesInPeriod.reduce(function(s, v) { return s + (v.visites || 0); }, 0);
+  const conversionPct = totalVisites > 0 ? Math.round((inPeriod.length / totalVisites) * 1000) / 10 : null;
 
   // Répartition du CA par mode de commande
   const TYPE_INFO = {
@@ -1501,6 +1515,8 @@ function renderStatsBody(c, period) {
     + statCard('Servies', done.length, '✅')
     + statCard('CA', total.toLocaleString('fr-FR') + ' FCFA', '💰')
     + statCard('Panier moyen', avgBasket.toLocaleString('fr-FR') + ' FCFA', '🧾')
+    + statCard('Visiteurs', totalVisites.toLocaleString('fr-FR'), '👥')
+    + statCard('Taux de conversion', conversionPct === null ? '—' : conversionPct.toLocaleString('fr-FR') + ' %', '🎯')
     + '</div>'
     + '<div class="chart-row">'
     + '<div class="chart-card">'
