@@ -542,25 +542,6 @@ export async function updateReservationStatus(id, status) {
   await updateDoc(doc(db, 'reservations', id), { status, updatedAt: serverTimestamp() });
 }
 
-// ─── Dashboard staff : écoute temps réel (par lieu) ──────
-// ⚠️ Index composites requis (restoId en 1re position) :
-//    restoId+createdAt, restoId+status+createdAt, restoId+type+createdAt
-export function listenOrders(callback, filters = {}, restoId) {
-  let q = collection(db, 'commandes');
-
-  // restoId d'abord, puis les filtres optionnels, puis l'ordre.
-  const conditions = [orderBy('createdAt', 'desc')];
-  if (filters.status)  conditions.unshift(where('status', '==', filters.status));
-  if (filters.type)    conditions.unshift(where('type',   '==', filters.type));
-  conditions.unshift(where('restoId', '==', rid(restoId)));
-
-  q = query(q, ...conditions);
-  return onSnapshot(q, snap => {
-    const orders = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    callback(orders);
-  });
-}
-
 // ─── Mettre à jour le statut d'une commande ──────────────
 export async function updateOrderStatus(orderId, status) {
   await updateDoc(doc(db, 'commandes', orderId), {

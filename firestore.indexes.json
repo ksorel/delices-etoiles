@@ -137,23 +137,6 @@
       ]
     },
     {
-      "collectionGroup": "menus",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "category",  "order": "ASCENDING" },
-        { "fieldPath": "order",     "order": "ASCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "menus",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "restoId",   "order": "ASCENDING" },
-        { "fieldPath": "category",  "order": "ASCENDING" },
-        { "fieldPath": "order",     "order": "ASCENDING" }
-      ]
-    },
-    {
       "collectionGroup": "zones-livraison",
       "queryScope": "COLLECTION",
       "fields": [

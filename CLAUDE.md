@@ -205,7 +205,9 @@ node .\scripts\backfill-restoid.js --apply  # applique
 
 ## 10. Pistes suivantes possibles
 
-- Harmoniser éventuellement le **nom court** côté client (cartes de l'accueil).
+- **Vraie intégration de paiement en ligne** (Wave Business API, CinetPay…) pour remplacer les liens profonds
+  mobile money actuels par une confirmation automatique côté serveur (`paymentWebhook`, secret non configuré
+  volontairement — voir §8).
 
 ## 11. Workflow attendu de Claude Code
 

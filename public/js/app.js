@@ -769,7 +769,7 @@ function buildFooterContactHtml() {
 }
 function renderMenu(container) {
   if (!State.menu.length) {
-    const nom = State.resto?.nom || State.resto?.commune || '';
+    const nom = State.resto?.nomCourt || State.resto?.commune || State.resto?.nom || '';
     container.innerHTML = `
       <div class="empty-state">
         <div class="empty-state-icon">🍽️</div>
@@ -2761,7 +2761,7 @@ async function renderRestoPicker() {
         ? `<span class="resto-pick-avatar" style="background:#fff;background-image:url('${l.logoUrl}');background-size:cover;background-position:center"></span>`
         : `<span class="resto-pick-avatar">🍽️</span>`}
       <span class="resto-pick-body">
-        <span class="resto-pick-name">${l.nom || l.id}</span>
+        <span class="resto-pick-name">${l.nomCourt || l.commune || l.nom || l.id}</span>
         ${loc ? `<a class="resto-pick-map" href="${lieuMapUrl(l)}" target="_blank" rel="noopener" title="Voir sur Google Maps" onclick="event.stopPropagation()"><span class="resto-pick-maptext">${PIN_SVG} ${loc}</span></a>` : ''}
         ${social}
       </span>
@@ -3132,7 +3132,7 @@ async function renderInfos(main) {
     const date = a.createdAt?.toDate?.()
       ? a.createdAt.toDate().toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' })
       : '';
-    const lieu = a.restoId ? (lieuxById[a.restoId]?.nomCourt || lieuxById[a.restoId]?.nom || '') : '';
+    const lieu = a.restoId ? (lieuxById[a.restoId]?.nomCourt || lieuxById[a.restoId]?.commune || lieuxById[a.restoId]?.nom || '') : '';
     return `
       <div style="background:#fff;border:1.5px solid #F0E4D8;border-radius:16px;overflow:hidden;margin-bottom:14px">
         ${a.imageUrl ? `<img src="${a.imageUrl}" alt="" style="width:100%;height:160px;object-fit:cover;display:block">` : ''}
@@ -3332,7 +3332,7 @@ function renderReservation() {
   view.innerHTML = `
     <div style="max-width:480px;margin:0 auto;padding:18px 16px 40px">
       <h2 style="font-size:20px;font-weight:800;color:#2B1D16;margin:0 0 2px">📅 ${t('service_reserver')}</h2>
-      <p style="font-size:13px;color:#7a6a55;margin:0 0 18px">${State.resto?.nom || ''}</p>
+      <p style="font-size:13px;color:#7a6a55;margin:0 0 18px">${State.resto?.nomCourt || State.resto?.commune || State.resto?.nom || ''}</p>
       <div style="display:flex;flex-direction:column;gap:14px">
         <div><label style="${L}">${t('telephone')} *</label><input id="rv-tel" type="tel" style="${_SVC_INPUT}" placeholder="${PHONE_PLACEHOLDER}" ${PHONE_INPUT_ATTRS} value="${formatPhoneDisplay(d.tel||'')}"></div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
