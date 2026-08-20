@@ -300,6 +300,13 @@ body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color
 .login-btn:hover { background: #C94E10; }
 .login-btn:disabled { background: #E0D4C8; color: #9A8576; cursor: not-allowed; }
 .login-err { font-size: 13px; color: #E53E3E; margin-top: 8px; text-align: center; }
+.btn-spin {
+  display: inline-block; width: 13px; height: 13px;
+  border: 2px solid rgba(154,133,118,.35); border-top-color: #9A8576;
+  border-radius: 50%; animation: btn-spin-rotate .7s linear infinite;
+  vertical-align: -2px; margin-right: 6px;
+}
+@keyframes btn-spin-rotate { to { transform: rotate(360deg); } }
 
 /* Stats cards */
 .stat-card {

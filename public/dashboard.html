@@ -295,7 +295,7 @@
                  background:none;border:none;cursor:pointer;font-size:16px">👁</button>
       </div>
     </div>
-    <button class="login-btn" onclick="doLogin()">Se connecter</button>
+    <button id="login-btn" class="login-btn" onclick="doLogin()">Se connecter</button>
     <div class="login-err" id="login-err"></div>
     <div id="contact-admin-block" style="margin-top:16px;padding:12px 16px;
          background:#FFF8F5;border-radius:10px;border:1px solid #FDDCCC;text-align:center">
@@ -410,6 +410,19 @@ function withTimeout(promise, ms) {
     ),
   ]);
 }
+// Etat "occupé" d'un bouton (spinner + désactivé) — évite qu'un utilisateur
+// sur réseau lent pense que rien ne se passe et re-clique plusieurs fois.
+function setBtnBusy(btn, label) {
+  if (!btn) return;
+  if (btn.dataset.origHtml == null) btn.dataset.origHtml = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="btn-spin"></span>' + (label || 'Patientez…');
+}
+function clearBtnBusy(btn) {
+  if (!btn) return;
+  btn.disabled = false;
+  if (btn.dataset.origHtml != null) { btn.innerHTML = btn.dataset.origHtml; delete btn.dataset.origHtml; }
+}
 
 window.forceOnboarding = forceOnboarding;
 
@@ -470,6 +483,7 @@ const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAA' +
 
 // ── Auth ──────────────────────────────────────────────────
 window.doLogin = async function() {
+  const btn  = document.getElementById('login-btn');
   const raw  = document.getElementById('email-input').value.trim().toLowerCase();
   const pass = document.getElementById('pass-input').value;
   const err  = document.getElementById('login-err');
@@ -477,13 +491,17 @@ window.doLogin = async function() {
   if (!raw) { err.textContent = 'Saisissez votre identifiant.'; return; }
   // Identifiant simple → email interne fictif ; un email complet reste accepté tel quel.
   const email = raw.includes('@') ? raw : raw + '@delices-etoiles.staff';
+  setBtnBusy(btn, 'Connexion…');
   try {
     try { await withTimeout(enableNetwork(db), 8000); } catch (_) {}   // au cas où une déconnexion précédente l'a coupé
     await withTimeout(signInWithEmailAndPassword(auth, email, pass), 15000);
+    // Succès : le bouton reste "occupé" jusqu'à ce que onAuthStateChanged
+    // bascule l'écran (ou le réinitialise lui-même en cas d'échec plus loin).
   } catch (e) {
     err.textContent = (e && e.message && e.message.startsWith('Timeout'))
       ? 'Connexion trop lente. Vérifiez votre réseau et réessayez.'
       : 'Identifiant ou mot de passe incorrect.';
+    clearBtnBusy(btn);
   }
 };
 
@@ -592,6 +610,7 @@ onAuthStateChanged(auth, async user => {
       console.warn('Lecture du rôle échouée :', e);
       const err = document.getElementById('login-err');
       if (err) err.textContent = 'Connexion trop lente ou instable. Réessayez.';
+      clearBtnBusy(document.getElementById('login-btn'));
       try { await signOut(auth); } catch (_) {}
       return;
     }
@@ -834,6 +853,7 @@ onAuthStateChanged(auth, async user => {
   } else {
     document.getElementById('login-screen').style.display = 'flex';
     document.getElementById('dash-app').style.display     = 'none';
+    clearBtnBusy(document.getElementById('login-btn'));
     if (unsubOrders) { try { unsubOrders(); } catch(e) {} unsubOrders = null; }
     if (unsubReservations) { try { unsubReservations(); } catch(e) {} unsubReservations = null; }
     if (unsubFloorPlan) { try { unsubFloorPlan(); } catch(e) {} unsubFloorPlan = null; }

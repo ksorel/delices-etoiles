@@ -462,7 +462,7 @@ function closeSidebar() {
                  background:none;border:none;cursor:pointer;font-size:16px">👁</button>
       </div>
     </div>
-    <button onclick="doAdminLogin()" style="width:100%;padding:14px;background:#F26522;color:#fff;border:none;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer">Connexion</button>
+    <button id="a-login-btn" onclick="doAdminLogin()" style="width:100%;padding:14px;background:#F26522;color:#fff;border:none;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer">Connexion</button>
     <div id="a-err" style="color:#C62828;font-size:13px;margin-top:8px"></div>
   </div>
 </div>
@@ -649,24 +649,30 @@ const DRINK_CATS_STOCK = ['bieres','eaux','jus','spiritueux','boissons'];
 
 // ── Auth ──────────────────────────────────────────────────
 window.doAdminLogin = async () => {
+  const btn  = document.getElementById('a-login-btn');
   const raw  = document.getElementById('a-email').value.trim();
   // Propriétaire : email réel. Gérant : simple identifiant → email interne fictif
   // (même convention que le dashboard staff).
   const email = raw.includes('@') ? raw : raw + '@delices-etoiles.staff';
   const pass  = document.getElementById('a-pass').value;
   document.getElementById('a-err').textContent = '';
+  setBtnBusy(btn, 'Connexion…');
   try {
     const cred = await withTimeout(signInWithEmailAndPassword(auth, email, pass), 15000);
     const token = await withTimeout(cred.user.getIdTokenResult(), 10000);
     if (!['admin', 'manager'].includes(token.claims.role)) {
       await signOut(auth);
       document.getElementById('a-err').textContent = 'Accès refusé. Compte Propriétaire ou Gérant requis.';
+      clearBtnBusy(btn);
       return;
     }
+    // Succès : le bouton reste "occupé" jusqu'à ce que onAuthStateChanged
+    // bascule l'écran (ou le réinitialise lui-même en cas d'échec plus loin).
   } catch (e) {
     document.getElementById('a-err').textContent = (e && e.message && e.message.startsWith('Timeout'))
       ? 'Connexion trop lente. Vérifiez votre réseau et réessayez.'
       : 'Identifiants incorrects.';
+    clearBtnBusy(btn);
   }
 };
 
@@ -715,6 +721,7 @@ onAuthStateChanged(auth, async user => {
       console.warn('Lecture du rôle échouée :', e);
       const err = document.getElementById('a-err');
       if (err) err.textContent = 'Connexion trop lente ou instable. Réessayez.';
+      clearBtnBusy(document.getElementById('a-login-btn'));
       try { await signOut(auth); } catch (_) {}
       return;
     }
@@ -724,6 +731,7 @@ onAuthStateChanged(auth, async user => {
       // la session du dashboard. La déconnexion reste manuelle (bouton) ou au login admin.
       document.getElementById('login-screen').style.display = 'flex';
       document.getElementById('admin-app').style.display    = 'none';
+      clearBtnBusy(document.getElementById('a-login-btn'));
       if (window._ai) window._ai.hide();
       return;
     }
@@ -767,6 +775,7 @@ onAuthStateChanged(auth, async user => {
   } else {
     document.getElementById('login-screen').style.display = 'flex';
     document.getElementById('admin-app').style.display    = 'none';
+    clearBtnBusy(document.getElementById('a-login-btn'));
     if (window._ai) window._ai.hide();
   }
 });
