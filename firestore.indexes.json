@@ -243,6 +243,13 @@
         { "fieldPath": "restoId",   "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "paiements",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "statut", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

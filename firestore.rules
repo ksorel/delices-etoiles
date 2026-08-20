@@ -236,6 +236,18 @@ service cloud.firestore {
       }
     }
 
+    // ─── Requête transversale (collectionGroup) sur devis/*/paiements ──
+    // Une règle match imbriquée (ci-dessus) ne couvre QUE l'accès via le
+    // chemin exact devis/{id}/paiements — pas les requêtes collectionGroup()
+    // qui interrogent tous les sous-dossiers "paiements" à la fois (utilisé
+    // par admin.html pour le revenu traiteur consolidé, vue « Tous
+    // établissements »). Sans cette règle {path=**}, la requête échouait en
+    // permission-denied — silencieusement rattrapée, revenu traiteur affiché
+    // à 0 sans erreur visible.
+    match /{path=**}/paiements/{pId} {
+      allow read: if isAdmin();
+    }
+
     // ─── Prestations traiteur ────────────────────────────────
     match /prestations/{prestId} {
       allow read, write: if isAdmin();

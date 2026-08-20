@@ -569,6 +569,18 @@ import {
   ref, uploadBytes, getDownloadURL
 } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js';
 
+// Sur réseau instable, un appel Firebase peut ne jamais se résoudre ni
+// rejeter — sans timeout, l'écran de connexion resterait bloqué
+// indéfiniment (même bug déjà corrigé côté dashboard.html).
+function withTimeout(promise, ms) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Timeout ' + ms + 'ms')), ms)
+    ),
+  ]);
+}
+
 let currentPage = 'dashboard';
 
 // ── Multi-établissement (propriétaire) ────────────────────
@@ -604,6 +616,13 @@ function escapeAdminHtml(s) {
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
   }[c]));
 }
+// URL saisie/transmise par un client anonyme (ex. fichier joint devis, CV
+// candidature) utilisée en attribut href : l'échappement HTML seul ne
+// bloque pas un schéma "javascript:" ou "data:" — on n'autorise donc que
+// http(s), sinon on neutralise le lien plutôt que de le suivre tel quel.
+function safeUrl(u) {
+  return /^https?:\/\//i.test(u || '') ? escapeAdminHtml(u) : '#';
+}
 // Petite puce « 📍 Lieu » à insérer dans les tableaux en mode « Tous ».
 function lieuChip(id) {
   return '<span style="display:inline-block;font-size:11px;font-weight:700;color:#C2410C;'
@@ -637,15 +656,17 @@ window.doAdminLogin = async () => {
   const pass  = document.getElementById('a-pass').value;
   document.getElementById('a-err').textContent = '';
   try {
-    const cred = await signInWithEmailAndPassword(auth, email, pass);
-    const token = await cred.user.getIdTokenResult();
+    const cred = await withTimeout(signInWithEmailAndPassword(auth, email, pass), 15000);
+    const token = await withTimeout(cred.user.getIdTokenResult(), 10000);
     if (!['admin', 'manager'].includes(token.claims.role)) {
       await signOut(auth);
       document.getElementById('a-err').textContent = 'Accès refusé. Compte Propriétaire ou Gérant requis.';
       return;
     }
-  } catch {
-    document.getElementById('a-err').textContent = 'Identifiants incorrects.';
+  } catch (e) {
+    document.getElementById('a-err').textContent = (e && e.message && e.message.startsWith('Timeout'))
+      ? 'Connexion trop lente. Vérifiez votre réseau et réessayez.'
+      : 'Identifiants incorrects.';
   }
 };
 
@@ -676,15 +697,26 @@ onAuthStateChanged(auth, async user => {
   if (user) {
     // Réactiver le réseau Firestore (coupé par disableNetwork() à la déconnexion —
     // sans ça, un changement d'utilisateur sur la même page restait bloqué en cache local).
-    try { await enableNetwork(db); } catch(_) {}
-    // Lire le rôle avec retry si token pas encore propagé
-    let token = await user.getIdTokenResult();
-    if (!token.claims.role) {
-      token = await user.getIdToken(true).then(() => user.getIdTokenResult());
-    }
-    if (!token.claims.role) {
-      await new Promise(r => setTimeout(r, 2000));
-      token = await user.getIdToken(true).then(() => user.getIdTokenResult());
+    try { await withTimeout(enableNetwork(db), 8000); } catch(_) {}
+    // Lire le rôle avec retry si token pas encore propagé — chaque étape
+    // est bornée dans le temps pour ne pas laisser l'écran de connexion
+    // figé indéfiniment sur réseau instable.
+    let token;
+    try {
+      token = await withTimeout(user.getIdTokenResult(), 10000);
+      if (!token.claims.role) {
+        token = await withTimeout(user.getIdToken(true).then(() => user.getIdTokenResult()), 10000);
+      }
+      if (!token.claims.role) {
+        await new Promise(r => setTimeout(r, 2000));
+        token = await withTimeout(user.getIdToken(true).then(() => user.getIdTokenResult()), 10000);
+      }
+    } catch (e) {
+      console.warn('Lecture du rôle échouée :', e);
+      const err = document.getElementById('a-err');
+      if (err) err.textContent = 'Connexion trop lente ou instable. Réessayez.';
+      try { await signOut(auth); } catch (_) {}
+      return;
     }
     if (!['admin', 'manager'].includes(token.claims.role)) {
       // Session staff non autorisée (ex. connexion au dashboard dans un autre onglet,
@@ -743,18 +775,23 @@ onAuthStateChanged(auth, async user => {
 async function loadData() {
   // Établissements (toujours chargés) pour le sélecteur
   try {
-    const rSnap = await getDocs(query(collection(db,'restos'), orderBy('ordre')));
+    const rSnap = await withTimeout(getDocs(query(collection(db,'restos'), orderBy('ordre'))), 15000);
     lieux = rSnap.docs.map(d => ({id:d.id, ...d.data()}));
   } catch(e) { lieux = []; console.warn('Lieux:', e); }
 
   const rc = ridConstraints();
-  const [zSnap, uSnap] = await Promise.all([
-    getDocs(query(collection(db,'zones-livraison'), ...rc)),
-    getDocs(query(collection(db,'upselling-rules'), ...rc)),
-  ]);
-  zones       = zSnap.docs.map(d => ({id:d.id,...d.data()}));
-  upsellRules = uSnap.docs.map(d => ({id:d.id,...d.data()}));
-  menuItems   = await loadMenuItems();
+  try {
+    const [zSnap, uSnap] = await withTimeout(Promise.all([
+      getDocs(query(collection(db,'zones-livraison'), ...rc)),
+      getDocs(query(collection(db,'upselling-rules'), ...rc)),
+    ]), 15000);
+    zones       = zSnap.docs.map(d => ({id:d.id,...d.data()}));
+    upsellRules = uSnap.docs.map(d => ({id:d.id,...d.data()}));
+  } catch(e) { zones = []; upsellRules = []; console.warn('Zones/upselling:', e); }
+
+  try {
+    menuItems = await withTimeout(loadMenuItems(), 15000);
+  } catch(e) { menuItems = []; console.warn('Menu items:', e); }
 }
 
 // Catalogue partagé (menus/{id}) + dispo/prix par établissement (menu-dispo/{id}_{restoId}),
@@ -2435,7 +2472,7 @@ function renderCandidatures(c) {
           + '<td style="padding:10px 12px">'
           +   '<div style="font-weight:700;color:var(--brown)">' + escapeAdminHtml(cand.nom || '—') + '</div>'
           +   '<div style="font-size:12px;color:var(--muted)">' + escapeAdminHtml(cand.posteTitre || '') + '</div>'
-          +   (cand.cvUrl ? '<a href="' + cand.cvUrl + '" target="_blank" rel="noopener" style="font-size:11px;color:#0369A1;font-weight:700;text-decoration:none;display:inline-block;margin-top:3px">📄 CV</a>' : '')
+          +   (cand.cvUrl ? '<a href="' + safeUrl(cand.cvUrl) + '" target="_blank" rel="noopener" style="font-size:11px;color:#0369A1;font-weight:700;text-decoration:none;display:inline-block;margin-top:3px">📄 CV</a>' : '')
           +   (lieu ? '<div style="margin-top:3px">' + lieu + '</div>' : '')
           + '</td>'
           + '<td style="padding:10px 12px;max-width:280px;font-size:13px;color:var(--muted)">' + (cand.message ? escapeAdminHtml(cand.message) : '<span style="color:#CCC">—</span>') + '</td>'
@@ -2545,7 +2582,7 @@ async function renderDevisDemandes(c) {
             ? d.createdAt.toDate().toLocaleDateString('fr-FR', { day:'numeric', month:'short' })
             : '—';
           const fichier = d.fichier?.url
-            ? '<a href="' + d.fichier.url + '" target="_blank" style="color:#F26522;font-size:12px;text-decoration:none">📎 ' + (d.fichier.nom || 'Doc') + '</a>'
+            ? '<a href="' + safeUrl(d.fichier.url) + '" target="_blank" style="color:#F26522;font-size:12px;text-decoration:none">📎 ' + escapeAdminHtml(d.fichier.nom || 'Doc') + '</a>'
             : '<span style="color:#CCC;font-size:12px">—</span>';
 
           return '<tr style="border-bottom:1px solid var(--border)">'
@@ -3593,8 +3630,8 @@ window.Admin.loadDemandeInfo = async function(devisId, loadLines) {
       + ' · ' + escapeAdminHtml(d.lieu || '—')
       + zoneFraisHtml
       + (d.besoins ? '<br><em style="color:var(--muted)">' + escapeAdminHtml(d.besoins) + '</em>' : '')
-      + (d.client?.tel ? '<br>📞 ' + d.client.tel : '')
-      + (d.client?.email ? ' · ✉️ ' + d.client.email : '')
+      + (d.client?.tel ? '<br>📞 ' + escapeAdminHtml(d.client.tel) : '')
+      + (d.client?.email ? ' · ✉️ ' + escapeAdminHtml(d.client.email) : '')
       + prestationsHtml;
 
     window.Admin._currentDevisId   = devisId;

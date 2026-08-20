@@ -861,7 +861,7 @@ async function initDashboard() {
   try {
     const mCons = [ where('available','==',true) ];
     if (currentRestoId) mCons.push(where('restoId','==',currentRestoId));
-    const mSnap = await getDocs(query(collection(db,'menus'), ...mCons));
+    const mSnap = await withTimeout(getDocs(query(collection(db,'menus'), ...mCons)), 15000);
     dashMenu = mSnap.docs.map(d=>({id:d.id,...d.data()}));
   } catch(e) { console.warn('Menu load:', e); }
 
