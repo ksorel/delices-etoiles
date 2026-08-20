@@ -67,9 +67,14 @@ scripts/               # backfill-restoid.js, bootstrap-owner.js, seed-restos.js
 8. **Échapper tout texte libre saisi par le client** avant de l'injecter dans `innerHTML` (nom, note,
    commentaire, adresse…) via une fonction `escapeHtml()` — présente dans `app.js` **et** `dashboard.html`
    (le dashboard affiche des champs écrits par des clients anonymes : réservations, commandes, livraison).
-9. **`.gitignore` doit rester en UTF-8 sans BOM.** PowerShell (`Out-File`/`Add-Content` sans `-Encoding utf8`)
-   écrit en UTF-16 par défaut ; un `.gitignore` partiellement UTF-16 rend ses dernières lignes invisibles
-   pour Git (motifs ignorés silencieusement). Toujours vérifier après modif : `git check-ignore -v <fichier>`.
+   `admin.html` a l'équivalent `escapeAdminHtml()` — un vrai XSS stocké a déjà été trouvé et corrigé (audit du
+   2026-08-20) sur des champs client anonymes affichés sans échappement dans les devis/candidatures.
+9. **URL saisie par un client anonyme utilisée en attribut `href`** (fichier joint devis, CV candidature…) :
+   l'échappement HTML seul ne bloque pas un schéma `javascript:`/`data:` — passer par `safeUrl()`
+   (`admin.html`) qui n'autorise que `http(s)://`, sinon neutralise le lien (`#`).
+10. **`.gitignore` doit rester en UTF-8 sans BOM.** PowerShell (`Out-File`/`Add-Content` sans `-Encoding utf8`)
+    écrit en UTF-16 par défaut ; un `.gitignore` partiellement UTF-16 rend ses dernières lignes invisibles
+    pour Git (motifs ignorés silencieusement). Toujours vérifier après modif : `git check-ignore -v <fichier>`.
 
 ## 5. Architecture
 
@@ -145,19 +150,31 @@ custom claims d'abord → écritures de données → backfill → règles strict
     réservation (`enableReservationNotifications`, jeton stocké sur le doc `reservations`).
 - **Contact de l'écran de connexion dashboard configurable** : `restos/{id}.loginContactPhone` par établissement,
   avec repli sur un numéro global (`config/accueil.loginContactPhone`) si l'établissement n'en a pas renseigné.
+- **Footer persistant** (portail client, sur toutes les vues) : signature cursive « Great Vibes » + tagline,
+  liens **pages légales**, puis bloc **« Nous contacter »** une fois l'établissement identifié (téléphone(s)/
+  email `config/{restoId}.contacts`, Google Maps, Facebook, WhatsApp — remplace l'ancienne carte « Nous
+  contacter » retirée de l'écran de choix du service, consolidée ici pour être visible sur tous les écrans).
 - **Pages légales** (CGV / confidentialité / mentions légales) : contenu global réseau, `config/legal`
   `{ cgv:{fr,en}, confidentialite:{fr,en}, mentions:{fr,en}, updatedAt }` (lecture publique, écriture
-  propriétaire uniquement). Footer persistant sur le portail client (toutes les vues, signature cursive
-  « Great Vibes ») avec 3 liens vers `#legal-cgv` / `#legal-confidentialite` / `#legal-mentions` (accessibles
-  sans établissement choisi, comme Infos & Actualités) ; texte affiché selon la langue active, repli sur le
-  FR si l'anglais n'est pas rempli. Admin → onglet **Pages légales** (propriétaire uniquement) : un champ FR
-  + un champ EN par page, texte simple (pas de mise en forme).
+  propriétaire uniquement), liens `#legal-cgv` / `#legal-confidentialite` / `#legal-mentions` dans le footer
+  (accessibles sans établissement choisi, comme Infos & Actualités) ; texte affiché selon la langue active,
+  repli sur le FR si l'anglais n'est pas rempli. Admin → onglet **Pages légales** (propriétaire uniquement) :
+  un champ FR + un champ EN par page, texte simple (pas de mise en forme).
+- **Statistiques de visiteurs** : compteur journalier par établissement (`stats-visites/{restoId}_{date}`),
+  incrémenté côté client (`trackVisit`) une fois l'établissement identifié — 1 fois par jour et par appareil
+  (repère `localStorage`), écriture limitée par règle Firestore à un incrément exact de +1 (aucune valeur
+  arbitraire possible), lecture réservée au staff. Admin → Statistiques : cases **Visiteurs** et **Taux de
+  conversion** (commandes ÷ visiteurs), mêmes période et établissement que le reste de la page.
+- **Connexion admin + dashboard** : bouton désactivé + spinner dès le clic (`setBtnBusy`/`clearBtnBusy`,
+  présent dans les deux fichiers), réactivé sur tout chemin d'échec (identifiants invalides, timeout, rôle
+  non autorisé, lecture du rôle échouée) — évite qu'un utilisateur sur réseau lent pense que rien ne se passe.
 
 ## 7. Collections Firestore (principales)
 
 `restos`, `config` (dont `config/accueil`, `config/legal`, `config/{restoId}`), `menus`, `zones-livraison`, `upselling-rules`,
 `commandes` (types `salle` | `livraison` | `surplace`), `reservations`, `paiements`, `depenses`, `stocks`,
-`plat-du-jour`, `employees`, `floor-plan` (docs `layout-{restoId}`), collections traiteur (devis, zones-traiteur…).
+`plat-du-jour`, `employees`, `floor-plan` (docs `layout-{restoId}`), `stats-visites` (docs `{restoId}_{date}`),
+collections traiteur (devis, zones-traiteur…).
 
 ## 8. Cloud Functions (functions/index.js) — points clés
 
@@ -195,6 +212,13 @@ npx firebase-tools deploy --only hosting
 
 # (ou tout d'un coup, mais l'ordre ci-dessus est plus sûr pour les changements de règles/claims)
 ```
+
+⚠️ La session `npx firebase-tools` (login CLI, différent du service account) expire périodiquement.
+Si un déploiement échoue avec `Authentication Error: Your credentials are no longer valid`, relancer
+`npx firebase-tools login --reauth` (interactif, ouvre le navigateur — à faire par l'utilisateur, pas
+en tâche de fond). Juste après un ré-auth, le premier `deploy` peut échouer avec `Assertion failed:
+resolving hosting target of a site with no site name or target name` — ajouter `--project delices-etoiles`
+explicitement le temps que le contexte de projet du CLI se stabilise.
 
 ### Backfill des données existantes (si des docs n'ont pas de restoId)
 ```powershell
