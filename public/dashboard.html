@@ -960,7 +960,7 @@ async function showEstablishmentName() {
       const chip = document.createElement('div');
       chip.id = 'dash-resto';
       chip.style.cssText = 'font-size:12px;font-weight:800;color:#F26522;margin-top:2px';
-      chip.innerHTML = '<a href="' + mapUrl + '" target="_blank" rel="noopener" title="Voir sur Google Maps" '
+      chip.innerHTML = '<a href="' + safeUrl(mapUrl) + '" target="_blank" rel="noopener" title="Voir sur Google Maps" '
         + 'style="color:inherit;text-decoration:none;display:inline-flex;align-items:center;gap:4px">'
         + '<svg viewBox="0 0 24 24" width="13" height="13" style="display:block;flex-shrink:0"><path fill="#F26522" '
         + 'd="M12 2C7.86 2 4.5 5.36 4.5 9.5c0 5.5 6.25 11.5 7.02 12.22a.7.7 0 00.96 0C13.25 21 19.5 15 19.5 9.5 19.5 5.36 16.14 2 12 2zm0 10.25a2.75 2.75 0 110-5.5 2.75 2.75 0 010 5.5z"/></svg>'
@@ -1127,6 +1127,12 @@ function escapeHtml(s) {
   return String(s || '').replace(/[&<>"']/g, c => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
   }[c]));
+}
+// URL saisie par un compte gérant/propriétaire (ex. lien Maps d'un
+// établissement) utilisée en attribut href : l'échappement HTML seul ne
+// bloque pas un schéma "javascript:"/"data:" — n'autoriser que http(s).
+function safeUrl(u) {
+  return /^https?:\/\//i.test(u || '') ? escapeHtml(u) : '#';
 }
 function renderReservationCard(r) {
   const stMap = {

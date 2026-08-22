@@ -596,8 +596,8 @@ function updateHeader() {
       } else {
         // Nom court (champ dédié nomCourt, sinon commune, sinon nom) + ellipse ;
         // « ← Retour » reste sur la même ligne.
-        const court = State.resto?.nomCourt || State.resto?.commune || State.resto?.nom || '';
-        const mapU = lieuMapUrl(State.resto);
+        const court = escapeHtml(State.resto?.nomCourt || State.resto?.commune || State.resto?.nom || '');
+        const mapU = safeUrl(lieuMapUrl(State.resto));
         mk.innerHTML = `<a href="${mapU}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="Voir sur Google Maps" style="color:inherit;text-decoration:none;display:inline-flex;align-items:center;gap:4px;overflow:hidden;min-width:0">${PIN_SVG}<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><strong>${court}</strong></span></a>`
           + `<span style="color:#F26522;font-weight:700;white-space:nowrap;flex:0 0 auto">· ← ${t('back')}</span>`;
       }
@@ -744,13 +744,13 @@ function buildFooterContactHtml() {
   const c = State.contacts;
   const rows = [];
   if (c) {
-    if (c.tel1 && c.tel1_show !== false) rows.push({ href: 'tel:' + c.tel1.replace(/\s/g,''), icon: SF_ICON_PHONE, label: c.tel1 });
-    if (c.tel2 && c.tel2_show !== false) rows.push({ href: 'tel:' + c.tel2.replace(/\s/g,''), icon: SF_ICON_PHONE, label: c.tel2 });
-    if (c.email && c.email_show !== false) rows.push({ href: 'mailto:' + c.email, icon: SF_ICON_MAIL, label: c.email });
+    if (c.tel1 && c.tel1_show !== false) rows.push({ href: 'tel:' + escapeHtml(c.tel1.replace(/\s/g,'')), icon: SF_ICON_PHONE, label: c.tel1 });
+    if (c.tel2 && c.tel2_show !== false) rows.push({ href: 'tel:' + escapeHtml(c.tel2.replace(/\s/g,'')), icon: SF_ICON_PHONE, label: c.tel2 });
+    if (c.email && c.email_show !== false) rows.push({ href: 'mailto:' + escapeHtml(c.email), icon: SF_ICON_MAIL, label: c.email });
   }
-  rows.push({ href: lieuMapUrl(State.resto), icon: PIN_SVG.replace('width="15" height="15"', 'width="14" height="14"'), label: t('contact_maps'), external: true });
+  rows.push({ href: safeUrl(lieuMapUrl(State.resto)), icon: PIN_SVG.replace('width="15" height="15"', 'width="14" height="14"'), label: t('contact_maps'), external: true });
   if (State.resto.facebookUrl) {
-    rows.push({ href: State.resto.facebookUrl, icon: FB_SVG.replace('width="26" height="26"', 'width="14" height="14"'), label: t('contact_facebook'), external: true });
+    rows.push({ href: safeUrl(State.resto.facebookUrl), icon: FB_SVG.replace('width="26" height="26"', 'width="14" height="14"'), label: t('contact_facebook'), external: true });
   }
   const waNum = (State.resto.whatsapp || '').replace(/[^0-9]/g, '');
   if (waNum) {
@@ -760,10 +760,10 @@ function buildFooterContactHtml() {
   const nom = State.resto.nomCourt || State.resto.commune || State.resto.nom || '';
   const items = rows.map(r =>
     '<a href="' + r.href + '"' + (r.external ? ' target="_blank" rel="noopener"' : '') + '>'
-    + r.icon + '<span>' + r.label + '</span></a>'
+    + r.icon + '<span>' + escapeHtml(r.label) + '</span></a>'
   ).join('');
   return '<div class="sf-contact">'
-    + '<div class="sf-contact-title">' + t('contact_title') + (nom ? ' — ' + nom : '') + '</div>'
+    + '<div class="sf-contact-title">' + t('contact_title') + (nom ? ' — ' + escapeHtml(nom) : '') + '</div>'
     + '<nav class="sf-links">' + items + '</nav>'
     + '</div>';
 }
@@ -774,7 +774,7 @@ function renderMenu(container) {
       <div class="empty-state">
         <div class="empty-state-icon">🍽️</div>
         <p class="empty-state-title">${t('menu_empty_title')}</p>
-        <p class="empty-state-sub">${nom ? nom + ' — ' : ''}${t('menu_empty_sub')}</p>
+        <p class="empty-state-sub">${nom ? escapeHtml(nom) + ' — ' : ''}${t('menu_empty_sub')}</p>
         ${State.mode !== 'salle'
           ? `<button class="empty-state-btn" onclick="window.App.changeResto()">${t('picker_change')}</button>`
           : ''}
@@ -871,6 +871,12 @@ function escapeHtml(s) {
   return String(s || '').replace(/[&<>"']/g, c => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
   }[c]));
+}
+// URL saisie par un compte gérant/propriétaire (ex. lien Facebook d'un
+// établissement) utilisée en attribut href : l'échappement HTML seul ne
+// bloque pas un schéma "javascript:"/"data:" — n'autoriser que http(s).
+function safeUrl(u) {
+  return /^https?:\/\//i.test(u || '') ? escapeHtml(u) : '#';
 }
 // ─── Téléphone — format harmonisé (CI, 10 chiffres commençant par 0) ────
 // Formatage en direct dans le champ : chiffres uniquement, "225"/"+225" en
@@ -2745,11 +2751,11 @@ async function renderRestoPicker() {
   }
 
   const cards = lieux.map(l => {
-    const loc = l.commune ? `${l.commune}${l.adresse ? ' · ' + l.adresse : ''}` : '';
+    const loc = l.commune ? `${escapeHtml(l.commune)}${l.adresse ? ' · ' + escapeHtml(l.adresse) : ''}` : '';
     const wa = (l.whatsapp || '').replace(/[^0-9]/g, '');
     const social = (l.facebookUrl || wa)
       ? `<span style="display:flex;gap:10px;margin-top:8px;align-items:center">`
-        + (l.facebookUrl ? `<a href="${l.facebookUrl}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="Facebook" style="line-height:0">${FB_SVG}</a>` : '')
+        + (l.facebookUrl ? `<a href="${safeUrl(l.facebookUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="Facebook" style="line-height:0">${FB_SVG}</a>` : '')
         + (wa ? `<a href="https://wa.me/${wa}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="WhatsApp" style="line-height:0">${WA_SVG}</a>` : '')
         + `</span>`
       : '';
@@ -2758,11 +2764,11 @@ async function renderRestoPicker() {
          onclick="window.App.chooseResto('${l.id}')"
          onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();window.App.chooseResto('${l.id}')}">
       ${l.logoUrl
-        ? `<span class="resto-pick-avatar" style="background:#fff;background-image:url('${l.logoUrl}');background-size:cover;background-position:center"></span>`
+        ? `<span class="resto-pick-avatar" style="background:#fff;background-image:url('${escapeHtml(l.logoUrl)}');background-size:cover;background-position:center"></span>`
         : `<span class="resto-pick-avatar">🍽️</span>`}
       <span class="resto-pick-body">
-        <span class="resto-pick-name">${l.nomCourt || l.commune || l.nom || l.id}</span>
-        ${loc ? `<a class="resto-pick-map" href="${lieuMapUrl(l)}" target="_blank" rel="noopener" title="Voir sur Google Maps" onclick="event.stopPropagation()"><span class="resto-pick-maptext">${PIN_SVG} ${loc}</span></a>` : ''}
+        <span class="resto-pick-name">${escapeHtml(l.nomCourt || l.commune || l.nom || l.id)}</span>
+        ${loc ? `<a class="resto-pick-map" href="${safeUrl(lieuMapUrl(l))}" target="_blank" rel="noopener" title="Voir sur Google Maps" onclick="event.stopPropagation()"><span class="resto-pick-maptext">${PIN_SVG} ${loc}</span></a>` : ''}
         ${social}
       </span>
     </div>`;
@@ -3332,7 +3338,7 @@ function renderReservation() {
   view.innerHTML = `
     <div style="max-width:480px;margin:0 auto;padding:18px 16px 40px">
       <h2 style="font-size:20px;font-weight:800;color:#2B1D16;margin:0 0 2px">📅 ${t('service_reserver')}</h2>
-      <p style="font-size:13px;color:#7a6a55;margin:0 0 18px">${State.resto?.nomCourt || State.resto?.commune || State.resto?.nom || ''}</p>
+      <p style="font-size:13px;color:#7a6a55;margin:0 0 18px">${escapeHtml(State.resto?.nomCourt || State.resto?.commune || State.resto?.nom || '')}</p>
       <div style="display:flex;flex-direction:column;gap:14px">
         <div><label style="${L}">${t('telephone')} *</label><input id="rv-tel" type="tel" style="${_SVC_INPUT}" placeholder="${PHONE_PLACEHOLDER}" ${PHONE_INPUT_ATTRS} value="${formatPhoneDisplay(d.tel||'')}"></div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">

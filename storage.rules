@@ -23,19 +23,30 @@ service firebase.storage {
     }
 
     // ─── Documents devis traiteur ────────────────────────────
+    // En pratique l'app passe toujours par la Cloud Function uploadDevisFile
+    // (Admin SDK, contourne ces règles) qui valide déjà taille/type — mais un
+    // appel direct au SDK Storage côté client (hors app, avec juste l'auth
+    // anonyme que tout visiteur obtient automatiquement) doit être bloqué de
+    // la même façon : défense en profondeur, mêmes limites que côté function.
     match /devis/{fileName} {
       allow read:  if request.auth != null
                    && request.auth.token.role == 'admin';
-      allow create: if request.auth != null;
+      allow create: if request.auth != null
+                    && request.resource.size < 5 * 1024 * 1024
+                    && request.resource.contentType.matches('application/pdf|application/msword|application/vnd[.]openxmlformats-officedocument[.]wordprocessingml[.]document|image/jpeg|image/png');
     }
 
     // ─── CV joints à une candidature (formulaire "Postuler") ──
     // Contient des infos personnelles : lecture reservée au staff (comme la
     // liste des candidatures elle-même, scopée par établissement côté Firestore).
+    // Mêmes contraintes taille/type qu'au-dessus, même raison (défense en
+    // profondeur contre un appel direct au SDK Storage hors app).
     match /candidatures/{fileName} {
       allow read: if request.auth != null
                   && request.auth.token.role in ['admin','manager','serveur','bar','cuisine','livreur','caissier','custom'];
-      allow create: if request.auth != null;
+      allow create: if request.auth != null
+                    && request.resource.size < 5 * 1024 * 1024
+                    && request.resource.contentType.matches('application/pdf|application/msword|application/vnd[.]openxmlformats-officedocument[.]wordprocessingml[.]document|image/jpeg|image/png');
     }
 
     // ─── Justificatifs de dépenses (comptabilité) ─────────────
