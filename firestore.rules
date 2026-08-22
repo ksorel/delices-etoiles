@@ -111,19 +111,25 @@ service cloud.firestore {
     // ─── Fidélité — un doc par numéro de téléphone (identifiant stable,
     // les clients étant authentifiés en anonyme) ───────────────────
     // Un client peut créer son propre doc (première visite) et mettre à jour
-    // sa date de visite/son nom. Le staff peut modifier "recompenses" librement
-    // (marquer une récompense comme utilisée manuellement). Un client authentifié
-    // peut aussi mettre à jour SA carte "recompenses" — c'est le flux de
-    // consommation automatique de la réduction fidélité (redeemLoyaltyReward,
-    // déclenché juste après la création de sa propre commande) ; il ne touche
-    // aucun autre champ du doc, donc le pire abus possible est de réinitialiser
-    // le compteur de fidélité d'un tiers (gêne mineure, sans gain pour l'auteur).
+    // sa date de visite/son nom — premiereVisite/derniereVisite sont forcés à
+    // l'heure serveur (request.time), sinon un client pourrait se déclarer
+    // "premier client depuis 2020" et se rendre instantanément éligible à la
+    // récompense fidélité. "recompenses" (éligibilité + date de dernière
+    // récompense) n'est PLUS écrit par le client (ancienne règle — un client
+    // pouvait y écrire n'importe quelle valeur, y compris une date passée
+    // arbitraire, pour forger son éligibilité avant de commander) : seul le
+    // staff (redeemLoyaltyReward manuel) ou le trigger onNewOrder (Admin SDK,
+    // hors règles, après revalidation — voir computeAuthoritativeLoyalty dans
+    // functions/index.js) peut désormais le modifier.
     match /clients/{telephone} {
       allow read: if isAuth();
-      allow create: if isAuth() && !('recompenses' in request.resource.data);
+      allow create: if isAuth() && !('recompenses' in request.resource.data)
+                    && request.resource.data.premiereVisite == request.time
+                    && request.resource.data.derniereVisite == request.time;
       allow update: if isStaff()
-                    || (isAuth() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['derniereVisite', 'nom']))
-                    || (isAuth() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['recompenses']));
+                    || (isAuth()
+                        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['derniereVisite', 'nom'])
+                        && request.resource.data.derniereVisite == request.time);
       allow delete: if isAdmin();
     }
 

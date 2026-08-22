@@ -113,8 +113,8 @@ function buildRoleClaims(input, restoId) {
 // juste après la création, revérifie chaque ligne contre le vrai catalogue
 // (menu-dispo/menus) + les frais de livraison contre la vraie zone, et
 // corrige le doc si besoin — avant que le staff ne voie/traite la commande.
-// La réduction fidélité (montant) reste pour l'instant prise telle quelle
-// (validation de l'éligibilité = chantier séparé, plus petit enjeu FCFA).
+// La réduction fidélité est revalidée par computeAuthoritativeLoyalty
+// ci-dessous (date + % contre la vraie config, pas juste plafonnée).
 async function computeAuthoritativeOrderTotal(order) {
   const items   = order.items || [];
   const restoId = order.restoId;
@@ -172,13 +172,67 @@ async function computeAuthoritativeOrderTotal(order) {
     } catch (e) { console.warn('computeAuthoritativeOrderTotal: zone', order.livraison.zoneId, e.message); }
   }
 
-  // La réduction ne peut pas dépasser le sous-total articles (filet de
-  // sécurité minimal, pas une validation complète de l'éligibilité).
-  const loyaltyMontant = Math.min(order.loyaltyDiscount?.montant || 0, itemsTotal);
+  const loyaltyMontant = await computeAuthoritativeLoyalty(order, itemsTotal);
+  if ((order.loyaltyDiscount?.montant || 0) !== loyaltyMontant) {
+    corrections.push({ id: '_loyalty', name: 'Réduction fidélité', declare: order.loyaltyDiscount?.montant || 0, attendu: loyaltyMontant });
+  }
   const sousTotal    = itemsTotal - loyaltyMontant;
   const expectedTotal = sousTotal + deliveryFee;
 
   return { expectedTotal, sousTotal, corrections };
+}
+
+// Résout la config fidélité effective d'un établissement — miroir serveur de
+// fetchLoyaltyConfig (public/js/db.js) : réglage resto s'il est personnalisé
+// et actif, sinon repli réseau (config/fidelite-reseau).
+async function resolveLoyaltyConfig(restoId) {
+  try {
+    const restoSnap = await db.collection('config').doc(restoId).get();
+    const loyalty = restoSnap.exists ? restoSnap.data().loyalty : null;
+    if (loyalty && loyalty.useNetwork === false && loyalty.periodDays > 0) return loyalty;
+  } catch (e) { console.warn('resolveLoyaltyConfig: resto', restoId, e.message); }
+  try {
+    const netSnap = await db.collection('config').doc('fidelite-reseau').get();
+    if (netSnap.exists && netSnap.data().periodDays > 0) return netSnap.data();
+  } catch (e) { console.warn('resolveLoyaltyConfig: reseau', e.message); }
+  return null;
+}
+
+// Revalide l'éligibilité fidélité déclarée par le client (date + %) au lieu
+// de simplement plafonner le montant au sous-total articles (ancien
+// comportement, voir audit du 22/08). Si la réduction est accordée, marque
+// aussi la récompense comme consommée ici (Admin SDK, hors règles) — le
+// client n'a plus le droit d'écrire clients/{tel}.recompenses lui-même
+// (firestore.rules), sinon il pouvait forger sa propre éligibilité (date
+// arbitraire dans "recompenses" ou "premiereVisite") avant de commander.
+async function computeAuthoritativeLoyalty(order, itemsTotal) {
+  if (!order.loyaltyDiscount?.montant) return 0;
+  const telephone = order.telephone || order.livraison?.telephone || null;
+  const restoId    = order.restoId;
+  if (!telephone || !restoId) return 0;
+
+  const cfg = await resolveLoyaltyConfig(restoId);
+  if (!cfg || cfg.rewardType !== 'reduction' || !(cfg.rewardPercent > 0)) return 0;
+
+  let clientSnap;
+  try {
+    clientSnap = await db.collection('clients').doc(telephone).get();
+  } catch (e) { console.warn('computeAuthoritativeLoyalty: client', telephone, e.message); return 0; }
+  if (!clientSnap.exists) return 0;
+  const clientData = clientSnap.data();
+  const rec = clientData.recompenses?.[restoId];
+  const refDate = rec?.derniereRecompenseAt?.toDate?.() || clientData.premiereVisite?.toDate?.() || null;
+  if (!refDate) return 0;
+  const elapsedDays = (Date.now() - refDate.getTime()) / 86400000;
+  if (elapsedDays < cfg.periodDays) return 0;
+
+  const montant = Math.min(Math.round(itemsTotal * cfg.rewardPercent / 100), itemsTotal);
+  if (montant > 0) {
+    await db.collection('clients').doc(telephone).set({
+      recompenses: { [restoId]: { derniereRecompenseAt: admin.firestore.FieldValue.serverTimestamp() } },
+    }, { merge: true });
+  }
+  return montant;
 }
 
 // ─────────────────────────────────────────────────────────

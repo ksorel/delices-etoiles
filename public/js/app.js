@@ -11,7 +11,7 @@ import { fetchMenu, fetchZones, fetchUpsellRules, getOrCreateTable, fetchPlatDuJ
          submitReservation, createOrder, listenReservation, findReservation, findOrder,
          fetchAvisForItem, hasVerifiedPurchase, getExistingAvis, submitAvis, setAvisRating,
          updateOrderStatus, fetchAnnonces, submitCandidature,
-         touchClientVisit, fetchLoyaltyConfig, fetchClientLoyalty, computeLoyaltyStatus, redeemLoyaltyReward,
+         touchClientVisit, fetchLoyaltyConfig, fetchClientLoyalty, computeLoyaltyStatus,
          fetchReservationConfig, fetchReservationsForDate, fetchLegalConfig, trackVisit } from './db.js?v=2';
 import { getDoc, doc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { requestNotificationPermission, listenForegroundMessages } from './fcm.js?v=2';
@@ -1754,7 +1754,6 @@ async function confirmSalle() {
     const { sousTotal: totalCart, loyaltyDiscount } = applyLoyaltyDiscount(computeTotal(cartItems), discountPercent);
     const orderId    = await submitSalleOrder(State.tableId, State.uid, operateur, State.sessionId, cartItems, false, salleTelNorm, discountPercent);
     if (salleTelNorm) touchClientVisit(salleTelNorm, null);
-    if (loyaltyDiscount) redeemLoyaltyReward(salleTelNorm, restoId).catch(e => console.warn('redeemLoyaltyReward:', e));
     clearCart();
     updateCartBadge();
     localStorage.setItem('de_last_order', JSON.stringify({ orderId, operateur, total: totalCart, mode: 'salle', ts: Date.now() }));
@@ -1825,7 +1824,6 @@ async function confirmLivraison() {
       operateur:       window._selectedPayment || 'wave',
       comment:         document.getElementById('liv-comment')?.value || '',
     }, State.uid, cartItems, discountPercent);
-    if (loyaltyDiscount) redeemLoyaltyReward(telNorm, restoId).catch(e => console.warn('redeemLoyaltyReward:', e));
     clearCart();
     updateCartBadge();
     const operateur  = window._selectedPayment || 'wave';
@@ -3524,7 +3522,6 @@ window.App.confirmSurplace = async function() {
       ...(loyaltyDiscount ? { loyaltyDiscount } : {}),
     });
     touchClientVisit(telNorm, null);
-    if (loyaltyDiscount) redeemLoyaltyReward(telNorm, restoId).catch(e => console.warn('redeemLoyaltyReward:', e));
     clearCart(); updateCartBadge();
     localStorage.setItem('de_last_order', JSON.stringify({ orderId, operateur: 'especes', mode: 'surplace', ts: Date.now() }));
     renderView('confirm', { orderId, operateur: 'especes' });
