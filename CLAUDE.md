@@ -191,8 +191,13 @@ collections traiteur (devis, zones-traiteur…).
   client écrit directement en Firestore sans passer par une function, donc `item.price`/`total` sont
   déclaratifs ; ce trigger recompare chaque ligne au vrai catalogue (`menu-dispo`/`menus`, formats/variantes)
   et les frais de livraison à la vraie zone (`zones-livraison`), corrige `total` si besoin et trace l'écart
-  (`totalOriginal`, `totalCorrigeAt`). Ne revalide pas l'éligibilité de la réduction fidélité en détail
-  (juste plafonnée au sous-total articles) — testé en conditions réelles (commande falsifiée → corrigée).
+  (`totalOriginal`, `totalCorrigeAt`). Revalide aussi l'éligibilité de la réduction fidélité
+  (`computeAuthoritativeLoyalty`, 2026-08-22) : date + % recalculés contre la vraie config
+  (`config/{restoId}.loyalty` ou repli `config/fidelite-reseau`) et le vrai statut client (`clients/{tel}`),
+  et c'est désormais CE trigger (Admin SDK) qui marque la récompense consommée — le client n'a plus le droit
+  d'écrire `clients/{tel}.recompenses` lui-même en Firestore (ancienne règle trop permissive : seule la clé
+  était vérifiée, pas la valeur, ce qui permettait de forger une date d'éligibilité arbitraire) — testé en
+  conditions réelles (commande falsifiée → corrigée, éligibilité forgée via écriture directe → refusée 403).
 - `askAssistant` : prompt système désormais **uniquement côté serveur** (`SYSTEM_PROMPTS` dans
   `functions/index.js`, copie de ceux qui vivaient dans `assistant.js`) — le client envoie juste une clé
   `contextType` (`admin`/`dashboard`/`client`), jamais le texte. Avant le 2026-08-22, un appel direct à
@@ -255,9 +260,6 @@ node .\scripts\backfill-restoid.js --apply  # applique
   2026-08-22 : reporté volontairement (aucun abus constaté à ce jour ; App Check demande une config
   reCAPTCHA v3 + une phase de surveillance avant activation stricte, risque de bloquer de vrais visiteurs
   si mal fait) — à réévaluer si un abus réel est observé.
-- **Validation complète de l'éligibilité de la réduction fidélité** côté serveur (le trigger `onNewOrder` du
-  2026-08-22 plafonne juste le montant au sous-total articles, sans revérifier la date/le pourcentage
-  configuré) — enjeu FCFA plus faible que le prix des articles, volontairement pas traité dans la même passe.
 
 ## 11. Workflow attendu de Claude Code
 
