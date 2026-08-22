@@ -6074,6 +6074,23 @@ function showRuleModal(rule) {
   const isEdit = !!rule;
   const cats = [...new Set(menuItems.map(m=>m.category).concat(isEdit ? [rule.triggerCategory] : []))];
   const selItemIds = isEdit ? (rule.itemIds||[]) : [];
+  // Catégories d'articles suggérables selon le type choisi (mêmes catégories
+  // "boisson" que le reste de l'admin, voir DRINK_CATS_STOCK/BOISSONS_CATS/
+  // DRINK_CATS_LINK plus haut) — évite de proposer une bière en
+  // "accompagnement" ou un riz en "boisson".
+  const DRINK_CATS = ['bieres','eaux','jus','spiritueux','boissons'];
+  function itemsForType(type) {
+    return menuItems.filter(m => type === 'boisson' ? DRINK_CATS.includes(m.category) : m.category === 'accompagnements');
+  }
+  function renderItemsList(type, checkedIds) {
+    const items = itemsForType(type);
+    if (!items.length) return '<p style="font-size:12px;color:var(--muted);padding:4px 0;margin:0">Aucun article dans cette catégorie.</p>';
+    return items.map(m=>`
+      <label style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px;cursor:pointer">
+        <input type="checkbox" value="${m.id}"${checkedIds.includes(m.id)?' checked':''}> ${m.name_fr} <span style="font-size:11px;color:var(--muted)">(${m.category})</span>
+      </label>`).join('');
+  }
+  const initialType = isEdit ? rule.type : 'accompagnement';
   const overlay = document.createElement('div');
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(43,29,22,.7);z-index:500;display:flex;align-items:center;justify-content:center;padding:20px';
   overlay.innerHTML = `
@@ -6084,15 +6101,18 @@ function showRuleModal(rule) {
       </div>
       <div class="form-group" style="margin-bottom:10px">
         <label class="form-label">Type de suggestion *</label>
-        <select class="form-select" id="r-type"><option${isEdit && rule.type==='accompagnement'?' selected':''}>accompagnement</option><option${isEdit && rule.type==='boisson'?' selected':''}>boisson</option></select>
+        <select class="form-select" id="r-type" onchange="window.Admin._onUpsellTypeChange()"><option${initialType==='accompagnement'?' selected':''}>accompagnement</option><option${initialType==='boisson'?' selected':''}>boisson</option></select>
       </div>
       <div class="form-group" style="margin-bottom:16px">
-        <label class="form-label">Articles à suggérer *</label>
-        <div style="max-height:180px;overflow-y:auto;border:1.5px solid var(--border);border-radius:8px;padding:8px">
-          ${menuItems.map(m=>`
-            <label style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px;cursor:pointer">
-              <input type="checkbox" value="${m.id}"${selItemIds.includes(m.id)?' checked':''}> ${m.name_fr} <span style="font-size:11px;color:var(--muted)">(${m.category})</span>
-            </label>`).join('')}
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px">
+          <label class="form-label" style="margin:0">Articles à suggérer *</label>
+          <div style="display:flex;gap:6px">
+            <button type="button" class="btn btn-sm btn-secondary" onclick="window.Admin._toggleAllUpsellItems(true)">Tout cocher</button>
+            <button type="button" class="btn btn-sm btn-secondary" onclick="window.Admin._toggleAllUpsellItems(false)">Tout décocher</button>
+          </div>
+        </div>
+        <div id="r-items-list" style="max-height:180px;overflow-y:auto;border:1.5px solid var(--border);border-radius:8px;padding:8px">
+          ${renderItemsList(initialType, selItemIds)}
         </div>
       </div>
       <div style="display:flex;gap:8px">
@@ -6102,6 +6122,15 @@ function showRuleModal(rule) {
     </div>`;
   document.body.appendChild(overlay);
   // overlay.onclick désactivé — fermeture uniquement via bouton
+
+  window.Admin._onUpsellTypeChange = () => {
+    const type = document.getElementById('r-type').value;
+    const stillChecked = [...overlay.querySelectorAll('input[type=checkbox]:checked')].map(i=>i.value);
+    document.getElementById('r-items-list').innerHTML = renderItemsList(type, stillChecked);
+  };
+  window.Admin._toggleAllUpsellItems = (checked) => {
+    overlay.querySelectorAll('#r-items-list input[type=checkbox]').forEach(cb => cb.checked = checked);
+  };
 
   window.Admin._saveRule = async (btn) => {
     const checked = [...overlay.querySelectorAll('input[type=checkbox]:checked')].map(i=>i.value);
