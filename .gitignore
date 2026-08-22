@@ -17,6 +17,9 @@ npm-debug.log
 serviceAccountKey.json
 scripts/serviceAccountKey.json
 
+# Sauvegardes locales (peuvent contenir des données personnelles clients)
+scripts/backups/
+
 # OS
 .DS_Store
 Thumbs.db
