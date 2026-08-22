@@ -105,6 +105,83 @@ function buildRoleClaims(input, restoId) {
 }
 
 // ─────────────────────────────────────────────────────────
+//  0. Recalcul serveur du total d'une commande (anti-falsification)
+// ─────────────────────────────────────────────────────────
+// La commande est écrite directement par le client (Firestore, pas de Cloud
+// Function) et firestore.rules ne valide aucun champ de prix — item.price,
+// item.qty, total sont donc entièrement déclaratifs. Ce recalcul, exécuté
+// juste après la création, revérifie chaque ligne contre le vrai catalogue
+// (menu-dispo/menus) + les frais de livraison contre la vraie zone, et
+// corrige le doc si besoin — avant que le staff ne voie/traite la commande.
+// La réduction fidélité (montant) reste pour l'instant prise telle quelle
+// (validation de l'éligibilité = chantier séparé, plus petit enjeu FCFA).
+async function computeAuthoritativeOrderTotal(order) {
+  const items   = order.items || [];
+  const restoId = order.restoId;
+  const corrections = [];
+  const catalogCache = {};
+
+  async function getCatalog(itemId) {
+    if (itemId in catalogCache) return catalogCache[itemId];
+    let data = null;
+    try {
+      const [catalogSnap, dispoSnap] = await Promise.all([
+        db.collection('menus').doc(itemId).get(),
+        db.collection('menu-dispo').doc(itemId + '_' + restoId).get(),
+      ]);
+      if (dispoSnap.exists) {
+        data = { ...(catalogSnap.exists ? catalogSnap.data() : {}), ...dispoSnap.data() };
+      } else if (catalogSnap.exists) {
+        data = catalogSnap.data(); // repli legacy : article pas encore migré vers menu-dispo
+      }
+    } catch (e) { console.warn('computeAuthoritativeOrderTotal: lookup', itemId, e.message); }
+    catalogCache[itemId] = data;
+    return data;
+  }
+
+  let itemsTotal = 0;
+  for (const line of items) {
+    const catalog = await getCatalog(line.id);
+    if (!catalog) { itemsTotal += (line.price || 0) * (line.qty || 1); continue; } // article introuvable : pas de base fiable, on ne bloque pas la commande
+    let expected = catalog.price;
+    if (line.variant && Array.isArray(catalog.variantes)) {
+      const v = catalog.variantes.find(vv => vv.label === line.variant);
+      if (v) expected = v.prix;
+    } else if (line.format && catalog.formats) {
+      if (line.format === 'demi'  && catalog.formats.demi  != null) expected = catalog.formats.demi;
+      if (line.format === 'grand' && catalog.formats.grand != null) expected = catalog.formats.grand;
+    }
+    if (typeof expected !== 'number') expected = line.price; // fiche incomplète : pas de base fiable
+    if (expected !== line.price) {
+      corrections.push({ id: line.id, name: line.name, declare: line.price, attendu: expected });
+    }
+    itemsTotal += expected * (line.qty || 1);
+  }
+
+  let deliveryFee = order.livraison?.frais || 0;
+  if (order.type === 'livraison' && order.livraison?.zoneId) {
+    try {
+      const zoneSnap = await db.collection('zones-livraison').doc(order.livraison.zoneId).get();
+      if (zoneSnap.exists) {
+        const trueFee = zoneSnap.data().frais || 0;
+        if (trueFee !== deliveryFee) {
+          corrections.push({ id: '_livraison', name: 'Frais de livraison', declare: deliveryFee, attendu: trueFee });
+        }
+        deliveryFee = trueFee;
+      }
+    } catch (e) { console.warn('computeAuthoritativeOrderTotal: zone', order.livraison.zoneId, e.message); }
+  }
+
+  // La réduction ne peut pas dépasser le sous-total articles (filet de
+  // sécurité minimal, pas une validation complète de l'éligibilité).
+  const loyaltyMontant = Math.min(order.loyaltyDiscount?.montant || 0, itemsTotal);
+  const sousTotal    = itemsTotal - loyaltyMontant;
+  const expectedTotal = sousTotal + deliveryFee;
+
+  return { expectedTotal, sousTotal, corrections };
+}
+
+// ─────────────────────────────────────────────────────────
 //  1. TRIGGER : Nouvelle commande → Notification WhatsApp + stock
 // ─────────────────────────────────────────────────────────
 // Secrets WHATSAPP_* retirés de runWith() : Sorel n'a pas encore les
@@ -120,6 +197,24 @@ exports.onNewOrder = region.firestore
   .document('commandes/{orderId}')
   .onCreate(async (snap, context) => {
     const order = { id: context.params.orderId, ...snap.data() };
+
+    // Revérifier/corriger le total contre le vrai catalogue avant tout le
+    // reste (notif, décompte stock) — voir computeAuthoritativeOrderTotal
+    // ci-dessus pour le pourquoi.
+    try {
+      const { expectedTotal, sousTotal, corrections } = await computeAuthoritativeOrderTotal(order);
+      if (corrections.length && expectedTotal !== order.total) {
+        console.warn('onNewOrder: total corrigé', order.id, 'déclaré=' + order.total, 'attendu=' + expectedTotal, JSON.stringify(corrections));
+        const patch = {
+          total: expectedTotal,
+          totalOriginal: order.total,
+          totalCorrigeAt: admin.firestore.FieldValue.serverTimestamp(),
+        };
+        if (order.type === 'livraison') patch.sous_total = sousTotal;
+        await snap.ref.update(patch);
+        order.total = expectedTotal; // pour que la suite (notif WhatsApp) reflète la bonne valeur
+      }
+    } catch (e) { console.error('onNewOrder: échec du recalcul du total', order.id, e.message); }
 
     // Notification WhatsApp — no-op tant que WHATSAPP_TOKEN n'est pas injecté
     // (secret non déclaré ci-dessus). Isolée dans son propre bloc : avant, un
