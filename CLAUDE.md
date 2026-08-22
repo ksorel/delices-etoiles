@@ -69,9 +69,12 @@ scripts/               # backfill-restoid.js, bootstrap-owner.js, seed-restos.js
    (le dashboard affiche des champs écrits par des clients anonymes : réservations, commandes, livraison).
    `admin.html` a l'équivalent `escapeAdminHtml()` — un vrai XSS stocké a déjà été trouvé et corrigé (audit du
    2026-08-20) sur des champs client anonymes affichés sans échappement dans les devis/candidatures.
-9. **URL saisie par un client anonyme utilisée en attribut `href`** (fichier joint devis, CV candidature…) :
-   l'échappement HTML seul ne bloque pas un schéma `javascript:`/`data:` — passer par `safeUrl()`
-   (`admin.html`) qui n'autorise que `http(s)://`, sinon neutralise le lien (`#`).
+9. **URL saisie par un client/gérant utilisée en attribut `href`** (fichier joint devis, CV candidature, lien
+   Facebook/Maps d'un établissement…) : l'échappement HTML seul ne bloque pas un schéma `javascript:`/`data:` —
+   passer par `safeUrl()` (présente dans `admin.html`, `app.js` **et** `dashboard.html`) qui n'autorise que
+   `http(s)://`, sinon neutralise le lien (`#`). Un audit du 2026-08-22 a trouvé plusieurs points (footer,
+   en-tête, carte établissement) où ni `escapeHtml()` ni `safeUrl()` n'étaient appliqués — toujours vérifier
+   les DEUX (texte affiché **et** URL) quand on ajoute un champ géré par un compte non-propriétaire.
 10. **`.gitignore` doit rester en UTF-8 sans BOM.** PowerShell (`Out-File`/`Add-Content` sans `-Encoding utf8`)
     écrit en UTF-16 par défaut ; un `.gitignore` partiellement UTF-16 rend ses dernières lignes invisibles
     pour Git (motifs ignorés silencieusement). Toujours vérifier après modif : `git check-ignore -v <fichier>`.
@@ -183,7 +186,22 @@ collections traiteur (devis, zones-traiteur…).
 - `updateEmployeeRole(uid, roles|role, restoId)` : met à jour les claims + doc `employees`.
 - `buildRoleClaims(input, restoId)` : `input` = string ou tableau ; retourne `{ role, roles, restoId }`
   (admin → `{ role:'admin', roles:['admin'] }`, global).
-- Trigger de notification WhatsApp sur nouvelle commande.
+- `onNewOrder` (trigger `commandes` onCreate) : notification WhatsApp (dormant, voir secrets) + décompte
+  stock **+ revalidation/correction serveur du total** (2026-08-22, `computeAuthoritativeOrderTotal`) — le
+  client écrit directement en Firestore sans passer par une function, donc `item.price`/`total` sont
+  déclaratifs ; ce trigger recompare chaque ligne au vrai catalogue (`menu-dispo`/`menus`, formats/variantes)
+  et les frais de livraison à la vraie zone (`zones-livraison`), corrige `total` si besoin et trace l'écart
+  (`totalOriginal`, `totalCorrigeAt`). Ne revalide pas l'éligibilité de la réduction fidélité en détail
+  (juste plafonnée au sous-total articles) — testé en conditions réelles (commande falsifiée → corrigée).
+- `askAssistant` : prompt système désormais **uniquement côté serveur** (`SYSTEM_PROMPTS` dans
+  `functions/index.js`, copie de ceux qui vivaient dans `assistant.js`) — le client envoie juste une clé
+  `contextType` (`admin`/`dashboard`/`client`), jamais le texte. Avant le 2026-08-22, un appel direct à
+  cet endpoint (auth anonyme suffisante) permettait d'imposer n'importe quel prompt système, détournant le
+  crédit API Anthropic du propriétaire.
+- `uploadDevisFile`/`uploadCandidatureFile` : fichier stocké **sans** `makePublic()`, URL signée (1 an,
+  non devinable) — `uploadDevisFile` utilisait `makePublic()` + nom de fichier basé sur `Date.now()`
+  (devinable) jusqu'au 2026-08-22, incohérent avec la règle Firestore qui restreint la lecture du devis à
+  l'admin. Corrigé pour utiliser le même mécanisme que `uploadCandidatureFile`.
 - **Toute modif des functions nécessite un redéploiement `--only functions`.**
 - **Secrets** : `functions.config()` est déprécié (coupure définitive prévue mars 2027) — migré vers
   **Google Secret Manager**, exposé en `process.env.X` via `.runWith({ secrets: [...] })` sur chaque
@@ -232,6 +250,14 @@ node .\scripts\backfill-restoid.js --apply  # applique
 - **Vraie intégration de paiement en ligne** (Wave Business API, CinetPay…) pour remplacer les liens profonds
   mobile money actuels par une confirmation automatique côté serveur (`paymentWebhook`, secret non configuré
   volontairement — voir §8).
+- **Firebase App Check** : aucune limite anti-abus sur les écritures anonymes (`commandes`, `devis`,
+  `candidatures`, `reservations`, `avis`) au-delà de la limite déjà en place sur `askAssistant`. Décision du
+  2026-08-22 : reporté volontairement (aucun abus constaté à ce jour ; App Check demande une config
+  reCAPTCHA v3 + une phase de surveillance avant activation stricte, risque de bloquer de vrais visiteurs
+  si mal fait) — à réévaluer si un abus réel est observé.
+- **Validation complète de l'éligibilité de la réduction fidélité** côté serveur (le trigger `onNewOrder` du
+  2026-08-22 plafonne juste le montant au sous-total articles, sans revérifier la date/le pourcentage
+  configuré) — enjeu FCFA plus faible que le prix des articles, volontairement pas traité dans la même passe.
 
 ## 11. Workflow attendu de Claude Code
 
